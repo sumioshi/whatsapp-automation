@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "whatsapp-collector": {
+      "command": "./web/node_modules/.bin/tsx",
+      "args": ["./web/mcp/server.ts"],
+      "env": {
+        "WAC_DATA_DIR": "./data",
+        "WAC_GROUPS_CONFIG": "./groups.config.json"
+      }
+    }
+  }
+}

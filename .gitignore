@@ -1,0 +1,32 @@
+# Dependências
+node_modules/
+
+# Build
+dist/
+
+# Segredos / sessão do WhatsApp (NUNCA versionar)
+.env
+auth/
+
+# Conteúdo coletado dos grupos
+data/
+
+# Config de grupos (gerada em runtime, contém nomes/JIDs reais)
+groups.config.json
+
+# Logs / SO
+*.log
+.DS_Store
+
+# tooling local instalado na sessão (não versionar)
+.claude/skills/impeccable/
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+
+# backups locais (ex: groups.config.json.bak da reinstalação)
+*.bak
+.private/
+.mcp.json
+.claude/whatsapp.json
+
+# Material interno (não open-source)
