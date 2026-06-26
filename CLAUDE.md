@@ -1,8 +1,9 @@
 <!-- wa-link:start -->
-WhatsApp deste projeto: `teste` (Teste interno). Consulte o histórico via MCP `whatsapp-collector`
-usando esse slug (ex: resumo_do_dia, ler_mensagens, buscar). Pra acompanhar ativamente (ser
-acordado quando chega msg), arme um Monitor no `data/teste/messages.jsonl` — ver "Vocabulário de
-acompanhamento" abaixo. Detalhes em `.claude/whatsapp.json`.
+WhatsApp deste projeto: `<slug-do-grupo>` (<nome do chat>). Consulte o histórico via MCP
+`whatsapp-collector` usando esse slug (ex: resumo_do_dia, ler_mensagens, buscar). Pra acompanhar
+ativamente (ser acordado quando chega msg), arme um Monitor no `data/<slug-do-grupo>/messages.jsonl`
+— ver "Vocabulário de acompanhamento" abaixo. Detalhes em `.claude/whatsapp.json`.
+(Bloco gerado pelo `/link-whatsapp`; copie `.claude/whatsapp.json.example` pra começar.)
 <!-- wa-link:end -->
 
 ## Vocabulário de acompanhamento (desambiguação)
