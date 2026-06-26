@@ -1,0 +1,6 @@
+{
+  "grupo": "<slug-do-grupo>",
+  "cliente": "<nome do cliente ou projeto>",
+  "tipo": "grupo",
+  "notas": "<uma linha de contexto sobre este chat>"
+}

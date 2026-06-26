@@ -1,0 +1,83 @@
+diff --git a/node_modules/baileys/.impeccable/hook.cache.json b/node_modules/baileys/.impeccable/hook.cache.json
+new file mode 100644
+index 0000000..ebc7c5d
+--- /dev/null
++++ b/node_modules/baileys/.impeccable/hook.cache.json
+@@ -0,0 +1 @@
++{"version":1,"sessions":{}}
+\ No newline at end of file
+diff --git a/node_modules/baileys/lib/Utils/process-message.js b/node_modules/baileys/lib/Utils/process-message.js
+index 37449db..a9f4cb6 100644
+--- a/node_modules/baileys/lib/Utils/process-message.js
++++ b/node_modules/baileys/lib/Utils/process-message.js
+@@ -473,6 +473,24 @@ const processMessage = async (message, { shouldProcessHistoryMsg, placeholderRes
+         const jid = message.key?.remoteJid;
+         //let actor = whatsappID (message.participant)
+         let participants;
++        // PATCH (sumioshi/whatsapp-automation): o WhatsApp envia
++        // messageStubParameters como JID cru (ex.: "5547...@lid") nos eventos de
++        // participante de grupo, não como JSON. O JSON.parse direto lançava
++        // SyntaxError e abortava o processamento de offline/history sync — crash a
++        // cada reconexão, perdendo o evento de "fulano entrou/saiu". Parse
++        // defensivo: tenta JSON; se não for, embrulha o JID cru no shape esperado.
++        const parseStubParam = (a) => {
++            try {
++                return JSON.parse(a);
++            }
++            catch {
++                if (typeof a === 'string' && a.endsWith('@lid'))
++                    return { lid: a };
++                if (typeof a === 'string' && a.includes('@'))
++                    return { phoneNumber: a };
++                return a;
++            }
++        };
+         const emitParticipantsUpdate = (action) => ev.emit('group-participants.update', {
+             id: jid,
+             author: message.key.participant,
+@@ -507,12 +525,12 @@ const processMessage = async (message, { shouldProcessHistoryMsg, placeholderRes
+         const participantsIncludesMe = () => participants.find(jid => areJidsSameUser(meId, jid.phoneNumber)); // ADD SUPPORT FOR LID
+         switch (message.messageStubType) {
+             case WAMessageStubType.GROUP_PARTICIPANT_CHANGE_NUMBER:
+-                participants = message.messageStubParameters.map((a) => JSON.parse(a)) || [];
++                participants = message.messageStubParameters.map(parseStubParam) || [];
+                 emitParticipantsUpdate('modify');
+                 break;
+             case WAMessageStubType.GROUP_PARTICIPANT_LEAVE:
+             case WAMessageStubType.GROUP_PARTICIPANT_REMOVE:
+-                participants = message.messageStubParameters.map((a) => JSON.parse(a)) || [];
++                participants = message.messageStubParameters.map(parseStubParam) || [];
+                 emitParticipantsUpdate('remove');
+                 // mark the chat read only if you left the group
+                 if (participantsIncludesMe()) {
+@@ -522,18 +540,18 @@ const processMessage = async (message, { shouldProcessHistoryMsg, placeholderRes
+             case WAMessageStubType.GROUP_PARTICIPANT_ADD:
+             case WAMessageStubType.GROUP_PARTICIPANT_INVITE:
+             case WAMessageStubType.GROUP_PARTICIPANT_ADD_REQUEST_JOIN:
+-                participants = message.messageStubParameters.map((a) => JSON.parse(a)) || [];
++                participants = message.messageStubParameters.map(parseStubParam) || [];
+                 if (participantsIncludesMe()) {
+                     chat.readOnly = false;
+                 }
+                 emitParticipantsUpdate('add');
+                 break;
+             case WAMessageStubType.GROUP_PARTICIPANT_DEMOTE:
+-                participants = message.messageStubParameters.map((a) => JSON.parse(a)) || [];
++                participants = message.messageStubParameters.map(parseStubParam) || [];
+                 emitParticipantsUpdate('demote');
+                 break;
+             case WAMessageStubType.GROUP_PARTICIPANT_PROMOTE:
+-                participants = message.messageStubParameters.map((a) => JSON.parse(a)) || [];
++                participants = message.messageStubParameters.map(parseStubParam) || [];
+                 emitParticipantsUpdate('promote');
+                 break;
+             case WAMessageStubType.GROUP_CHANGE_ANNOUNCE:
+@@ -567,7 +585,7 @@ const processMessage = async (message, { shouldProcessHistoryMsg, placeholderRes
+                 emitGroupUpdate({ joinApprovalMode: approvalMode === 'on' });
+                 break;
+             case WAMessageStubType.GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD: // TODO: Add other events
+-                const participant = JSON.parse(message.messageStubParameters?.[0]);
++                const participant = parseStubParam(message.messageStubParameters?.[0]);
+                 const action = message.messageStubParameters?.[1];
+                 const method = message.messageStubParameters?.[2];
+                 emitGroupRequestJoin(participant, action, method);

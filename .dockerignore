@@ -1,0 +1,14 @@
+.git
+node_modules
+web/node_modules
+dist
+web/.next
+data
+auth
+groups.config.json
+**/.env
+**/.env.local
+*.log
+.DS_Store
+scratchpad
+docs/superpowers
