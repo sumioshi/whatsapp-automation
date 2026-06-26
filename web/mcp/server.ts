@@ -703,14 +703,14 @@ server.registerTool(
       if (alertados.length === 0) {
         return text({ chats: [], total: 0, nota: "Nenhum chat com alerta ligado (use alertar_chat)." });
       }
-      const [contacts, seen] = await Promise.all([contacts(), readAgentSeen()]);
+      const [c, seen] = await Promise.all([contacts(), readAgentSeen()]);
       const chats: unknown[] = [];
       const updates: Record<string, string> = {};
       let total = 0;
       let ignoradas = 0;
       for (const slug of alertados) {
         const msgs = await readGroupMessages(slug);
-        const { mensagens, latest, ignoradasNaoCliente } = selectNew(msgs, seen[slug], contacts);
+        const { mensagens, latest, ignoradasNaoCliente } = selectNew(msgs, seen[slug], c);
         if (latest) updates[slug] = latest;
         ignoradas += ignoradasNaoCliente;
         if (mensagens.length === 0) continue;
