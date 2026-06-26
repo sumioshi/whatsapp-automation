@@ -1,155 +1,151 @@
 # WhatsApp Group Collector
 
-Coleta automaticamente **áudio, vídeo, imagem, documento e texto** dos grupos de
-WhatsApp que você escolher, organiza por grupo, transcreve áudios/vídeos (Whisper
-local) e expõe tudo para uma IA via **MCP** — para parar de garimpar conteúdo de
-cliente mensagem por mensagem.
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-43853d.svg)](https://nodejs.org)
+[![Built with Baileys](https://img.shields.io/badge/built%20with-Baileys-25D366.svg)](https://github.com/WhiskeySockets/Baileys)
 
-Usa [Baileys](https://github.com/WhiskeySockets/Baileys) (WhatsApp Web
-multi-device, sem navegador). Roda local; nada do conteúdo sai da sua máquina.
+Se você atende clientes por grupos de WhatsApp, sabe a dor: dezenas de grupos, áudios que ninguém transcreve, prints perdidos no scroll, e a sensação de que algo importante passou batido enquanto você estava noutro grupo.
 
-> ⚠️ Captura **em tempo real, daqui pra frente** — não reconstrói histórico antigo
-> (limitação do protocolo). Deixe rodando e ele coleta tudo que chega.
+Esta ferramenta coleta tudo que chega nos grupos que você escolhe (áudio, vídeo, imagem, documento, texto), organiza por grupo, transcreve os áudios localmente, e entrega o conteúdo pra uma IA via [MCP](https://modelcontextprotocol.io). Em vez de garimpar mensagem por mensagem, você pergunta: "o que rolou no grupo do cliente X hoje?".
 
----
+Roda na sua máquina, com [Baileys](https://github.com/WhiskeySockets/Baileys) (WhatsApp Web multi-device, sem navegador). O conteúdo fica em `data/`, na sua máquina.
+
+> **Captura daqui pra frente, não pra trás.** O protocolo do WhatsApp não deixa reconstruir histórico antigo de forma confiável. Deixe rodando e ele vai juntando tudo que chega.
+
+<!-- TODO: adicionar um screenshot do painel aqui. Ex.: ![Painel](docs/painel.png) -->
 
 ## O que faz
 
-- **Coleta 24/7** o conteúdo dos grupos marcados, organizado em `data/<grupo>/`.
-- **Painel web** estilo WhatsApp (`localhost:3000`): timeline por grupo, players,
-  imagens, documentos, busca, e **enviar/responder** mensagens.
-- **Transcrição local** (MLX Whisper `large-v3`) sob demanda, com serviço "morno"
-  que carrega o modelo no 1º uso e libera a RAM quando ocioso.
-- **MCP server** que dá a uma IA (ex.: Claude Code) ferramentas para consultar,
-  buscar, transcrever, **ver imagens**, resumir e responder — sem você abrir o app.
-- Contexto rico: **menções resolvidas** (`@id`→`@nome`), **autor do reply**,
-  **reações**, e classificação **time vs cliente**.
+- **Coleta contínua** dos grupos marcados, organizada em `data/<grupo>/`.
+- **Painel web** estilo WhatsApp (`localhost:3000`): timeline por grupo, players de áudio, imagens, documentos, busca, e responder mensagens.
+- **Transcrição local** (Whisper `large-v3` via MLX) sob demanda. O serviço carrega o modelo no primeiro uso e libera a RAM quando fica ocioso, então não pesa o dia todo.
+- **MCP server** com ferramentas pra uma IA (ex.: Claude Code) ler, buscar, transcrever, ver imagens e vídeos, ler documentos, resumir e responder, sem você abrir o app.
+- **Contexto que a IA entende:** menções resolvidas (`@id` vira `@nome`), o autor e o texto do reply citado, reações, legenda separada do texto solto, e quem é do seu time vs cliente.
 
-## Arquitetura
+## Como funciona
 
-Quatro peças, uma fonte de verdade (a pasta `data/`):
+Quatro processos, uma fonte de verdade (a pasta `data/`):
 
 ```
-                         ┌──────────────────────┐
-  WhatsApp ─► coletor ─► │   data/<grupo>/      │ ◄─► painel web (localhost:3000)
-  (Baileys)   (daemon)   │   .jsonl + mídia +   │
-                         │   transcrições       │ ◄─► MCP server (Claude)
-                         └──────────┬───────────┘
+                          ┌──────────────────────┐
+  WhatsApp ─► coletor ─►  │   data/<grupo>/      │ ◄─► painel web (localhost:3000)
+  (Baileys)   (daemon)    │   .jsonl + mídia +   │
+                          │   transcrições       │ ◄─► MCP server (sua IA)
+                          └──────────┬───────────┘
                             transcriber (MLX, :4320)
 ```
 
 ```
-src/            Coletor — daemon Baileys (Ports & Adapters; Baileys isolado em src/whatsapp)
+src/            Coletor: daemon Baileys (Ports & Adapters, Baileys isolado em src/whatsapp)
 web/            Painel Next.js 16 + libs compartilhadas (web/lib) + MCP (web/mcp/server.ts)
 transcriber/    Serviço de transcrição morno (Python/MLX)
-ecosystem.config.cjs   Config do pm2 (coletor + painel + transcriber)
 data/           Conteúdo coletado (gitignored)
 auth/           Sessão do WhatsApp (gitignored)
 ```
 
 ## Requisitos
 
-- **macOS Apple Silicon** para a transcrição — `mlx_whisper` (MLX) só roda em
-  Apple Silicon. Coletor e painel rodam em qualquer OS; em Linux, troque a
-  transcrição por whisper.cpp.
-- **Node.js ≥ 20** (testado no v24).
-- `ffmpeg`, `pm2` e o `mlx_whisper` (via `uv tool`).
-- Uma conta de WhatsApp para parear (QR).
+- **macOS Apple Silicon** para a transcrição. O `mlx_whisper` só roda em Apple Silicon. O coletor e o painel rodam em qualquer sistema; em Linux, troque a transcrição por whisper.cpp.
+- **Node.js 20 ou maior** (testado no v24).
+- `ffmpeg` e o `mlx_whisper` (via `uv tool`).
+- Uma conta de WhatsApp pra parear (QR).
 
 ```bash
 brew install ffmpeg
-npm install -g pm2
 uv tool install mlx-whisper
 ```
 
 ## Começar
 
 ```bash
-# 1. instalar e buildar
-npm install && npm run build                 # coletor
-cd web && npm install && npm run build && cd ..   # painel + MCP
+# 1. instalar dependências (coletor e painel)
+npm install
+cd web && npm install && cd ..
 
-# 2. subir tudo (coletor + painel + transcriber)
-pm2 start ecosystem.config.cjs && pm2 save
+# 2. copiar os exemplos de config
+cp .mcp.json.example .mcp.json
+cp .claude/whatsapp.json.example .claude/whatsapp.json
 
-# 3. parear: abra http://localhost:3000/config, escaneie o QR
-#    (WhatsApp › Aparelhos conectados › Conectar um aparelho)
+# 3. subir tudo (coletor + painel + transcriber + notifier)
+npm run dev
 ```
 
-Depois de parear, em **`/config`** marque os grupos a monitorar (busca + tags +
-ação em lote), defina seu time, e escolha o modelo/idioma. A sessão fica em
-`auth/` e reconecta sozinha.
+Depois de subir, abra `http://localhost:3000/config` e escaneie o QR (no celular: **WhatsApp › Aparelhos conectados › Conectar um aparelho**). Ainda em `/config`, marque os grupos que quer monitorar, defina seu time, e escolha modelo e idioma. A sessão fica salva em `auth/` e reconecta sozinha.
 
-> Para desenvolver: `npm run dev` (coletor, QR no terminal) e `cd web && npm run dev`
-> (painel). Em produção, use o pm2.
+Para rodar 24/7 em background existe um `ecosystem.config.cjs` (pm2). O `npm run dev` é o jeito padrão pra desenvolvimento e uso local no Mac.
 
 ## Usar
 
-**Painel** (`localhost:3000`): navegue por grupo, ouça áudios, clique **Transcrever**,
-responda, ou inicie uma **Nova conversa** (mesmo sem histórico). Atualiza sozinho.
+**No painel** (`localhost:3000`): navegue por grupo, ouça áudios, clique em **Transcrever**, responda, ou comece uma conversa nova mesmo sem histórico. A tela atualiza sozinha.
 
-**MCP** (`web/mcp/server.ts`): registrado em `.mcp.json` (escopo do projeto; aprove
-no 1º uso no Claude Code). Ferramentas:
+**Pela IA** (MCP): o server em `web/mcp/server.ts` é registrado pelo `.mcp.json` (escopo do projeto; aprove no primeiro uso no Claude Code). São 19 ferramentas, agrupadas assim:
 
-| Ferramenta | O que faz |
+| Categoria | Ferramentas |
 |---|---|
-| `listar_grupos` / `ler_mensagens` | navegar conteúdo |
-| `buscar` | acha texto **inclusive dentro de transcrições** |
-| `transcrever` | Whisper local sob demanda (com `mediaPath` = 1; sem = todos pendentes do grupo) |
-| `resumo_do_dia` | transcreve o pendente do dia e devolve para resumir |
-| `ver_imagem` | devolve a imagem para a IA **enxergar** (prints de bug) |
-| `listar_contatos` | quem é `me` / `team` / `client` |
-| `responder` | envia mensagem ao grupo (sob confirmação) |
+| Ler | `listar_grupos`, `ler_mensagens`, `buscar`, `listar_contatos`, `ler_notas`, `estado_triagem` |
+| Mídia | `transcrever`, `ver_imagem`, `ver_video`, `ler_documento`, `resumo_do_dia` |
+| Responder | `responder`, `responder_midia` |
+| Triagem | `marcar_resolvido`, `silenciar_grupo`, `anotar`, `alertar_chat`, `definir_modo`, `novidades` |
 
-Dirija o MCP fora do Claude Code com o driver da skill:
+Destaques: `buscar` acha texto **inclusive dentro das transcrições**; `ver_imagem`/`ver_video` devolvem a mídia pra IA *enxergar* (útil pra print de bug); `definir_modo` define por chat se a IA envia direto ou confirma antes; `responder` respeita esse modo.
+
+Para dirigir o MCP fora do Claude Code, use o driver da skill:
 
 ```bash
-node .claude/skills/run-whatsapp-automation/driver.mjs            # lista ferramentas
+node .claude/skills/run-whatsapp-automation/driver.mjs            # lista as ferramentas
 node .claude/skills/run-whatsapp-automation/driver.mjs call resumo_do_dia '{"grupo":"<slug>"}'
 ```
 
-## Saída (`data/<grupo>/`)
+## O que sai (`data/<grupo>/`)
 
 ```
 audio/ video/ image/ document/   # mídia, nome = data_hora_remetente_tipo_id.ext
-transcripts/                     # sidecar .txt por mídia transcrita
-messages.jsonl                   # 1 linha/mensagem (o "banco" da IA)
+transcripts/                     # um .txt por mídia transcrita
+messages.jsonl                   # uma linha por mensagem (o "banco" da IA)
 reactions.jsonl                  # reações (emoji) por mensagem
-log.md                           # versão cronológica legível
+log.md                           # a mesma conversa, cronológica e legível
 ```
 
 Cada linha do `messages.jsonl`:
-`{ id, timestamp, group, groupJid, sender, senderName, fromMe, type, text, quotedText, quotedSender, mediaPath }`.
+
+```json
+{ "id": "...", "timestamp": "...", "group": "...", "groupJid": "...",
+  "sender": "...", "senderName": "...", "fromMe": false, "type": "text",
+  "text": "...", "quotedText": null, "quotedSender": null, "mediaPath": null }
+```
+
+A camada que a IA consome (via MCP) enriquece isso com a hora local já convertida, a legenda da mídia separada do texto, o agrupamento de rajadas, e o papel de cada contato.
 
 ## Configuração (variáveis de ambiente, todas opcionais)
 
-**Coletor:** `AUTH_DIR` (`auth`), `DATA_DIR` (`data`), `GROUPS_CONFIG`
-(`groups.config.json`), `LOG_LEVEL` (`info`), `BAILEYS_LOG_LEVEL` (`warn`),
-`CONTROL_PORT` (`4310`).
-**Painel/MCP/transcriber:** `WAC_DATA_DIR`, `WAC_GROUPS_CONFIG`, `WAC_WHISPER_MODEL`
-(`mlx-community/whisper-large-v3-mlx`), `WAC_WHISPER_LANG` (`pt`),
-`WAC_TRANSCRIBE_PORT` (`4320`), `WAC_TRANSCRIBE_IDLE` (`180`s).
+**Coletor:** `AUTH_DIR` (`auth`), `DATA_DIR` (`data`), `GROUPS_CONFIG` (`groups.config.json`), `LOG_LEVEL` (`info`), `BAILEYS_LOG_LEVEL` (`warn`), `CONTROL_PORT` (`4310`).
 
-## Limitações e avisos
+**Painel / MCP / transcriber:** `WAC_DATA_DIR`, `WAC_GROUPS_CONFIG`, `WAC_WHISPER_MODEL` (`mlx-community/whisper-large-v3-mlx`), `WAC_WHISPER_LANG` (`pt`), `WAC_TRANSCRIBE_PORT` (`4320`), `WAC_TRANSCRIBE_IDLE` (`180`s).
 
-- **Não é API oficial do WhatsApp.** Use com bom senso (sem spam/disparo em massa)
-  para evitar bloqueio do número.
-- **Sem histórico antigo** — captura só do pareamento em diante.
-- **Transcrição é Apple-Silicon** (MLX). Em servidor Linux, use whisper.cpp.
-- **Envio é real e local.** As APIs de controle (`:4310`) e o painel mandam
-  mensagem como você — ficam em `127.0.0.1`. **Não exponha na internet** (use
-  Tailscale/auth se for hospedar).
-- `data/`, `auth/`, `.env` e `groups.config.json` são **gitignored** (conteúdo +
-  sessão). Nunca versione.
+## Avisos importantes
 
-## Rodar / dirigir (skill)
+- **Não é a API oficial do WhatsApp.** Use com bom senso, sem disparo em massa, pra não tomar bloqueio no número.
+- **Sem histórico antigo.** Captura só do pareamento em diante.
+- **O envio é real.** A API de controle (`:4310`) e o painel mandam mensagem como você, então ficam presas em `127.0.0.1`. Não exponha na internet sem auth (use algo como Tailscale se for hospedar).
+- `data/`, `auth/`, `.env` e `groups.config.json` são **gitignored** (conteúdo e sessão). Nunca versione.
 
-Há uma skill em `.claude/skills/run-whatsapp-automation/` (SKILL.md + `driver.mjs`)
-com o passo a passo verificado de build, run e como dirigir o MCP. No Claude Code,
-peça *"roda o whatsapp-automation"*.
+## Contribuindo
+
+Issues e PRs são bem-vindos. Se for mexer no código:
+
+```bash
+npm test                 # roda a suíte (Vitest)
+npx tsc --noEmit         # typecheck
+```
+
+O Baileys fica isolado em `src/whatsapp/` (Ports & Adapters), então adicionar/trocar adaptadores não vaza pro resto. As libs compartilhadas entre painel e MCP estão em `web/lib/`.
 
 ## Roadmap
 
 - Transcrição automática em background nos grupos prioritários.
 - Análise de vídeo frame a frame.
-- Migração para servidor 24/7 (Railway/VPS) com whisper.cpp + Tailscale.
+- Suporte oficial a whisper.cpp pra rodar em Linux/VPS.
+
+## Licença
+
+[Apache 2.0](./LICENSE) © Rodrigo Sumioshi. Veja [NOTICE](./NOTICE) para os termos de atribuição.
