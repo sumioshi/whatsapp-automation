@@ -1,0 +1,24 @@
+name: Ideia / feature
+description: Sugerir uma melhoria ou funcionalidade
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Que problema isso resolve
+      description: Conte a dor antes da solução. O que hoje é chato ou impossível?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: A ideia
+      description: Como você imagina que funcionaria.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas que você considerou
+      validations:
+        required: false

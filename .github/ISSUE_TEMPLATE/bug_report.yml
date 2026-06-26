@@ -1,0 +1,44 @@
+name: Bug
+description: Reportar algo que não funciona como esperado
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: O que aconteceu
+      description: Descreva o problema e o que você esperava que acontecesse.
+      placeholder: Ao rodar X, esperava Y, mas aconteceu Z.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos pra reproduzir
+      placeholder: |
+        1. Subi com `npm run dev`
+        2. Chamei a ferramenta `...`
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Sistema operacional
+      placeholder: "macOS 14.5 (Apple Silicon) / Ubuntu 22.04 / ..."
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Versão do Node
+      placeholder: "node -v → v24.x"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs relevantes
+      description: Cole o erro ou o trecho do log. NÃO inclua número de telefone, JID nem nome de cliente.
+      render: shell
+    validations:
+      required: false
