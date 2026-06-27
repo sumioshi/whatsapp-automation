@@ -21,6 +21,7 @@
     "check": "biome check src",
     "format": "biome check --write src",
     "sync": "node --env-file-if-exists=.env --import tsx scripts/sync-pull.ts",
+    "expediente": "node --env-file-if-exists=.env --import tsx scripts/expediente-scheduler.ts",
     "test": "vitest run",
     "postinstall": "patch-package"
   },

@@ -1,0 +1,13 @@
+{
+  "ativo": false,
+  "timezone": "America/Sao_Paulo",
+  "dias": {
+    "seg": ["09:00", "18:00"],
+    "ter": ["09:00", "18:00"],
+    "qua": ["09:00", "18:00"],
+    "qui": ["09:00", "18:00"],
+    "sex": ["09:00", "18:00"]
+  },
+  "recado_dentro": "Disponível",
+  "recado_fora": "Fora do expediente. Respondo seg–sex, 9h–18h."
+}
