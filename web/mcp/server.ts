@@ -116,6 +116,17 @@ function ok(fields: Record<string, unknown>, msg: string) {
   return text({ ok: true, ...fields, msg });
 }
 
+/** POST num endpoint /profile/* do control server; lança Error com a mensagem do servidor se falhar. */
+async function postProfile(rota: string, body: Record<string, unknown>): Promise<void> {
+  const res = await fetch(`${CONTROL_URL}${rota}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json()) as { ok?: boolean; error?: string };
+  if (!res.ok || !data.ok) throw new Error(data.error ?? `falha em ${rota}`);
+}
+
 server.registerTool(
   "listar_grupos",
   {
@@ -569,6 +580,55 @@ server.registerTool(
       return ok({ destino: label, jid, kind }, `Arquivo (${kind}) enviado para "${label}".`);
     } catch (e) {
       return fail(e instanceof Error ? e.message : "coletor offline?");
+    }
+  },
+);
+
+server.registerTool(
+  "editar_perfil",
+  {
+    description:
+      "Edita o PERFIL do WhatsApp do operador: nome, recado/'sobre' (status) e/ou foto. " +
+      "Passe só os campos que quer mudar. 'foto' é caminho absoluto de imagem OU o mediaPath de uma mensagem recebida. " +
+      "CONFIRMAÇÃO: o perfil é PÚBLICO (todo contato vê). Você DEVE mostrar ao operador o que vai mudar e ter o OK ANTES de chamar — " +
+      "mesma convenção do 'responder'. Não é trava de código; não burle. " +
+      "LIMITE: catálogo, localização, link e horário-oficial do business são read-only no WhatsApp (não editáveis por aqui).",
+    inputSchema: {
+      nome: z.string().optional().describe("novo nome do perfil (push name)"),
+      recado: z.string().optional().describe("novo recado/'sobre' (status do perfil)"),
+      foto: z
+        .string()
+        .optional()
+        .describe("caminho absoluto de uma imagem OU mediaPath relativo (de uma mensagem recebida)"),
+    },
+  },
+  async ({ nome, recado, foto }) => {
+    if (!nome && !recado && !foto) {
+      return fail("nada para editar: passe nome, recado e/ou foto");
+    }
+    const aplicado: string[] = [];
+    try {
+      if (nome) {
+        await postProfile("/profile/name", { name: nome });
+        aplicado.push("nome");
+      }
+      if (recado) {
+        await postProfile("/profile/status", { status: recado });
+        aplicado.push("recado");
+      }
+      if (foto) {
+        const abs = foto.startsWith("/") ? foto : safeDataPath(foto);
+        await postProfile("/profile/picture", { path: abs });
+        aplicado.push("foto");
+      }
+      return ok({ aplicado }, `Perfil atualizado (${aplicado.join(", ")}).`);
+    } catch (e) {
+      const falha = e instanceof Error ? e.message : "coletor offline?";
+      return fail(
+        aplicado.length
+          ? `parcial — aplicado: ${aplicado.join(", ")}; falhou no resto: ${falha}`
+          : falha,
+      );
     }
   },
 );
