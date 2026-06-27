@@ -72,6 +72,16 @@ export interface WhatsAppGateway {
    * Encapsula a chamada ao Baileys; o download em si é feito pela aplicação.
    */
   getAvatarUrl(jid: string): Promise<string | null>;
+  /** Edita o nome do perfil (push name). Lança se desconectado. */
+  updateProfileName(nome: string): Promise<void>;
+  /** Edita o recado/"sobre" do perfil (status). Lança se desconectado. */
+  updateProfileStatus(recado: string): Promise<void>;
+  /**
+   * Edita a foto do perfil a partir de um caminho de arquivo local.
+   * O gateway lê o arquivo via `{ url: path }` (igual ao envio de mídia).
+   * Lança se desconectado.
+   */
+  updateProfilePicture(path: string): Promise<void>;
 }
 
 /**
