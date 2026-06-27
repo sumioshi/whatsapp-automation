@@ -1,36 +1,37 @@
-/** Teto padrão de itens processados num lote de transcrição por chamada. Evita
- * que uma única chamada MCP fique presa transcrevendo dezenas de mídias em série
- * (o que travava silenciosamente, sem retorno nem log). */
-export const BATCH_LIMIT = 10;
+/** Teto padrão de itens num lote de transcrição por chamada. Evita que uma única
+ * chamada MCP fique presa baixando/transcrevendo dezenas de mídias (o que travava
+ * silenciosamente). Locais são rápidos; os da nuvem baixam em paralelo, mas com
+ * teto baixo pra não estourar. */
+export const BATCH_LIMIT = 8;
 
 export interface BatchPlan {
-  /** Os mediaPaths que SERÃO processados nesta chamada (locais, até o teto). */
+  /** mediaPaths a processar nesta chamada: todos os locais + os da nuvem até o
+   * teto total. Locais primeiro (são rápidos), depois os da nuvem. */
   processar: string[];
-  /** Quantos foram pulados por só estarem na nuvem (baixar penduraria até o
-   * timeout do cloudFetch — fora do lote de propósito). */
-  puladosNuvem: number;
-  /** Quantos locais sobraram além do teto (a IA pode chamar de novo pra continuar). */
-  restantesLocais: number;
+  /** Quantos sobraram além do teto (a IA chama de novo pra continuar). */
+  restantes: number;
+  /** Dos `processar`, quantos virão da nuvem (baixam sob demanda, em paralelo). */
+  daNuvem: number;
 }
 
 /**
- * Decide o que um lote de transcrição processa, SEM I/O. Regras:
- *  - só itens que já estão LOCAIS (os da nuvem são pulados — baixar em série
- *    travaria a chamada);
- *  - no máximo `limite` por chamada (default BATCH_LIMIT);
- *  - reporta o que ficou de fora pra o chamador avisar.
- *
- * `locais` é o conjunto dos mediaPaths que já existem no disco (checado por quem
- * chama, via isMediaLocal). Mantém a ordem de `mediaPaths`.
+ * Decide o que um lote de transcrição processa, SEM I/O. Inclui os da nuvem
+ * (baixam sob demanda), mas com teto: prioriza locais (rápidos), completa com os
+ * da nuvem até `limite` no total. O travamento original vinha de processar TODOS
+ * sem teto e em série; aqui o teto + o download paralelo (no transcribeBatch)
+ * evitam isso. `locais` é o conjunto já no disco (checado via isMediaLocal).
  */
 export function selectBatch(
   mediaPaths: string[],
   locais: ReadonlySet<string>,
   limite: number = BATCH_LIMIT,
 ): BatchPlan {
-  const apenasLocais = mediaPaths.filter((mp) => locais.has(mp));
-  const puladosNuvem = mediaPaths.length - apenasLocais.length;
-  const processar = apenasLocais.slice(0, limite);
-  const restantesLocais = apenasLocais.length - processar.length;
-  return { processar, puladosNuvem, restantesLocais };
+  const ordenado = [
+    ...mediaPaths.filter((mp) => locais.has(mp)),
+    ...mediaPaths.filter((mp) => !locais.has(mp)),
+  ];
+  const processar = ordenado.slice(0, limite);
+  const restantes = ordenado.length - processar.length;
+  const daNuvem = processar.filter((mp) => !locais.has(mp)).length;
+  return { processar, restantes, daNuvem };
 }

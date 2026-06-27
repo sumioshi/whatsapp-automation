@@ -155,19 +155,18 @@ export function transcribe(slug: string, mediaPath: string): Promise<string> {
 export interface BatchResult {
   /** [mediaPath, texto] dos transcritos nesta chamada. */
   textos: Array<[string, string]>;
-  /** Quantos foram pulados por só estarem na nuvem (não baixa em lote pra não travar). */
-  puladosNuvem: number;
-  /** Quantos locais sobraram além do teto (chame de novo pra continuar). */
-  restantesLocais: number;
+  /** Quantos pendentes sobraram além do teto (chame de novo pra continuar). */
+  restantes: number;
 }
 
 /**
  * Transcreve um lote dos pendentes, COM PROTEÇÃO contra travamento:
- *  - só processa mídias que já estão LOCAIS (pula as que precisariam baixar da
- *    nuvem — baixar em série pendurava a chamada até o timeout do cloudFetch);
  *  - no máximo `limite` por chamada (default BATCH_LIMIT), pra não ficar preso
- *    transcrevendo dezenas em série sem retorno.
- * Com o serviço morno, o modelo carrega uma vez e os demais saem rápido.
+ *    processando dezenas de uma vez;
+ *  - os que só estão na nuvem são BAIXADOS EM PARALELO (não em série, que era o
+ *    que pendurava a chamada até somar o timeout de cada cloudFetch);
+ *  - a transcrição em si roda em série, mas o serviço já serializa via lock (1
+ *    modelo MLX), então paralelizar a transcrição não ajudaria de qualquer forma.
  * Retorna os textos + quanto ficou de fora, pra o chamador avisar.
  */
 export async function transcribeBatch(
@@ -177,7 +176,12 @@ export async function transcribeBatch(
 ): Promise<BatchResult> {
   const localFlags = await Promise.all(mediaPaths.map((mp) => isMediaLocal(mp)));
   const locais = new Set(mediaPaths.filter((_, i) => localFlags[i]));
-  const { processar, puladosNuvem, restantesLocais } = selectBatch(mediaPaths, locais, limite);
+  const { processar, restantes } = selectBatch(mediaPaths, locais, limite);
+
+  // Baixa em PARALELO os que estão na nuvem (cacheia no disco). O timeout do
+  // cloudFetch protege cada um; em paralelo o tempo total é ~o do mais lento, não
+  // a soma. Falha de download de um item não derruba os outros.
+  await Promise.allSettled(processar.filter((mp) => !locais.has(mp)).map((mp) => ensureLocalMedia(mp)));
 
   const textos: Array<[string, string]> = [];
   for (const mp of processar) {
@@ -187,5 +191,5 @@ export async function transcribeBatch(
       // ignora falha de um item; segue os demais
     }
   }
-  return { textos, puladosNuvem, restantesLocais };
+  return { textos, restantes };
 }
