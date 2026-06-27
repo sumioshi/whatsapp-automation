@@ -74,3 +74,29 @@ export function recadoPara(estado: 'dentro' | 'fora', cfg: ExpedienteConfig): st
 
 /** Exportado só para manter `ORDEM_DIAS` referenciada (ordem canônica dos dias). */
 export const DIAS_SEMANA = ORDEM_DIAS;
+
+export interface AcaoExpediente {
+  /** Se deve chamar o control server para trocar o recado agora. */
+  aplicar: boolean;
+  /** Estado calculado para `agora`. */
+  estado: 'dentro' | 'fora';
+  /** Recado a aplicar (só quando `aplicar` é true), senão null. */
+  recado: string | null;
+}
+
+/**
+ * Regra do agendador: troca o recado SÓ na transição. Não aplica se o expediente
+ * está desligado (`ativo:false`) ou se o estado novo é igual ao último aplicado
+ * (antispam). No primeiro boot (`ultimoAplicado === null`) aplica o estado atual.
+ */
+export function decidirAcao(
+  agora: Date,
+  cfg: ExpedienteConfig,
+  ultimoAplicado: 'dentro' | 'fora' | null,
+): AcaoExpediente {
+  const estado = estadoExpediente(agora, cfg);
+  if (!cfg.ativo || estado === ultimoAplicado) {
+    return { aplicar: false, estado, recado: null };
+  }
+  return { aplicar: true, estado, recado: recadoPara(estado, cfg) };
+}

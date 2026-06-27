@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { estadoExpediente, recadoPara, type ExpedienteConfig } from './expediente';
+import { estadoExpediente, recadoPara, decidirAcao, type ExpedienteConfig } from './expediente';
 
 const base: ExpedienteConfig = {
   ativo: true,
@@ -63,5 +63,35 @@ describe('recadoPara', () => {
   });
   it('fora → recado_fora', () => {
     expect(recadoPara('fora', base)).toBe('Fora do expediente');
+  });
+});
+
+describe('decidirAcao', () => {
+  it('não aplica quando ativo:false (mesmo havendo transição)', () => {
+    const cfg = { ...base, ativo: false };
+    const a = decidirAcao(spt('2026-06-26T10:00'), cfg, 'fora');
+    expect(a.aplicar).toBe(false);
+  });
+
+  it('aplica na transição fora→dentro', () => {
+    const a = decidirAcao(spt('2026-06-26T10:00'), base, 'fora');
+    expect(a).toEqual({ aplicar: true, estado: 'dentro', recado: base.recado_dentro });
+  });
+
+  it('aplica na transição dentro→fora', () => {
+    const a = decidirAcao(spt('2026-06-26T19:00'), base, 'dentro');
+    expect(a).toEqual({ aplicar: true, estado: 'fora', recado: base.recado_fora });
+  });
+
+  it('NÃO reaplica quando o estado não mudou (dentro==dentro) — antispam', () => {
+    const a = decidirAcao(spt('2026-06-26T10:00'), base, 'dentro');
+    expect(a.aplicar).toBe(false);
+    expect(a.estado).toBe('dentro');
+  });
+
+  it('primeiro boot (último=null) aplica o estado atual', () => {
+    const a = decidirAcao(spt('2026-06-26T10:00'), base, null);
+    expect(a.aplicar).toBe(true);
+    expect(a.estado).toBe('dentro');
   });
 });
