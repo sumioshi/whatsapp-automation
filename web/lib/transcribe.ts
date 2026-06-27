@@ -2,7 +2,8 @@ import { spawn } from "node:child_process";
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, extname, join } from "node:path";
-import { ensureLocalMedia } from "./cloud-media";
+import { BATCH_LIMIT, selectBatch } from "./batch-select";
+import { ensureLocalMedia, isMediaLocal } from "./cloud-media";
 import { readSettings } from "./config";
 import { transcriptPathFor } from "./data";
 import { binPath } from "./paths";
@@ -151,21 +152,40 @@ export function transcribe(slug: string, mediaPath: string): Promise<string> {
   });
 }
 
+export interface BatchResult {
+  /** [mediaPath, texto] dos transcritos nesta chamada. */
+  textos: Array<[string, string]>;
+  /** Quantos foram pulados por só estarem na nuvem (não baixa em lote pra não travar). */
+  puladosNuvem: number;
+  /** Quantos locais sobraram além do teto (chame de novo pra continuar). */
+  restantesLocais: number;
+}
+
 /**
- * Transcreve vários (pulando os já feitos). Com o serviço morno, o modelo
- * carrega uma vez e os demais saem rápido. Retorna [mediaPath, texto].
+ * Transcreve um lote dos pendentes, COM PROTEÇÃO contra travamento:
+ *  - só processa mídias que já estão LOCAIS (pula as que precisariam baixar da
+ *    nuvem — baixar em série pendurava a chamada até o timeout do cloudFetch);
+ *  - no máximo `limite` por chamada (default BATCH_LIMIT), pra não ficar preso
+ *    transcrevendo dezenas em série sem retorno.
+ * Com o serviço morno, o modelo carrega uma vez e os demais saem rápido.
+ * Retorna os textos + quanto ficou de fora, pra o chamador avisar.
  */
 export async function transcribeBatch(
   slug: string,
   mediaPaths: string[],
-): Promise<Array<[string, string]>> {
-  const out: Array<[string, string]> = [];
-  for (const mp of mediaPaths) {
+  limite: number = BATCH_LIMIT,
+): Promise<BatchResult> {
+  const localFlags = await Promise.all(mediaPaths.map((mp) => isMediaLocal(mp)));
+  const locais = new Set(mediaPaths.filter((_, i) => localFlags[i]));
+  const { processar, puladosNuvem, restantesLocais } = selectBatch(mediaPaths, locais, limite);
+
+  const textos: Array<[string, string]> = [];
+  for (const mp of processar) {
     try {
-      out.push([mp, await transcribe(slug, mp)]);
+      textos.push([mp, await transcribe(slug, mp)]);
     } catch {
       // ignora falha de um item; segue os demais
     }
   }
-  return out;
+  return { textos, puladosNuvem, restantesLocais };
 }
