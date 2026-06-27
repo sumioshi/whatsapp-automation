@@ -84,10 +84,10 @@ Para rodar 24/7 em background existe um `ecosystem.config.cjs` (pm2). O `npm run
 |---|---|
 | Ler | `listar_grupos`, `ler_mensagens`, `buscar`, `listar_contatos`, `ler_notas`, `estado_triagem` |
 | Mídia | `transcrever`, `ver_imagem`, `ver_video`, `ler_documento`, `resumo_do_dia` |
-| Responder | `responder`, `responder_midia` |
+| Responder | `responder`, `responder_midia`, `editar_perfil` |
 | Triagem | `marcar_resolvido`, `silenciar_grupo`, `anotar`, `alertar_chat`, `definir_modo`, `novidades` |
 
-Destaques: `buscar` acha texto **inclusive dentro das transcrições**; `ver_imagem`/`ver_video` devolvem a mídia pra IA *enxergar* (útil pra print de bug); `definir_modo` define por chat se a IA envia direto ou confirma antes; `responder` respeita esse modo.
+Destaques: `buscar` acha texto **inclusive dentro das transcrições**; `ver_imagem`/`ver_video` devolvem a mídia pra IA *enxergar* (útil pra print de bug); `definir_modo` define por chat se a IA envia direto ou confirma antes; `responder` respeita esse modo. `editar_perfil` edita nome, recado/"sobre" e/ou foto do perfil — a IA pede confirmação antes (perfil é público); catálogo, localização e horário-oficial do business são read-only no WhatsApp.
 
 Para dirigir o MCP fora do Claude Code, use o driver da skill:
 
@@ -95,6 +95,10 @@ Para dirigir o MCP fora do Claude Code, use o driver da skill:
 node .claude/skills/run-whatsapp-automation/driver.mjs            # lista as ferramentas
 node .claude/skills/run-whatsapp-automation/driver.mjs call resumo_do_dia '{"grupo":"<slug>"}'
 ```
+
+## Recado automático de expediente
+
+`npm run expediente` sobe um agendador que troca o recado/"sobre" do perfil conforme seu horário de trabalho. Configure em `data/expediente.json` (veja `docs/expediente.json.example` para um exemplo): defina os dias operacionais, as faixas horárias `["HH:MM","HH:MM"]`, o fuso horário e os textos `recado_dentro` (mensagem durante expediente) e `recado_fora` (mensagem fora do expediente). Fora do expediente o recado muda para o aviso de indisponível; dentro, volta ao normal. A troca acontece **só na transição** de cada faixa horária, não reescreve continuamente. Ative com `"ativo": true` no arquivo de configuração.
 
 ## O que sai (`data/<grupo>/`)
 
