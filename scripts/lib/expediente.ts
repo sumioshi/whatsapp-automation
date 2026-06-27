@@ -17,8 +17,6 @@ export interface ExpedienteConfig {
   recado_fora: string;
 }
 
-const ORDEM_DIAS: DiaSemana[] = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-
 /** Extrai {dia, minutos-desde-meia-noite} de um instante NO fuso pedido. */
 function noFuso(agora: Date, timezone: string): { dia: DiaSemana; minutos: number } {
   // 'en-US' com weekday short dá 'Mon'/'Tue'/...; mapeamos via getUTCDay sobre um
@@ -71,9 +69,6 @@ export function estadoExpediente(agora: Date, cfg: ExpedienteConfig): 'dentro' |
 export function recadoPara(estado: 'dentro' | 'fora', cfg: ExpedienteConfig): string {
   return estado === 'dentro' ? cfg.recado_dentro : cfg.recado_fora;
 }
-
-/** Exportado só para manter `ORDEM_DIAS` referenciada (ordem canônica dos dias). */
-export const DIAS_SEMANA = ORDEM_DIAS;
 
 export interface AcaoExpediente {
   /** Se deve chamar o control server para trocar o recado agora. */
