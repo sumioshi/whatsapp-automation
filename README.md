@@ -78,7 +78,7 @@ Para rodar 24/7 em background existe um `ecosystem.config.cjs` (pm2). O `npm run
 
 **No painel** (`localhost:3000`): navegue por grupo, ouça áudios, clique em **Transcrever**, responda, ou comece uma conversa nova mesmo sem histórico. A tela atualiza sozinha.
 
-**Pela IA** (MCP): o server em `web/mcp/server.ts` é registrado pelo `.mcp.json` (escopo do projeto; aprove no primeiro uso no Claude Code). São 19 ferramentas, agrupadas assim:
+**Pela IA** (MCP): o server em `web/mcp/server.ts` é registrado pelo `.mcp.json` (escopo do projeto; aprove no primeiro uso no Claude Code). São 20 ferramentas, agrupadas assim:
 
 | Categoria | Ferramentas |
 |---|---|
