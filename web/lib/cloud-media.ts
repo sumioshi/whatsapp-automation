@@ -14,6 +14,16 @@ async function exists(p: string): Promise<boolean> {
 }
 
 /**
+ * A mídia já está no disco local? Checa SEM baixar nada da nuvem — ao contrário de
+ * `ensureLocalMedia`, que baixaria (e pode pendurar até o timeout do cloudFetch).
+ * Usado pra decidir o que processar num lote sem travar nos itens que só estão na
+ * nuvem.
+ */
+export async function isMediaLocal(relPath: string): Promise<boolean> {
+  return exists(safeDataPath(relPath));
+}
+
+/**
  * Caminho absoluto da mídia (relativa a DATA_DIR). Se não existe local e a nuvem
  * está configurada, baixa de /api/media e cacheia. Sem nuvem e sem arquivo → erro.
  */

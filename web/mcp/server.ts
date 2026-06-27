@@ -233,28 +233,41 @@ server.registerTool(
   {
     description:
       "Transcreve áudio/vídeo (MLX local, large-v3) e devolve o texto; reusa cache. " +
-      "COM mediaPath: transcreve só aquele. SEM mediaPath: transcreve de uma vez TODOS os " +
-      "áudios/vídeos do grupo ainda sem transcrição (modelo morno = rápido) — use antes de " +
-      "resumir um grupo cheio de áudios.",
+      "COM mediaPath: transcreve só aquele (baixa da nuvem se preciso). SEM mediaPath: transcreve " +
+      "um lote dos pendentes que JÁ estão locais (até 10 por chamada, modelo morno = rápido); o " +
+      "retorno avisa quantos faltam (chame de novo) e quantos só estão na nuvem (transcreva esses " +
+      "passando o mediaPath). Esse teto evita travar a chamada baixando/transcrevendo dezenas de uma vez.",
     inputSchema: {
       grupo: z.string().describe("slug do grupo"),
       mediaPath: z
         .string()
         .optional()
-        .describe("mediaPath relativo (campo 'midia') de UMA mídia; ausente = todos os pendentes do grupo"),
+        .describe("mediaPath relativo (campo 'midia') de UMA mídia; ausente = lote dos pendentes locais"),
     },
   },
   async ({ grupo, mediaPath }) => {
     try {
       if (mediaPath) return text(await transcribe(grupo, mediaPath));
-      // Sem mediaPath: lote de todos os pendentes (absorve o antigo transcrever_lote).
+      // Sem mediaPath: lote dos pendentes LOCAIS, com teto (absorve o antigo
+      // transcrever_lote). Pula os que só estão na nuvem e limita por chamada pra
+      // não pendurar a chamada baixando/transcrevendo dezenas em série.
       const pend = pendingMedia(await readGroupMessages(grupo));
       if (!pend.length) return text("Nenhum áudio/vídeo pendente de transcrição.");
-      const done = await transcribeBatch(grupo, pend);
+      const { textos, puladosNuvem, restantesLocais } = await transcribeBatch(grupo, pend);
       return text({
         pendentes: pend.length,
-        transcritos: done.length,
-        textos: done.map(([midia, texto]) => ({ midia, texto })),
+        transcritos: textos.length,
+        textos: textos.map(([midia, texto]) => ({ midia, texto })),
+        ...(restantesLocais > 0
+          ? { restantes_locais: restantesLocais, nota: "chame de novo pra transcrever o resto" }
+          : {}),
+        ...(puladosNuvem > 0
+          ? {
+              pulados_na_nuvem: puladosNuvem,
+              nota_nuvem:
+                "esses só estão na nuvem; pra transcrever um, chame transcrever com o mediaPath dele (baixa sob demanda)",
+            }
+          : {}),
       });
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha na transcrição");
@@ -276,17 +289,24 @@ server.registerTool(
     try {
       const dia = data ?? new Date().toISOString().slice(0, 10);
       let msgs = (await readGroupMessages(grupo)).filter((m) => m.timestamp.startsWith(dia));
-      // Transcreve os áudios/vídeos do dia que ainda faltam (modelo morno).
+      // Transcreve os áudios/vídeos LOCAIS do dia que faltam (modelo morno, com
+      // teto — não pendura a chamada nos que só estão na nuvem nem em lotes grandes).
       const pend = pendingMedia(msgs);
+      let restantes = 0;
+      let naNuvem = 0;
       if (pend.length) {
-        await transcribeBatch(grupo, pend);
+        const r = await transcribeBatch(grupo, pend);
+        restantes = r.restantesLocais;
+        naNuvem = r.puladosNuvem;
         msgs = (await readGroupMessages(grupo)).filter((m) => m.timestamp.startsWith(dia));
       }
       const c = await contacts();
       return text({
         grupo,
         dia,
-        transcritos_agora: pend.length,
+        ...(restantes > 0 || naNuvem > 0
+          ? { faltam_transcrever: restantes + naNuvem, nota: "rode resumo_do_dia de novo pra transcrever mais" }
+          : {}),
         total: msgs.length,
         mensagens: msgs.map((m) => compact(m, c)),
       });
