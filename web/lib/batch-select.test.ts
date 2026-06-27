@@ -2,30 +2,39 @@ import { describe, expect, it } from 'vitest';
 import { BATCH_LIMIT, selectBatch } from './batch-select';
 
 describe('selectBatch', () => {
-  it('pula os que NÃO estão locais (só na nuvem) — a causa do travamento', () => {
-    const paths = ['a.ogg', 'b.ogg', 'c.ogg'];
-    const locais = new Set(['a.ogg', 'c.ogg']); // b está só na nuvem
-    const plan = selectBatch(paths, locais);
-    expect(plan.processar).toEqual(['a.ogg', 'c.ogg']);
-    expect(plan.puladosNuvem).toBe(1);
-  });
-
-  it('respeita o teto (não processa dezenas de uma vez)', () => {
-    const paths = Array.from({ length: 30 }, (_, i) => `m${i}.ogg`);
-    const locais = new Set(paths); // todos locais
+  it('inclui os da nuvem, mas prioriza locais primeiro', () => {
+    const paths = ['nuvem1.ogg', 'local1.ogg', 'nuvem2.ogg', 'local2.ogg'];
+    const locais = new Set(['local1.ogg', 'local2.ogg']);
     const plan = selectBatch(paths, locais, 10);
-    expect(plan.processar).toHaveLength(10);
-    expect(plan.restantesLocais).toBe(20);
-    expect(plan.puladosNuvem).toBe(0);
+    // locais vêm antes na ordem de processamento
+    expect(plan.processar.slice(0, 2)).toEqual(['local1.ogg', 'local2.ogg']);
+    expect(plan.processar).toContain('nuvem1.ogg');
+    expect(plan.daNuvem).toBe(2);
+    expect(plan.restantes).toBe(0);
   });
 
-  it('o cenário real que travou: 34 pendentes, 16 na nuvem, 18 locais', () => {
-    const locaisArr = Array.from({ length: 18 }, (_, i) => `local${i}.ogg`);
-    const nuvemArr = Array.from({ length: 16 }, (_, i) => `nuvem${i}.ogg`);
-    const plan = selectBatch([...locaisArr, ...nuvemArr], new Set(locaisArr), 10);
-    expect(plan.processar).toHaveLength(10); // teto, não 34
-    expect(plan.puladosNuvem).toBe(16); // não trava baixando esses
-    expect(plan.restantesLocais).toBe(8); // 18 locais - 10 do teto
+  it('respeita o teto (não processa dezenas de uma vez) — a proteção contra travar', () => {
+    const paths = Array.from({ length: 30 }, (_, i) => `m${i}.ogg`);
+    const locais = new Set(paths);
+    const plan = selectBatch(paths, locais, 8);
+    expect(plan.processar).toHaveLength(8);
+    expect(plan.restantes).toBe(22);
+  });
+
+  it('o cenário real: rajada de 7 áudios toda na nuvem → processa todos (cabem no teto)', () => {
+    const paths = Array.from({ length: 7 }, (_, i) => `nuvem${i}.ogg`);
+    const plan = selectBatch(paths, new Set(), 8); // nenhum local
+    expect(plan.processar).toHaveLength(7); // a IA chama 1x, recebe os 7
+    expect(plan.daNuvem).toBe(7);
+    expect(plan.restantes).toBe(0);
+  });
+
+  it('rajada na nuvem maior que o teto → corta no teto, reporta restantes', () => {
+    const paths = Array.from({ length: 20 }, (_, i) => `nuvem${i}.ogg`);
+    const plan = selectBatch(paths, new Set(), 8);
+    expect(plan.processar).toHaveLength(8);
+    expect(plan.daNuvem).toBe(8);
+    expect(plan.restantes).toBe(12);
   });
 
   it('default usa BATCH_LIMIT', () => {
@@ -37,13 +46,7 @@ describe('selectBatch', () => {
   it('lista vazia → nada a fazer', () => {
     const plan = selectBatch([], new Set());
     expect(plan.processar).toEqual([]);
-    expect(plan.puladosNuvem).toBe(0);
-    expect(plan.restantesLocais).toBe(0);
-  });
-
-  it('mantém a ordem dos paths', () => {
-    const paths = ['z.ogg', 'a.ogg', 'm.ogg'];
-    const plan = selectBatch(paths, new Set(paths), 10);
-    expect(plan.processar).toEqual(['z.ogg', 'a.ogg', 'm.ogg']);
+    expect(plan.restantes).toBe(0);
+    expect(plan.daNuvem).toBe(0);
   });
 });

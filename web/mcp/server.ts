@@ -234,9 +234,9 @@ server.registerTool(
     description:
       "Transcreve áudio/vídeo (MLX local, large-v3) e devolve o texto; reusa cache. " +
       "COM mediaPath: transcreve só aquele (baixa da nuvem se preciso). SEM mediaPath: transcreve " +
-      "um lote dos pendentes que JÁ estão locais (até 10 por chamada, modelo morno = rápido); o " +
-      "retorno avisa quantos faltam (chame de novo) e quantos só estão na nuvem (transcreva esses " +
-      "passando o mediaPath). Esse teto evita travar a chamada baixando/transcrevendo dezenas de uma vez.",
+      "um lote dos pendentes do grupo (até 8 por chamada; os que só estão na nuvem baixam em " +
+      "paralelo, modelo morno = rápido). Se sobrar além do teto, o retorno traz `restantes` — chame " +
+      "de novo. O teto evita travar a chamada com dezenas de uma vez.",
     inputSchema: {
       grupo: z.string().describe("slug do grupo"),
       mediaPath: z
@@ -253,20 +253,13 @@ server.registerTool(
       // não pendurar a chamada baixando/transcrevendo dezenas em série.
       const pend = pendingMedia(await readGroupMessages(grupo));
       if (!pend.length) return text("Nenhum áudio/vídeo pendente de transcrição.");
-      const { textos, puladosNuvem, restantesLocais } = await transcribeBatch(grupo, pend);
+      const { textos, restantes } = await transcribeBatch(grupo, pend);
       return text({
         pendentes: pend.length,
         transcritos: textos.length,
         textos: textos.map(([midia, texto]) => ({ midia, texto })),
-        ...(restantesLocais > 0
-          ? { restantes_locais: restantesLocais, nota: "chame de novo pra transcrever o resto" }
-          : {}),
-        ...(puladosNuvem > 0
-          ? {
-              pulados_na_nuvem: puladosNuvem,
-              nota_nuvem:
-                "esses só estão na nuvem; pra transcrever um, chame transcrever com o mediaPath dele (baixa sob demanda)",
-            }
+        ...(restantes > 0
+          ? { restantes, nota: "chame de novo pra transcrever o resto (teto por chamada)" }
           : {}),
       });
     } catch (e) {
@@ -293,19 +286,17 @@ server.registerTool(
       // teto — não pendura a chamada nos que só estão na nuvem nem em lotes grandes).
       const pend = pendingMedia(msgs);
       let restantes = 0;
-      let naNuvem = 0;
       if (pend.length) {
         const r = await transcribeBatch(grupo, pend);
-        restantes = r.restantesLocais;
-        naNuvem = r.puladosNuvem;
+        restantes = r.restantes;
         msgs = (await readGroupMessages(grupo)).filter((m) => m.timestamp.startsWith(dia));
       }
       const c = await contacts();
       return text({
         grupo,
         dia,
-        ...(restantes > 0 || naNuvem > 0
-          ? { faltam_transcrever: restantes + naNuvem, nota: "rode resumo_do_dia de novo pra transcrever mais" }
+        ...(restantes > 0
+          ? { faltam_transcrever: restantes, nota: "rode resumo_do_dia de novo pra transcrever mais" }
           : {}),
         total: msgs.length,
         mensagens: msgs.map((m) => compact(m, c)),
