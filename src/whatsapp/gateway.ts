@@ -259,6 +259,22 @@ export class BaileysGateway implements WhatsAppGateway {
     }
   }
 
+  async updateProfileName(nome: string): Promise<void> {
+    if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
+    await this.sock.updateProfileName(nome);
+  }
+
+  async updateProfileStatus(recado: string): Promise<void> {
+    if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
+    await this.sock.updateProfileStatus(recado);
+  }
+
+  async updateProfilePicture(path: string): Promise<void> {
+    if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
+    // Baileys aceita `{ url }` (lê do disco) igual ao envio de mídia.
+    await this.sock.updateProfilePicture(this.sock.user?.id ?? '', { url: path });
+  }
+
   async start(): Promise<void> {
     // Recupera o mapa de contatos já conhecido (sidecar de execuções anteriores).
     await this.contacts.load();
