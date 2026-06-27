@@ -34,6 +34,16 @@ interface SendMediaBody {
   mimetype?: string;
 }
 
+interface ProfileNameBody {
+  name?: string;
+}
+interface ProfileStatusBody {
+  status?: string;
+}
+interface ProfilePictureBody {
+  path?: string;
+}
+
 const MEDIA_KINDS = new Set(['image', 'document', 'audio', 'video', 'gif']);
 
 /**
@@ -152,6 +162,62 @@ export function startControlServer(
           }
           await gateway.sendReaction(jid, { id: msgId, participant, fromMe }, emoji);
           logger.info({ jid, emoji }, '👍 Reação enviada via API de controle.');
+          json(200, { ok: true });
+        })
+        .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/profile/name') {
+      readJson(req)
+        .then(async (parsed) => {
+          const { name } = (parsed ?? {}) as ProfileNameBody;
+          if (!name || !name.trim()) {
+            json(400, { error: 'name é obrigatório' });
+            return;
+          }
+          await gateway.updateProfileName(name.trim());
+          logger.info('👤 Nome do perfil atualizado via API de controle.');
+          json(200, { ok: true });
+        })
+        .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/profile/status') {
+      readJson(req)
+        .then(async (parsed) => {
+          const { status } = (parsed ?? {}) as ProfileStatusBody;
+          if (typeof status !== 'string' || !status.trim()) {
+            json(400, { error: 'status é obrigatório' });
+            return;
+          }
+          await gateway.updateProfileStatus(status.trim());
+          logger.info('💬 Recado do perfil atualizado via API de controle.');
+          json(200, { ok: true });
+        })
+        .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/profile/picture') {
+      readJson(req)
+        .then(async (parsed) => {
+          const { path } = (parsed ?? {}) as ProfilePictureBody;
+          if (!path) {
+            json(400, { error: 'path é obrigatório' });
+            return;
+          }
+          if (!isWithin(path, allowed)) {
+            json(400, { error: 'path fora do diretório permitido' });
+            return;
+          }
+          if (!existsSync(path)) {
+            json(400, { error: `arquivo não encontrado: ${path}` });
+            return;
+          }
+          await gateway.updateProfilePicture(path);
+          logger.info('🖼️  Foto do perfil atualizada via API de controle.');
           json(200, { ok: true });
         })
         .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));
