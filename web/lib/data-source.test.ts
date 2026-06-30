@@ -73,4 +73,56 @@ describe('modo REMOTO (flag=1) — busca via HTTP', () => {
     const { dsTriage } = await import('./data-source');
     expect((await dsTriage()).autonomo).toEqual({ g: true });
   });
+
+  it('dsSetAutonomo faz POST /api/triage {action:autonomo}', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const { dsSetAutonomo } = await import('./data-source');
+    await dsSetAutonomo('meu-grupo', true);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://nuvem.exemplo/api/triage',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ action: 'autonomo', slug: 'meu-grupo', value: true }),
+      }),
+    );
+  });
+
+  it('dsSend faz POST /api/send', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const { dsSend } = await import('./data-source');
+    await dsSend('x@g.us', 'oi');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://nuvem.exemplo/api/send',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ jid: 'x@g.us', text: 'oi' }) }),
+    );
+  });
+
+  it('dsEditarPerfil faz POST /api/profile', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const { dsEditarPerfil } = await import('./data-source');
+    await dsEditarPerfil({ status: 'fora do expediente' });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://nuvem.exemplo/api/profile',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ status: 'fora do expediente' }) }),
+    );
+  });
+});
+
+describe('escrita LOCAL — delega à lib, sem rede', () => {
+  it('dsSetAutonomo chama setAutonomo e não faz fetch', async () => {
+    vi.stubEnv('WAC_CLOUD_URL', '');
+    const setAutonomo = vi.fn(async () => {});
+    vi.doMock('./triage', () => ({ setAutonomo }));
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const { dsSetAutonomo } = await import('./data-source');
+    await dsSetAutonomo('g', true);
+    expect(setAutonomo).toHaveBeenCalledWith('g', true);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
