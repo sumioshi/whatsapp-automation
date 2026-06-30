@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "whatsapp-collector": {
+      "command": "./web/node_modules/.bin/tsx",
+      "args": ["./web/mcp/server.ts"],
+      "env": {
+        "WAC_DATA_DIR": "./data",
+        "WAC_GROUPS_CONFIG": "./groups.config.json",
+        "WAC_MCP_REMOTE": "1",
+        "WAC_CLOUD_URL": "https://seu-coletor-production-xxxx.up.railway.app",
+        "WAC_CLOUD_USER": "seu_usuario_do_painel",
+        "WAC_CLOUD_PASS": "sua_senha_do_painel"
+      }
+    }
+  }
+}
