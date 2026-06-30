@@ -31,3 +31,30 @@ export async function cloudFetch(path: string): Promise<Response> {
   if (!res.ok) throw new Error(`nuvem ${path} -> HTTP ${res.status}`);
   return res;
 }
+
+/** Interruptor do modo remoto do MCP. Só liga se a flag estiver em '1' E a nuvem
+ * configurada (cinto de segurança: remoto sem URL cairia em erro). Lido na hora. */
+export function mcpRemote(): boolean {
+  return process.env.WAC_MCP_REMOTE === '1' && cloudEnabled();
+}
+
+/** GET autenticado + parse JSON. Reusa o cloudFetch (Basic Auth + timeout). */
+export async function cloudJson<T>(path: string): Promise<T> {
+  const res = await cloudFetch(path);
+  return (await res.json()) as T;
+}
+
+/** POST autenticado com corpo JSON. cloudFetch é GET-only, então fazemos aqui o
+ * fetch com método POST reusando o mesmo header de auth e timeout. */
+export async function cloudPost(path: string, body: unknown): Promise<Response> {
+  const base = cloudUrl();
+  if (!base) throw new Error('WAC_CLOUD_URL não configurado');
+  const res = await fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!res.ok) throw new Error(`nuvem ${path} -> HTTP ${res.status}`);
+  return res;
+}
