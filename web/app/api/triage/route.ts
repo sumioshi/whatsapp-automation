@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readTriage, setAlert, setCopilot, setLastSeen, setMuted, setNote, setResolved } from "@/lib/triage";
+import { readTriage, setAlert, setAutonomo, setCopilot, setLastSeen, setMuted, setNote, setResolved } from "@/lib/triage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export async function GET() {
 }
 
 interface TriagePost {
-  action?: "resolved" | "muted" | "note" | "lastSeen" | "copilot" | "alertar";
+  action?: "resolved" | "muted" | "note" | "lastSeen" | "copilot" | "alertar" | "autonomo";
   slug?: string;
   value?: string | boolean;
 }
@@ -63,6 +63,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "value deve ser string" }, { status: 400 });
       }
       await setLastSeen(slug, value);
+      break;
+    case "autonomo":
+      if (typeof value !== "boolean") {
+        return NextResponse.json({ error: "value deve ser boolean" }, { status: 400 });
+      }
+      await setAutonomo(slug, value);
       break;
     default:
       return NextResponse.json({ error: "action inválida" }, { status: 400 });
