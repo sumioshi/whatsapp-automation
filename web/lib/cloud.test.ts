@@ -53,6 +53,7 @@ describe('cloudPost', () => {
           'Content-Type': 'application/json',
         }),
         body: JSON.stringify({ jid: 'x@g.us', text: 'oi' }),
+        signal: expect.any(AbortSignal),
       }),
     );
   });
