@@ -616,19 +616,31 @@ server.registerTool(
     description:
       "Reage com um emoji a uma mensagem (👍, ❤️, 😂...). Às vezes a resposta humana é SÓ uma reação — " +
       "prefira isso a um balão de 'ok!' quando couber. Emoji vazio ('') REMOVE a reação. O msgId vem do " +
-      "ler_mensagens; participant/fromMe só são necessários se a tool reclamar de não achar a msg em grupo.",
+      "ler_mensagens. A tool resolve sozinha a key completa (autor/fromMe) pelo histórico — " +
+      "participant/fromMe manuais só como override raro.",
     inputSchema: {
       grupo: z.string().describe("slug do grupo/DM, nome exato, OU jid"),
       msgId: z.string().describe("id da mensagem alvo (de ler_mensagens)"),
       emoji: z.string().describe("emoji da reação; '' remove"),
-      participant: z.string().optional().describe("jid do autor da msg (opcional, msgs de grupo)"),
-      fromMe: z.boolean().optional().describe("true se a msg alvo é sua (opcional)"),
+      participant: z.string().optional().describe("override raro: jid do autor da msg"),
+      fromMe: z.boolean().optional().describe("override raro: true se a msg alvo é do coletor"),
     },
   },
   async ({ grupo, msgId, emoji, participant, fromMe }) => {
     try {
       const { jid, label } = await resolveDestino(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
+      // A key da reação precisa de fromMe (e, em grupo, do participant autor) —
+      // sem eles o WhatsApp descarta a reação em silêncio no aparelho. O
+      // histórico sabe de quem é a msg, então resolvemos aqui em vez de exigir
+      // do chamador. Override manual só quando o chamador passa explicitamente.
+      if (participant === undefined && fromMe === undefined) {
+        const alvo = (await dsGroupMessages(slugify(grupo))).find((m) => m.id === msgId);
+        if (alvo) {
+          fromMe = alvo.fromMe === true;
+          participant = fromMe ? undefined : (alvo.sender ?? undefined);
+        }
+      }
       await dsReact(jid, msgId, emoji, participant, fromMe);
       return ok({ destino: label, msgId, emoji }, emoji ? `Reação ${emoji} enviada.` : "Reação removida.");
     } catch (e) {
