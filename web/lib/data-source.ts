@@ -57,9 +57,10 @@ export async function dsContacts(): Promise<Contacts> {
 
 export async function dsGroupsConfig(): Promise<GroupEntry[]> {
   if (!mcpRemote()) return readGroupsConfig();
-  // No remoto, derivamos os grupos do summary (slug + name bastam pro matchGrupo).
-  const summary = await cloudJson<GroupSummary[]>('/api/groups/summary');
-  return summary.map((g) => ({ id: g.slug, name: g.name, watch: true }));
+  // No remoto, a fonte é o /api/groups (config real): o `id` é o JID @g.us — o
+  // responder usa esse id como DESTINO do envio, então slug no lugar quebra o
+  // envio (Baileys não conhece slug). O matchGrupo casa slug slugificando o name.
+  return cloudJson<GroupEntry[]>('/api/groups');
 }
 
 export async function dsAgentSeen(): Promise<Record<string, string>> {

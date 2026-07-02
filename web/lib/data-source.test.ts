@@ -126,3 +126,31 @@ describe('escrita LOCAL — delega à lib, sem rede', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('dsGroupsConfig remoto — id tem que ser o JID real (bug do envio-por-slug)', () => {
+  beforeEach(() => {
+    vi.stubEnv('WAC_MCP_REMOTE', '1');
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    vi.stubEnv('WAC_CLOUD_USER', 'u');
+    vi.stubEnv('WAC_CLOUD_PASS', 'p');
+  });
+
+  it('devolve entries com id = jid @g.us (o responder usa id como destino do envio)', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          { id: '120363000000000001@g.us', name: 'Teste', watch: true, tags: [] },
+        ]),
+        { status: 200 },
+      ),
+    );
+    const { dsGroupsConfig } = await import('./data-source');
+    const groups = await dsGroupsConfig();
+    expect(groups[0].id).toBe('120363000000000001@g.us'); // jid, NUNCA o slug
+    expect(groups[0].name).toBe('Teste');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://nuvem.exemplo/api/groups',
+      expect.objectContaining({ headers: expect.any(Object) }),
+    );
+  });
+});
