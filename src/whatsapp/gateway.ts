@@ -346,35 +346,45 @@ export class BaileysGateway implements WhatsAppGateway {
       }
     };
 
-    for (const passo of plano) {
-      switch (passo.tipo) {
-        case 'visto': {
-          const key = this.lastIncomingKey.get(jid);
-          if (key) await bestEffort(() => sock.readMessages([key]));
-          break;
-        }
-        case 'pausa':
-          await bestEffort(() => sock.sendPresenceUpdate('paused', jid));
-          await dormir(passo.ms);
-          break;
-        case 'digitando':
-          await bestEffort(() => sock.sendPresenceUpdate('composing', jid));
-          await dormir(passo.ms);
-          break;
-        case 'enviar': {
-          const primeiro = passo.typoAntes ?? passo.texto;
-          const sent = await sock.sendMessage(jid, { text: primeiro });
-          this.echoSent(jid, sent);
-          enviados += 1;
-          if (passo.typoAntes && sent?.key?.id) {
-            await dormir(2000 + Math.random() * 3000);
-            await bestEffort(() => this.editText(jid, sent.key.id as string, passo.texto));
+    try {
+      for (const passo of plano) {
+        switch (passo.tipo) {
+          case 'visto': {
+            const key = this.lastIncomingKey.get(jid);
+            if (key) await bestEffort(() => sock.readMessages([key]));
+            break;
           }
-          break;
+          case 'pausa':
+            await bestEffort(() => sock.sendPresenceUpdate('paused', jid));
+            await dormir(passo.ms);
+            break;
+          case 'digitando':
+            await bestEffort(() => sock.sendPresenceUpdate('composing', jid));
+            await dormir(passo.ms);
+            break;
+          case 'enviar': {
+            try {
+              const primeiro = passo.typoAntes ?? passo.texto;
+              const sent = await sock.sendMessage(jid, { text: primeiro });
+              this.echoSent(jid, sent);
+              enviados += 1;
+              if (passo.typoAntes && sent?.key?.id) {
+                await dormir(2000 + Math.random() * 3000);
+                await bestEffort(() => this.editText(jid, sent.key.id as string, passo.texto));
+              }
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              throw new Error(
+                `entrega humanizada interrompida no balão ${enviados + 1}/${total} (${enviados} enviado(s)): ${msg}`,
+              );
+            }
+            break;
+          }
         }
       }
+    } finally {
+      await bestEffort(() => sock.sendPresenceUpdate('paused', jid));
     }
-    await bestEffort(() => sock.sendPresenceUpdate('paused', jid));
     return { enviados, total };
   }
 
