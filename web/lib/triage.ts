@@ -15,11 +15,12 @@ export interface TriageState {
   copilot: Record<string, boolean>; // slug -> copiloto de IA ligado (opt-in por grupo)
   alertar: Record<string, boolean>; // slug -> notificar no Mac quando chega msg (opt-in por chat)
   autonomo: Record<string, boolean>; // slug -> agente envia sem confirmar (default ausente = confirmar)
+  typos: Record<string, true>; // slug -> typo proposital ligado no envio (opt-in por chat; default ausente = OFF)
   memorySources: Record<string, string[]>; // slug -> lista de dirs absolutos de memória vinculados
 }
 
 function emptyState(): TriageState {
-  return { resolved: {}, muted: {}, notes: {}, lastSeen: {}, copilot: {}, alertar: {}, autonomo: {}, memorySources: {} };
+  return { resolved: {}, muted: {}, notes: {}, lastSeen: {}, copilot: {}, alertar: {}, autonomo: {}, typos: {}, memorySources: {} };
 }
 
 /** Normaliza um objeto cru em Record<string, T>, descartando entradas do tipo errado. */
@@ -35,6 +36,7 @@ function pick<T>(raw: unknown, ok: (v: unknown) => v is T): Record<string, T> {
 
 const isString = (v: unknown): v is string => typeof v === 'string';
 const isBool = (v: unknown): v is boolean => typeof v === 'boolean';
+const isTrue = (v: unknown): v is true => v === true;
 const isStringArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((x) => typeof x === 'string');
 
@@ -61,6 +63,7 @@ export async function readTriage(): Promise<TriageState> {
       copilot: pick(parsed.copilot, isBool),
       alertar: pick(parsed.alertar, isBool),
       autonomo: pick(parsed.autonomo, isBool),
+      typos: pick(parsed.typos, isTrue),
       memorySources: pickArrays(parsed.memorySources),
     };
   } catch {
@@ -120,6 +123,17 @@ export async function setAutonomo(slug: string, enabled: boolean): Promise<void>
 export async function isAutonomo(slug: string): Promise<boolean> {
   const state = await readTriage();
   return state.autonomo[slugify(slug)] === true;
+}
+
+/** Liga/desliga o TYPO PROPOSITAL de um chat (o motor de entrega humanizada erra de propósito
+ * às vezes). Default ausente = OFF. Mesma normalização de chave do setAlert/setAutonomo (slugify
+ * idempotente). */
+export async function setTypos(slug: string, enabled: boolean): Promise<void> {
+  const key = slugify(slug);
+  const state = await readTriage();
+  if (enabled) state.typos[key] = true;
+  else delete state.typos[key];
+  await writeJsonAtomic(TRIAGE_FILE, state);
 }
 
 /** Define a nota livre de um grupo; nota vazia remove a entrada. */

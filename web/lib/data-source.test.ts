@@ -89,6 +89,18 @@ describe('modo REMOTO (flag=1) — busca via HTTP', () => {
     );
   });
 
+  it('dsSetTypos POSTa action typos no /api/triage', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const { dsSetTypos } = await import('./data-source');
+    await dsSetTypos('meu-grupo', true);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://nuvem.exemplo/api/triage',
+      expect.objectContaining({ body: JSON.stringify({ action: 'typos', slug: 'meu-grupo', value: true }) }),
+    );
+  });
+
   it('dsSend faz POST /api/send', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
