@@ -53,6 +53,7 @@ import type {
   ReceiptStatus,
 } from '../core/message.js';
 import type { WhatsAppGateway } from '../core/ports.js';
+import type { Passo } from '../humano/plano.js';
 import { baileysLogger, logger } from '../logger.js';
 import { ChatStateStore } from '../storage/chatStateStore.js';
 import { ContactStore } from '../storage/contactStore.js';
@@ -181,6 +182,8 @@ export class BaileysGateway implements WhatsAppGateway {
    * conexão — re-inscrever floda o servidor). Limpo a cada (re)conexão.
    */
   private readonly presenceSubscribed = new Set<string>();
+  /** Key da última msg RECEBIDA por chat — usada pro "visto" da entrega humanizada. */
+  private readonly lastIncomingKey = new Map<string, WAMessageKey>();
   /**
    * Resolve quando o 1º `refreshGroups()` (carregamento dos nomes de grupo)
    * completa. As mensagens só são processadas depois disso: na janela inicial do
@@ -319,6 +322,60 @@ export class BaileysGateway implements WhatsAppGateway {
     };
     await this.sock.sendMessage(jid, { react: { text: emoji, key: targetKey } });
     this.echoReaction(jid, targetKey, emoji);
+  }
+
+  async editText(jid: string, msgId: string, texto: string): Promise<void> {
+    if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
+    await this.sock.sendMessage(jid, {
+      text: texto,
+      edit: { remoteJid: jid, id: msgId, fromMe: true },
+    });
+  }
+
+  async entregarHumano(jid: string, plano: Passo[]): Promise<{ enviados: number; total: number }> {
+    if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
+    const sock = this.sock;
+    const total = plano.filter((p) => p.tipo === 'enviar').length;
+    let enviados = 0;
+    const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const bestEffort = async (fn: () => Promise<unknown>) => {
+      try {
+        await fn();
+      } catch {
+        /* presença/visto falhando não pode impedir o texto */
+      }
+    };
+
+    for (const passo of plano) {
+      switch (passo.tipo) {
+        case 'visto': {
+          const key = this.lastIncomingKey.get(jid);
+          if (key) await bestEffort(() => sock.readMessages([key]));
+          break;
+        }
+        case 'pausa':
+          await bestEffort(() => sock.sendPresenceUpdate('paused', jid));
+          await dormir(passo.ms);
+          break;
+        case 'digitando':
+          await bestEffort(() => sock.sendPresenceUpdate('composing', jid));
+          await dormir(passo.ms);
+          break;
+        case 'enviar': {
+          const primeiro = passo.typoAntes ?? passo.texto;
+          const sent = await sock.sendMessage(jid, { text: primeiro });
+          this.echoSent(jid, sent);
+          enviados += 1;
+          if (passo.typoAntes && sent?.key?.id) {
+            await dormir(2000 + Math.random() * 3000);
+            await bestEffort(() => this.editText(jid, sent.key.id as string, passo.texto));
+          }
+          break;
+        }
+      }
+    }
+    await bestEffort(() => sock.sendPresenceUpdate('paused', jid));
+    return { enviados, total };
   }
 
   /**
@@ -865,6 +922,7 @@ export class BaileysGateway implements WhatsAppGateway {
     if (!sock) return;
     for (const wa of upsert.messages) {
       const jid = wa.key.remoteJid;
+      if (!wa.key.fromMe && jid) this.lastIncomingKey.set(jid, wa.key);
       // Coleta grupos (@g.us) e DMs (contato 1:1); ignora broadcast/status e afins.
       if (!jid || !(jid.endsWith('@g.us') || isDirectJid(jid))) continue;
       // Chat ativo (chegou mensagem em tempo real) → passa a receber presença dele.
