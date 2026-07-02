@@ -52,6 +52,26 @@ describe('planoDeEntrega', () => {
     const sem = planoDeEntrega(['mensagem grande o suficiente pra typo'], PERFIL_DEFAULT, { typos: false, rng: rngSempre });
     expect((sem.find((p) => p.tipo === 'enviar') as { typoAntes?: string }).typoAntes).toBeUndefined();
   });
+
+  it('teto vale pra QUALQUER seed (propriedade: 200 seeds, cenário realista fora do expediente)', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const plano = planoDeEntrega(
+        ['a'.repeat(300), 'b'.repeat(400), 'c'.repeat(500)],
+        PERFIL_DEFAULT,
+        { rng: seeded(seed), foraDoExpediente: true, msgRecebidaChars: 400 },
+      );
+      const total = plano.reduce((acc, p) => acc + ('ms' in p ? p.ms : 0), 0);
+      expect(total).toBeLessThanOrEqual(TETO_MS);
+    }
+  });
+
+  it('balões vazios são filtrados e digitando tem piso de 300ms (sem cap)', () => {
+    const plano = planoDeEntrega(['', '   ', 'oi'], PERFIL_DEFAULT, { rng: seeded(5) });
+    expect(plano.filter((p) => p.tipo === 'enviar')).toHaveLength(1);
+    for (const d of plano.filter((p) => p.tipo === 'digitando')) {
+      expect((d as { ms: number }).ms).toBeGreaterThanOrEqual(300);
+    }
+  });
 });
 
 describe('injetarTypo', () => {

@@ -22,6 +22,7 @@ export interface CtxEntrega {
 
 export const TETO_MS = 45_000;
 const TYPO_CHANCE = 0.03;
+const PISO_DIGITANDO_MS = 300;
 
 export function planoDeEntrega(
   baloes: string[],
@@ -36,9 +37,10 @@ export function planoDeEntrega(
   if (ctx.foraDoExpediente) leitura *= 2.5;
   passos.push({ tipo: 'pausa', ms: Math.round(leitura) });
 
-  baloes.forEach((texto, i) => {
+  const validos = baloes.map((b) => b.trim()).filter(Boolean);
+  validos.forEach((texto, i) => {
     if (i > 0) passos.push({ tipo: 'pausa', ms: pausaEntreBaloes(rng) });
-    passos.push({ tipo: 'digitando', ms: Math.round(texto.length * (40 + rng() * 40)) });
+    passos.push({ tipo: 'digitando', ms: Math.max(PISO_DIGITANDO_MS, Math.round(texto.length * (40 + rng() * 40))) });
     const typoAntes = ctx.typos && rng() < TYPO_CHANCE ? (injetarTypo(texto, rng) ?? undefined) : undefined;
     passos.push({ tipo: 'enviar', texto, ...(typoAntes ? { typoAntes } : {}) });
   });
@@ -52,12 +54,23 @@ function pausaEntreBaloes(rng: () => number): number {
   return Math.round(1000 + Math.exp(u * 2.1) * 800); // ~1.8s..7.5s
 }
 
-/** Escala os tempos proporcionalmente se o total passar do teto. */
+/** Escala os tempos se o total passar do teto — e GARANTE o teto: floor no
+ * escalonamento e o resíduo de arredondamento é aparado do maior passo. */
 function capar(passos: Passo[]): Passo[] {
-  const total = passos.reduce((acc, p) => acc + ('ms' in p ? p.ms : 0), 0);
+  const soma = (ps: Passo[]) => ps.reduce((acc, p) => acc + ('ms' in p ? p.ms : 0), 0);
+  const total = soma(passos);
   if (total <= TETO_MS) return passos;
   const fator = TETO_MS / total;
-  return passos.map((p) => ('ms' in p ? { ...p, ms: Math.round(p.ms * fator) } : p));
+  const escalados = passos.map((p) => ('ms' in p ? { ...p, ms: Math.max(1, Math.floor(p.ms * fator)) } : p));
+  const excesso = soma(escalados) - TETO_MS;
+  if (excesso > 0) {
+    const maior = escalados.reduce<Extract<Passo, { ms: number }> | null>(
+      (m, p) => ('ms' in p && (!m || p.ms > m.ms) ? p : m),
+      null,
+    );
+    if (maior) maior.ms = Math.max(1, maior.ms - excesso);
+  }
+  return escalados;
 }
 
 /**
