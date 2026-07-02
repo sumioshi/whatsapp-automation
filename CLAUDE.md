@@ -21,7 +21,32 @@ ativamente (ser acordado quando chega msg), arme um Monitor no `data/<slug-do-gr
 ### Recipe do Monitor de mensagem (sem zumbi)
 
 Pra ser acordado quando chega msg nova num chat (modo monitor/autônomo), arme **UM** Monitor
-persistente no `messages.jsonl`, filtrando o que é seu (`fromMe`):
+persistente, filtrando o que é seu (`fromMe`). São duas receitas conforme a fonte:
+
+**Receita PADRÃO (nuvem, SSE — funciona com o Mac "limpo", sem coletor local):** a rota
+`GET /api/events?slug=<slug>` do painel na nuvem empurra cada mensagem nova como evento SSE
+(mesma linha crua do `messages.jsonl`). Requer `WAC_CLOUD_*` no `.env` da raiz do repo:
+
+```
+Monitor(persistent: true, command:
+  set -a; . ./.env 2>/dev/null; set +a
+  while :; do
+    curl -sN -u "$WAC_CLOUD_USER:$WAC_CLOUD_PASS" "$WAC_CLOUD_URL/api/events?slug=<slug>" \
+    | while IFS= read -r line; do
+        case "$line" in "data: "*) printf '%s\n' "${line#data: }" | python3 -c 'import sys,json;
+m=json.loads(sys.stdin.read());
+sys.exit(0) if m.get("fromMe") else print((m.get("senderName") or m.get("sender") or "?")+": "+((m.get("text") or "").strip() or "["+m.get("type","")+"]"), flush=True)';;
+        esac
+      done
+    sleep 5
+  done)
+```
+
+(O `while :` externo reconecta se a conexão longa cair; o servidor manda `: ping` a cada 25s
+como keep-alive — o `case` já o ignora.)
+
+**Receita LOCAL (coletor local ligado via `npm run dev`):** vigia o arquivo direto — latência
+zero, mas só atualiza com o coletor local rodando:
 
 ```
 Monitor(persistent: true, command:
