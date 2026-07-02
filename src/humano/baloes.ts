@@ -21,6 +21,7 @@ const MAX_BALOES = 3;
 
 export function quebrarEmBaloes(texto: string, perfil: PerfilEnvio = PERFIL_DEFAULT): string[] {
   const t = texto.trim();
+  if (!t) return [];
   if (t.length <= CURTO) return [t];
 
   const paragrafos = t.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
@@ -45,5 +46,22 @@ function quebrarPorSentenca(texto: string, alvo: number): string[] {
     }
   }
   if (atual.trim()) baloes.push(atual.trim());
-  return baloes;
+  return baloes.flatMap((b) => (b.length > alvo * 2 ? quebrarPorPalavra(b, alvo) : [b]));
+}
+
+/** Último recurso pra texto sem pontuação: quebra por palavra perto do alvo. */
+function quebrarPorPalavra(texto: string, alvo: number): string[] {
+  const palavras = texto.split(' ');
+  const out: string[] = [];
+  let atual = '';
+  for (const p of palavras) {
+    if (atual && `${atual} ${p}`.length > alvo * 1.3) {
+      out.push(atual);
+      atual = p;
+    } else {
+      atual = atual ? `${atual} ${p}` : p;
+    }
+  }
+  if (atual) out.push(atual);
+  return out;
 }

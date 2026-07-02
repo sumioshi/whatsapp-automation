@@ -29,4 +29,23 @@ describe('quebrarEmBaloes', () => {
     const t = Array.from({ length: 8 }, (_, i) => `pensamento numero ${i} com corpo suficiente aqui`).join('\n\n');
     expect(quebrarEmBaloes(t).length).toBe(3);
   });
+
+  it('texto vazio ou só espaços → nenhum balão', () => {
+    expect(quebrarEmBaloes('')).toEqual([]);
+    expect(quebrarEmBaloes('   \n  ')).toEqual([]);
+  });
+
+  it('parágrafo único longo SEM pontuação quebra por palavra', () => {
+    const t = 'palavra '.repeat(45).trim();
+    const baloes = quebrarEmBaloes(t, { ...PERFIL_DEFAULT, tamanhoMedioBalao: 100 });
+    expect(baloes.length).toBeGreaterThanOrEqual(2);
+    expect(baloes.join(' ')).toBe(t);
+  });
+
+  it('fusão por excesso de parágrafos preserva conteúdo', () => {
+    const partes = Array.from({ length: 5 }, (_, i) => `pensamento ${i} com corpo suficiente aqui dentro`);
+    const baloes = quebrarEmBaloes(partes.join('\n\n'));
+    expect(baloes.length).toBe(3);
+    expect(baloes.join(' ')).toBe(partes.join(' '));
+  });
 });
