@@ -45,22 +45,6 @@ describe('setAlert / readTriage.alertar', () => {
     expect((await mod.readTriage()).alertar['acme-corp']).toBeUndefined();
   });
 
-  it('setAutonomo/isAutonomo: default confirmar, liga, desliga, normaliza chave', async () => {
-    // default ausente = confirmar (false)
-    expect(await mod.isAutonomo('grupo-novo')).toBe(false);
-    // liga
-    await mod.setAutonomo('grupo-novo', true);
-    expect(await mod.isAutonomo('grupo-novo')).toBe(true);
-    expect((await mod.readTriage()).autonomo['grupo-novo']).toBe(true);
-    // chave crua (nome com emoji) normaliza pro mesmo slug
-    await mod.setAutonomo('Acme Corp', true);
-    expect(await mod.isAutonomo('acme-corp')).toBe(true);
-    // desliga remove a chave
-    await mod.setAutonomo('grupo-novo', false);
-    expect(await mod.isAutonomo('grupo-novo')).toBe(false);
-    expect((await mod.readTriage()).autonomo['grupo-novo']).toBeUndefined();
-  });
-
   it('setTypos: default off, liga, desliga, normaliza chave', async () => {
     // default ausente = OFF
     expect((await mod.readTriage()).typos['grupo-novo']).toBeUndefined();

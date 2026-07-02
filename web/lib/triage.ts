@@ -119,12 +119,6 @@ export async function setAutonomo(slug: string, enabled: boolean): Promise<void>
   await writeJsonAtomic(TRIAGE_FILE, state);
 }
 
-/** True se o chat está em modo autônomo (a IA pode enviar sem confirmar). Default false. */
-export async function isAutonomo(slug: string): Promise<boolean> {
-  const state = await readTriage();
-  return state.autonomo[slugify(slug)] === true;
-}
-
 /** Liga/desliga o TYPO PROPOSITAL de um chat (o motor de entrega humanizada erra de propósito
  * às vezes). Default ausente = OFF. Mesma normalização de chave do setAlert/setAutonomo (slugify
  * idempotente). */
