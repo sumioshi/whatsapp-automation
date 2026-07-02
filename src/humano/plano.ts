@@ -11,7 +11,7 @@ export type Passo =
   | { tipo: 'visto' }
   | { tipo: 'pausa'; ms: number }
   | { tipo: 'digitando'; ms: number }
-  | { tipo: 'enviar'; texto: string; typoAntes?: string };
+  | { tipo: 'enviar'; texto: string; typoAntes?: string; typoDelayMs?: number };
 
 export interface CtxEntrega {
   typos?: boolean;
@@ -42,7 +42,17 @@ export function planoDeEntrega(
     if (i > 0) passos.push({ tipo: 'pausa', ms: pausaEntreBaloes(rng) });
     passos.push({ tipo: 'digitando', ms: Math.max(PISO_DIGITANDO_MS, Math.round(texto.length * (40 + rng() * 40))) });
     const typoAntes = ctx.typos && rng() < TYPO_CHANCE ? (injetarTypo(texto, rng) ?? undefined) : undefined;
-    passos.push({ tipo: 'enviar', texto, ...(typoAntes ? { typoAntes } : {}) });
+    // typoDelayMs é sorteado AQUI (no plano, com o rng semeável) — é o tempo entre
+    // o envio com typo e o edit que corrige, hoje fora do teto porque o executor
+    // sorteava na hora com Math.random(). Sorteando no plano, capar() consegue
+    // somar/escalar esse tempo junto com os demais e o executor fica determinístico.
+    const typoDelayMs = typoAntes ? Math.round(2000 + rng() * 3000) : undefined;
+    passos.push({
+      tipo: 'enviar',
+      texto,
+      ...(typoAntes ? { typoAntes } : {}),
+      ...(typoDelayMs !== undefined ? { typoDelayMs } : {}),
+    });
   });
 
   return capar(passos);
@@ -55,20 +65,48 @@ function pausaEntreBaloes(rng: () => number): number {
 }
 
 /** Escala os tempos se o total passar do teto — e GARANTE o teto: floor no
- * escalonamento e o resíduo de arredondamento é aparado do maior passo. */
+ * escalonamento e o resíduo de arredondamento é aparado do maior passo. O
+ * `typoDelayMs` (tempo do envio-com-typo até o edit corretivo) soma e escala
+ * junto com os `ms` — senão o executor esperaria além do teto por fora do plano. */
 function capar(passos: Passo[]): Passo[] {
-  const soma = (ps: Passo[]) => ps.reduce((acc, p) => acc + ('ms' in p ? p.ms : 0), 0);
+  const parteExtra = (p: Passo) => (p.tipo === 'enviar' ? (p.typoDelayMs ?? 0) : 0);
+  const somaPasso = (p: Passo) => ('ms' in p ? p.ms : 0) + parteExtra(p);
+  const soma = (ps: Passo[]) => ps.reduce((acc, p) => acc + somaPasso(p), 0);
   const total = soma(passos);
   if (total <= TETO_MS) return passos;
   const fator = TETO_MS / total;
-  const escalados = passos.map((p) => ('ms' in p ? { ...p, ms: Math.max(1, Math.floor(p.ms * fator)) } : p));
+  const escalados = passos.map((p): Passo => {
+    const base: Passo = 'ms' in p ? { ...p, ms: Math.max(1, Math.floor(p.ms * fator)) } : { ...p };
+    if (base.tipo === 'enviar' && base.typoDelayMs !== undefined) {
+      base.typoDelayMs = Math.max(1, Math.floor(base.typoDelayMs * fator));
+    }
+    return base;
+  });
   const excesso = soma(escalados) - TETO_MS;
   if (excesso > 0) {
-    const maior = escalados.reduce<Extract<Passo, { ms: number }> | null>(
-      (m, p) => ('ms' in p && (!m || p.ms > m.ms) ? p : m),
-      null,
-    );
-    if (maior) maior.ms = Math.max(1, maior.ms - excesso);
+    // aparar o resíduo do maior "slot" de tempo — seja ms de pausa/digitando, seja typoDelayMs de um enviar
+    type Slot = { valor: number; aparar: (novoValor: number) => void };
+    const slots: Slot[] = [];
+    for (const p of escalados) {
+      if ('ms' in p) {
+        slots.push({
+          valor: p.ms,
+          aparar: (v) => {
+            p.ms = v;
+          },
+        });
+      }
+      if (p.tipo === 'enviar' && p.typoDelayMs !== undefined) {
+        slots.push({
+          valor: p.typoDelayMs,
+          aparar: (v) => {
+            p.typoDelayMs = v;
+          },
+        });
+      }
+    }
+    const maior = slots.reduce<Slot | null>((m, s) => (!m || s.valor > m.valor ? s : m), null);
+    if (maior) maior.aparar(Math.max(1, maior.valor - excesso));
   }
   return escalados;
 }

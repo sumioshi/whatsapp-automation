@@ -369,7 +369,7 @@ export class BaileysGateway implements WhatsAppGateway {
               this.echoSent(jid, sent);
               enviados += 1;
               if (passo.typoAntes && sent?.key?.id) {
-                await dormir(2000 + Math.random() * 3000);
+                await dormir(passo.typoDelayMs ?? 3000);
                 await bestEffort(() => this.editText(jid, sent.key.id as string, passo.texto));
               }
             } catch (e) {

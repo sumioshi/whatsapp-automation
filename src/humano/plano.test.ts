@@ -53,6 +53,38 @@ describe('planoDeEntrega', () => {
     expect((sem.find((p) => p.tipo === 'enviar') as { typoAntes?: string }).typoAntes).toBeUndefined();
   });
 
+  it('typoDelayMs: com typos ligado e rng favorável, o passo enviar ganha typoDelayMs numérico 2000-5000', () => {
+    const rngSempre = () => 0.001; // qualquer limiar passa, inclusive TYPO_CHANCE
+    const plano = planoDeEntrega(['mensagem grande o suficiente pra typo'], PERFIL_DEFAULT, {
+      typos: true,
+      rng: rngSempre,
+    });
+    const enviar = plano.find((p) => p.tipo === 'enviar') as { typoAntes?: string; typoDelayMs?: number };
+    expect(enviar.typoAntes).toBeDefined();
+    expect(typeof enviar.typoDelayMs).toBe('number');
+    expect(enviar.typoDelayMs).toBeGreaterThanOrEqual(2000);
+    expect(enviar.typoDelayMs).toBeLessThanOrEqual(5000);
+  });
+
+  it('propriedade: 3 balões grandes TODOS com typo (rng favorável) — soma de ms+typoDelayMs de TODOS os passos respeita o TETO_MS', () => {
+    const rngSempre = () => 0.001; // TYPO_CHANCE sempre passa, typoDelayMs sempre no mínimo (2000)
+    // frase com palavras de letras variadas (não repetidas), pra injetarTypo sempre conseguir trocar
+    // duas letras adjacentes de fato (palavras tipo "aaaa" fariam a troca virar no-op e devolver null)
+    const frase = 'verificar o retorno da api agora mesmo por favor obrigado '.repeat(10);
+    const plano = planoDeEntrega([frase, frase, frase], PERFIL_DEFAULT, {
+      rng: rngSempre,
+      typos: true,
+      foraDoExpediente: true,
+    });
+    const enviarSteps = plano.filter((p) => p.tipo === 'enviar') as { typoAntes?: string; typoDelayMs?: number }[];
+    expect(enviarSteps.every((p) => p.typoAntes)).toBe(true); // premissa: todos ganharam typo
+    const totalComTypoDelay = plano.reduce(
+      (acc, p) => acc + ('ms' in p ? p.ms : 0) + (p.tipo === 'enviar' ? (p.typoDelayMs ?? 0) : 0),
+      0,
+    );
+    expect(totalComTypoDelay).toBeLessThanOrEqual(TETO_MS);
+  });
+
   it('teto vale pra QUALQUER seed (propriedade: 200 seeds, cenário realista fora do expediente)', () => {
     for (let seed = 1; seed <= 200; seed++) {
       const plano = planoDeEntrega(
