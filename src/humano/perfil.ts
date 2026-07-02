@@ -53,13 +53,18 @@ export async function loadPerfilEnvio(slug: string | undefined, dataDir: string)
       })
       .filter((m) => m?.fromMe && m.type === 'text' && m.text)
       .map((m) => m!.text!);
-    const perfil = calcularPerfil(textos) ?? PERFIL_DEFAULT;
-    try {
-      await writeFile(cachePath, JSON.stringify({ calculadoEm: Date.now(), perfil } satisfies CachePerfil));
-    } catch {
-      /* cache é best-effort */
+    const perfil = calcularPerfil(textos);
+    // Só grava cache quando o cálculo teve msgs suficientes (< MIN_MSGS => null):
+    // gravar o default aqui prenderia um chat NOVO no default por 24h mesmo depois
+    // de cruzar o limiar de MIN_MSGS, já que o cache tem prioridade no próximo load.
+    if (perfil) {
+      try {
+        await writeFile(cachePath, JSON.stringify({ calculadoEm: Date.now(), perfil } satisfies CachePerfil));
+      } catch {
+        /* cache é best-effort */
+      }
     }
-    return perfil;
+    return perfil ?? PERFIL_DEFAULT;
   } catch {
     return PERFIL_DEFAULT;
   }
