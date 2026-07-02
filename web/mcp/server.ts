@@ -586,9 +586,12 @@ server.registerTool(
   {
     description:
       "Edita uma mensagem JÁ ENVIADA por você/pela IA (o WhatsApp marca 'editada'). Use pra corrigir " +
-      "erro ou atualizar info numa msg recente. Só funciona em mensagem PRÓPRIA (fromMe). O msgId vem " +
-      "do ler_mensagens. CONFIRMAÇÃO: mesma convenção do responder — no modo 'confirmar', mostre o " +
-      "texto novo e espere OK antes de chamar.",
+      "erro ou atualizar info numa msg recente. Só funciona em mensagem PRÓPRIA (fromMe) — ATENÇÃO: " +
+      "mensagens que o OPERADOR mandou do celular também são fromMe (mesma conta) e são editáveis por " +
+      "esta tool. Por isso NUNCA escolha o msgId por posição ('a última'): pegue via ler_mensagens e " +
+      "CONFIRA que o texto da msg alvo é exatamente o que você quer substituir antes de chamar. " +
+      "CONFIRMAÇÃO: mesma convenção do responder — no modo 'confirmar', mostre o texto novo e espere " +
+      "OK antes de chamar.",
     inputSchema: {
       grupo: z.string().describe("slug do grupo/DM, nome exato, OU jid"),
       msgId: z.string().describe("id da mensagem a editar (de ler_mensagens)"),
