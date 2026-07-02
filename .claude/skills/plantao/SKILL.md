@@ -40,7 +40,9 @@ for g in json.load(sys.stdin):
 
 **2. Checar a CAPTURA do grupo (pegadinha de grupo novo/recém-criado):** grupo novo nasce com
 `watch: false` na nuvem — o monitor ficaria armado mas **surdo pra sempre**. Cheque em
-`GET /api/groups` (procure o chat pelo nome); se `"watch": false`, ligue:
+`GET /api/groups` (procure o chat pelo nome). Atenção: esse endpoint traz `id`/`name`/`watch`
+mas **NÃO traz `slug`** — slug vem só do `/api/groups/summary` (passo 1); não tente tirar daqui.
+Se `"watch": false`, ligue:
 ```bash
 curl -s -u "$WAC_CLOUD_USER:$WAC_CLOUD_PASS" -X POST -H "content-type: application/json" \
   -d '{"id":"<jid do grupo>","watch":true}' "$WAC_CLOUD_URL/api/groups"
