@@ -5,8 +5,8 @@
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { PerfilEnvio } from './baloes';
-import { PERFIL_DEFAULT } from './baloes';
+import type { PerfilEnvio } from './baloes.js';
+import { PERFIL_DEFAULT } from './baloes.js';
 
 const MIN_MSGS = 30;
 const TTL_MS = 24 * 60 * 60 * 1000;

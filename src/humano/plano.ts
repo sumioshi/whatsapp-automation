@@ -4,8 +4,8 @@
  * RNG injetável — o realismo vem da IRREGULARIDADE (jitter, log-normal), nunca
  * de intervalos uniformes. Teto global de 45s: o /send segura o HTTP até o fim.
  */
-import type { PerfilEnvio } from './baloes';
-import { PERFIL_DEFAULT } from './baloes';
+import type { PerfilEnvio } from './baloes.js';
+import { PERFIL_DEFAULT } from './baloes.js';
 
 export type Passo =
   | { tipo: 'visto' }
@@ -81,7 +81,7 @@ export function injetarTypo(texto: string, rng: () => number): string | null {
   const palavras = texto.split(' ');
   const idx = palavras.map((w, i) => ({ w, i })).filter(({ w }) => /^[a-zà-ú]{4,}$/i.test(w));
   if (!idx.length) return null;
-  const { w, i } = idx[Math.floor(rng() * idx.length)];
+  const { w, i } = idx[Math.floor(rng() * idx.length)]!;
   const pos = 1 + Math.floor(rng() * (w.length - 2));
   const trocada = w.slice(0, pos) + w[pos + 1] + w[pos] + w.slice(pos + 2);
   if (trocada === w) return null;
