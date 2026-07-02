@@ -19,6 +19,15 @@ REPO="$(dirname "$(dirname "$(dirname "$(readlink -f ~/.claude/skills/plantao)")
 
 ## Passos
 
+**0. Se o pedido NÃO nomeia o chat** ("fica de olho no whatsapp", "arma um plantão aí") **ou o
+nome é ambíguo**, descubra por contexto — NUNCA escolha sozinho:
+- Repo linkado? Se existir `.claude/whatsapp.json` no projeto atual, o chat é o de lá (use o slug
+  e pule pro passo 2).
+- Senão, derive tokens do projeto (nome da pasta do cwd, `"name"` do package.json) e ranqueie os
+  chats parecidos: `$REPO/scripts/plantao-candidatos.sh <tokens>` (sem tokens = mais ativos).
+- Monte um `AskUserQuestion` com os até 4 candidatos como opções (label = nome do chat) — quem
+  quiser outro usa o "Other" (digita o nome, resolva pelo passo 1).
+
 **1. Resolver o slug** (nome do chat → slug):
 ```bash
 cd $REPO && set -a && . ./.env; set +a
