@@ -112,6 +112,39 @@ describe('modo REMOTO (flag=1) — busca via HTTP', () => {
       expect.objectContaining({ method: 'POST', body: JSON.stringify({ status: 'fora do expediente' }) }),
     );
   });
+
+  it('dsSend repassa humano/slug/typos no body do /api/send', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const { dsSend } = await import('./data-source');
+    await dsSend('120363000000000001@g.us', 'oi', { humano: true, slug: 'meu-grupo', typos: false });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://nuvem.exemplo/api/send',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ jid: '120363000000000001@g.us', text: 'oi', humano: true, slug: 'meu-grupo', typos: false }),
+      }),
+    );
+  });
+
+  it('dsEditMessage chama /api/edit-message', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const { dsEditMessage } = await import('./data-source');
+    await dsEditMessage('120363000000000001@g.us', 'ABC123', 'texto corrigido');
+    expect(fetchSpy).toHaveBeenCalledWith('https://nuvem.exemplo/api/edit-message', expect.anything());
+  });
+
+  it('dsReact chama /api/react', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const { dsReact } = await import('./data-source');
+    await dsReact('120363000000000001@g.us', 'ABC123', '👍');
+    expect(fetchSpy).toHaveBeenCalledWith('https://nuvem.exemplo/api/react', expect.anything());
+  });
 });
 
 describe('escrita LOCAL — delega à lib, sem rede', () => {
