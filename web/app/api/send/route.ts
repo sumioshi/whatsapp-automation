@@ -6,6 +6,9 @@ export const runtime = "nodejs";
 interface Body {
   jid?: string;
   text?: string;
+  humano?: boolean;
+  slug?: string;
+  typos?: boolean;
 }
 
 export async function POST(req: Request) {
@@ -25,16 +28,22 @@ export async function POST(req: Request) {
     const res = await fetch(`${CONTROL_URL}/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jid: body.jid, text }),
+      body: JSON.stringify({
+        jid: body.jid,
+        text,
+        humano: body.humano === true,
+        slug: body.slug,
+        typos: body.typos === true,
+      }),
     });
-    const data = (await res.json()) as { ok?: boolean; error?: string };
+    const data = (await res.json()) as { ok?: boolean; error?: string; baloes?: number };
     if (!res.ok || !data.ok) {
       return NextResponse.json(
         { error: data.error ?? "falha no envio" },
         { status: res.status || 502 },
       );
     }
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, baloes: data.baloes });
   } catch {
     return NextResponse.json(
       { error: "Coletor offline — inicie o coletor para enviar." },
