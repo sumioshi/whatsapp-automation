@@ -21,7 +21,6 @@ function msg(p: Partial<MessageView> & { type: string }): MessageView {
     senderName: 'Fulano',
     timestamp: '2026-06-26T12:00:00.000Z',
     fromMe: false,
-    type: p.type,
     text: p.text ?? '',
     quotedText: null,
     quotedSender: null,
@@ -33,6 +32,13 @@ function msg(p: Partial<MessageView> & { type: string }): MessageView {
     ...p,
   } as MessageView;
 }
+
+describe('compact — id', () => {
+  it('expõe o id da mensagem (é o msgId que editar_mensagem/reagir esperam)', () => {
+    const r = compact(msg({ type: 'text', text: 'oi', id: 'ABC123' }), c);
+    expect(r.id).toBe('ABC123');
+  });
+});
 
 describe('compact — legenda vs texto', () => {
   it('texto numa msg de VÍDEO vira legenda (não texto)', () => {
