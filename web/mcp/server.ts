@@ -22,20 +22,35 @@ import { promisify } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { readGroupsConfig } from "../lib/config";
-import { buildContacts, numberFromJid, roleOf, sendableDmJid } from "../lib/contacts";
 import { compact } from "../lib/context";
-import { listGroups, type MessageView, readGroupMessages } from "../lib/data";
+import { type MessageView } from "../lib/data";
 import { ensureLocalMedia } from "../lib/cloud-media";
 import { extractDocumentText } from "../lib/documents";
-import { CONTROL_URL, safeDataPath } from "../lib/paths";
+import { safeDataPath } from "../lib/paths";
 import { marcarRajadas } from "../lib/rajada";
 import { matchGrupo } from "../lib/resolve-grupo";
+import { slugify } from "../lib/slug";
 import { transcribe, transcribeBatch } from "../lib/transcribe";
 import { ultimaMidiaPath } from "../lib/ultima-midia";
-import { isAutonomo, readTriage, setAlert, setAutonomo, setMuted, setNote, setResolved } from "../lib/triage";
-import { readAgentSeen, setAgentSeenMany } from "../lib/agent-seen";
 import { selectNew } from "../lib/novidades";
+import {
+  dsGroupMessages,
+  dsListGroups,
+  dsGroupsConfig,
+  dsContacts,
+  dsTriage,
+  dsAgentSeen,
+  dsSetAgentSeen,
+  dsSetResolved,
+  dsSetMuted,
+  dsSetNote,
+  dsSetAlert,
+  dsSetAutonomo,
+  dsSend,
+  dsSendMedia,
+  dsEditarPerfil,
+} from "../lib/data-source";
+import { numberFromJid, roleOf, sendableDmJid } from "../lib/contacts";
 
 // O MCP server é lançado pelo Claude Code (não pelo `npm run dev`), então não herda o
 // .env. Carregamos o .env da raiz aqui pra ter o WAC_CLOUD_* (mídia sob demanda da
@@ -54,11 +69,11 @@ try {
  * em até CONTACTS_TTL_MS. Invalida sozinho — sem stale eterno.
  */
 const CONTACTS_TTL_MS = 60_000;
-let contactsCache: { at: number; value: Awaited<ReturnType<typeof buildContacts>> } | null = null;
-async function contacts(): Promise<Awaited<ReturnType<typeof buildContacts>>> {
+let contactsCache: { at: number; value: Awaited<ReturnType<typeof dsContacts>> } | null = null;
+async function contacts(): Promise<Awaited<ReturnType<typeof dsContacts>>> {
   const now = Date.now();
   if (contactsCache && now - contactsCache.at < CONTACTS_TTL_MS) return contactsCache.value;
-  const value = await buildContacts();
+  const value = await dsContacts();
   contactsCache = { at: now, value };
   return value;
 }
@@ -80,7 +95,7 @@ async function resolverMidia(
   tipos: readonly string[],
 ): Promise<{ path: string } | { erro: string }> {
   if (mediaPath) return { path: mediaPath };
-  const ultima = ultimaMidiaPath(await readGroupMessages(grupo), tipos);
+  const ultima = ultimaMidiaPath(await dsGroupMessages(grupo), tipos);
   return ultima
     ? { path: ultima }
     : { erro: `nenhuma mídia (${tipos.join("/")}) encontrada em "${grupo}"` };
@@ -116,17 +131,6 @@ function ok(fields: Record<string, unknown>, msg: string) {
   return text({ ok: true, ...fields, msg });
 }
 
-/** POST num endpoint /profile/* do control server; lança Error com a mensagem do servidor se falhar. */
-async function postProfile(rota: string, body: Record<string, unknown>): Promise<void> {
-  const res = await fetch(`${CONTROL_URL}${rota}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = (await res.json()) as { ok?: boolean; error?: string };
-  if (!res.ok || !data.ok) throw new Error(data.error ?? `falha em ${rota}`);
-}
-
 server.registerTool(
   "listar_grupos",
   {
@@ -135,8 +139,8 @@ server.registerTool(
     inputSchema: {},
   },
   async () => {
-    const grupos = await listGroups();
-    const config = await readGroupsConfig();
+    const grupos = await dsListGroups();
+    const config = await dsGroupsConfig();
     return text({ grupos, monitorados: config.filter((g) => g.watch).map((g) => g.name) });
   },
 );
@@ -167,7 +171,7 @@ server.registerTool(
   },
   async ({ grupo, desde, limite }) => {
     try {
-      let msgs = await readGroupMessages(grupo);
+      let msgs = await dsGroupMessages(grupo);
       const totalGrupo = msgs.length;
       if (desde) msgs = msgs.filter((m) => m.timestamp >= desde);
       // Default de 50 só quando nenhum filtro foi dado — senão respeita o que o
@@ -214,10 +218,10 @@ server.registerTool(
       const teto = limite ?? 50;
       const alvo = texto.toLowerCase();
       const c = await contacts();
-      const slugs = grupo ? [grupo] : (await listGroups()).map((g) => g.slug);
+      const slugs = grupo ? [grupo] : (await dsListGroups()).map((g) => g.slug);
       const hits: Array<{ grupo: string; ts: string } & ReturnType<typeof compact>> = [];
       for (const slug of slugs) {
-        const msgs = await readGroupMessages(slug);
+        const msgs = await dsGroupMessages(slug);
         for (const m of msgs) {
           const haystack = `${m.text}\n${m.transcript ?? ""}`.toLowerCase();
           if (haystack.includes(alvo)) hits.push({ grupo: slug, ts: m.timestamp, ...compact(m, c) });
@@ -262,7 +266,7 @@ server.registerTool(
       // Sem mediaPath: lote dos pendentes LOCAIS, com teto (absorve o antigo
       // transcrever_lote). Pula os que só estão na nuvem e limita por chamada pra
       // não pendurar a chamada baixando/transcrevendo dezenas em série.
-      const pend = pendingMedia(await readGroupMessages(grupo));
+      const pend = pendingMedia(await dsGroupMessages(grupo));
       if (!pend.length) return text("Nenhum áudio/vídeo pendente de transcrição.");
       const { textos, restantes } = await transcribeBatch(grupo, pend);
       return text({
@@ -292,7 +296,7 @@ server.registerTool(
   async ({ grupo, data }) => {
     try {
       const dia = data ?? new Date().toISOString().slice(0, 10);
-      let msgs = (await readGroupMessages(grupo)).filter((m) => m.timestamp.startsWith(dia));
+      let msgs = (await dsGroupMessages(grupo)).filter((m) => m.timestamp.startsWith(dia));
       // Transcreve os áudios/vídeos LOCAIS do dia que faltam (modelo morno, com
       // teto — não pendura a chamada nos que só estão na nuvem nem em lotes grandes).
       const pend = pendingMedia(msgs);
@@ -300,7 +304,7 @@ server.registerTool(
       if (pend.length) {
         const r = await transcribeBatch(grupo, pend);
         restantes = r.restantes;
-        msgs = (await readGroupMessages(grupo)).filter((m) => m.timestamp.startsWith(dia));
+        msgs = (await dsGroupMessages(grupo)).filter((m) => m.timestamp.startsWith(dia));
       }
       const c = await contacts();
       return text({
@@ -504,7 +508,7 @@ async function resolveDestino(grupo: string): Promise<{ jid: string | null; labe
     return jid ? { jid, label: jid } : { jid: null, label: g };
   }
   // Grupo: casa por jid, nome exato OU slug (ver matchGrupo / resolve-grupo.ts).
-  const match = matchGrupo(g, await readGroupsConfig());
+  const match = matchGrupo(g, await dsGroupsConfig());
   return match ? { jid: match.id, label: match.name } : { jid: null, label: g };
 }
 
@@ -532,14 +536,8 @@ server.registerTool(
     try {
       const { jid, label } = await resolveDestino(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
-      const res = await fetch(`${CONTROL_URL}/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jid, text: texto }),
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) return fail(data.error ?? "falha no envio");
-      const modo = (await isAutonomo(grupo)) ? "autonomo" : "confirmar";
+      await dsSend(jid, texto);
+      const modo = ((await dsTriage()).autonomo[slugify(grupo)] === true) ? "autonomo" : "confirmar";
       return ok({ destino: label, jid, modo }, `Mensagem enviada para "${label}".`);
     } catch (e) {
       return fail(e instanceof Error ? e.message : "coletor offline?");
@@ -570,13 +568,7 @@ server.registerTool(
       // path absoluto = arquivo no disco; relativo = mediaPath dentro de DATA_DIR.
       const abs = path.startsWith("/") ? path : safeDataPath(path);
       if (kind === "document" && !fileName) return fail("fileName é obrigatório para document");
-      const res = await fetch(`${CONTROL_URL}/send-media`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jid, kind, path: abs, caption, fileName, mimetype }),
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) return fail(data.error ?? "falha no envio");
+      await dsSendMedia({ jid, kind, path: abs, caption, fileName, mimetype });
       return ok({ destino: label, jid, kind }, `Arquivo (${kind}) enviado para "${label}".`);
     } catch (e) {
       return fail(e instanceof Error ? e.message : "coletor offline?");
@@ -608,19 +600,15 @@ server.registerTool(
     }
     const aplicado: string[] = [];
     try {
-      if (nome) {
-        await postProfile("/profile/name", { name: nome });
-        aplicado.push("nome");
-      }
-      if (recado) {
-        await postProfile("/profile/status", { status: recado });
-        aplicado.push("recado");
-      }
-      if (foto) {
-        const abs = foto.startsWith("/") ? foto : safeDataPath(foto);
-        await postProfile("/profile/picture", { path: abs });
-        aplicado.push("foto");
-      }
+      const picturePath = foto ? (foto.startsWith("/") ? foto : safeDataPath(foto)) : undefined;
+      await dsEditarPerfil({
+        name: nome,
+        status: recado,
+        picturePath,
+      });
+      if (nome) aplicado.push("nome");
+      if (recado) aplicado.push("recado");
+      if (foto) aplicado.push("foto");
       return ok({ aplicado }, `Perfil atualizado (${aplicado.join(", ")}).`);
     } catch (e) {
       const falha = e instanceof Error ? e.message : "coletor offline?";
@@ -649,7 +637,7 @@ server.registerTool(
   async ({ grupo, ate }) => {
     try {
       const iso = ate ?? new Date().toISOString();
-      await setResolved(grupo, iso);
+      await dsSetResolved(grupo, iso);
       return ok({ grupo, ate: iso }, `Grupo "${grupo}" marcado como resolvido até ${iso}.`);
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao marcar resolvido");
@@ -668,7 +656,7 @@ server.registerTool(
   },
   async ({ grupo, silenciar }) => {
     try {
-      await setMuted(grupo, silenciar);
+      await dsSetMuted(grupo, silenciar);
       return ok({ grupo, silenciado: silenciar }, `Grupo "${grupo}" ${silenciar ? "silenciado" : "dessilenciado"}.`);
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao silenciar grupo");
@@ -687,7 +675,7 @@ server.registerTool(
   },
   async ({ grupo, nota }) => {
     try {
-      await setNote(grupo, nota);
+      await dsSetNote(grupo, nota);
       return ok({ grupo, removida: nota.trim() === "" }, `Nota do grupo "${grupo}" salva.`);
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao anotar");
@@ -705,7 +693,7 @@ server.registerTool(
   },
   async ({ grupo }) => {
     try {
-      const { notes } = await readTriage();
+      const { notes } = await dsTriage();
       if (grupo) return text({ grupo, nota: notes[grupo] ?? null });
       return text({ notas: notes });
     } catch (e) {
@@ -730,7 +718,7 @@ server.registerTool(
   },
   async ({ grupo, ativar }) => {
     try {
-      await setAlert(grupo, ativar);
+      await dsSetAlert(grupo, ativar);
       return ok({ grupo, alertando: ativar }, `Alerta de "${grupo}" ${ativar ? "ligado" : "desligado"}.`);
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao definir alerta");
@@ -753,7 +741,7 @@ server.registerTool(
   },
   async ({ grupo, autonomo }) => {
     try {
-      await setAutonomo(grupo, autonomo);
+      await dsSetAutonomo(grupo, autonomo);
       return ok(
         { grupo, modo: autonomo ? "autonomo" : "confirmar" },
         `"${grupo}" agora em modo ${autonomo ? "AUTÔNOMO (envia direto)" : "CONFIRMAR (mostra antes)"}.`,
@@ -783,20 +771,20 @@ server.registerTool(
   },
   async ({ grupo, marcar }) => {
     try {
-      const triage = await readTriage();
+      const triage = await dsTriage();
       const alertados = grupo
         ? [grupo]
         : Object.keys(triage.alertar).filter((s) => triage.alertar[s]);
       if (alertados.length === 0) {
         return text({ chats: [], total: 0, nota: "Nenhum chat com alerta ligado (use alertar_chat)." });
       }
-      const [c, seen] = await Promise.all([contacts(), readAgentSeen()]);
+      const [c, seen] = await Promise.all([contacts(), dsAgentSeen()]);
       const chats: unknown[] = [];
       const updates: Record<string, string> = {};
       let total = 0;
       let ignoradas = 0;
       for (const slug of alertados) {
-        const msgs = await readGroupMessages(slug);
+        const msgs = await dsGroupMessages(slug);
         const { mensagens, latest, ignoradasNaoCliente } = selectNew(msgs, seen[slug], c);
         if (latest) updates[slug] = latest;
         ignoradas += ignoradasNaoCliente;
@@ -809,7 +797,7 @@ server.registerTool(
           mensagens: mensagens.slice(-30), // teto de apresentação
         });
       }
-      if (marcar !== false) await setAgentSeenMany(updates);
+      if (marcar !== false) await dsSetAgentSeen(updates);
       // Vazio silencioso era atrito: distinguir "nada novo" de "tinha coisa nova
       // mas filtrei tudo por papel" (comum em grupo interno onde todos são team).
       if (total === 0 && ignoradas > 0) {
@@ -838,7 +826,7 @@ server.registerTool(
   },
   async () => {
     try {
-      return text(await readTriage());
+      return text(await dsTriage());
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao ler triagem");
     }

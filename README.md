@@ -96,6 +96,22 @@ node .claude/skills/run-whatsapp-automation/driver.mjs            # lista as fer
 node .claude/skills/run-whatsapp-automation/driver.mjs call resumo_do_dia '{"grupo":"<slug>"}'
 ```
 
+### Modo remoto (multi-tenant)
+
+Por padrão o MCP é **local**: lê o disco da sua máquina (`data/`). Para usar um coletor que roda **na nuvem** (Railway), ative o modo remoto:
+
+1. Configure no `.env` (ou `.claude/whatsapp.json`):
+   ```bash
+   WAC_MCP_REMOTE=1
+   WAC_CLOUD_URL=https://seu-coletor-production-xxxx.up.railway.app
+   WAC_CLOUD_USER=seu_usuario_do_painel
+   WAC_CLOUD_PASS=sua_senha_do_painel
+   ```
+
+2. Copy `.mcp.json.remote.example` para `.mcp.json` (ou atualize seu `.mcp.json` existente com os `WAC_MCP_REMOTE`/`WAC_CLOUD_*` no `env`).
+
+Cada pessoa aponta pro seu container — **os dois modos coexistem** (você pode ter um Mac local rodando ao mesmo tempo que um container na nuvem). O painel remoto (Railway) exige HTTPS + Basic Auth (`PANEL_USER`/`PANEL_PASS` do container). O control server (`:4310`) continua interno ao container — o acesso externo é só pelo painel autenticado.
+
 ## Recado automático de expediente
 
 `npm run expediente` sobe um agendador que troca o recado/"sobre" do perfil conforme seu horário de trabalho. Configure em `data/expediente.json` (veja `docs/expediente.json.example` para um exemplo): defina os dias operacionais, as faixas horárias `["HH:MM","HH:MM"]`, o fuso horário e os textos `recado_dentro` (mensagem durante expediente) e `recado_fora` (mensagem fora do expediente). Fora do expediente o recado muda para o aviso de indisponível; dentro, volta ao normal. A troca acontece **só na transição** de cada faixa horária, não reescreve continuamente. Ative com `"ativo": true` no arquivo de configuração.
