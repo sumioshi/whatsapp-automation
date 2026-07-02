@@ -24,6 +24,8 @@ import type { MessageView } from "./data";
 
 /** Versão compacta de uma mensagem (com papel e menções resolvidas), pronta pra IA consumir. */
 export type CompactMsg = {
+  /** id da mensagem — é o msgId que `editar_mensagem`/`reagir` esperam receber. */
+  id: string;
   timestamp: string;
   /** Hora local de Brasília (BRT) já formatada — o `timestamp` é UTC (sufixo Z),
    * e ler UTC como se fosse local foi fonte de confusão (msg das 22h BRT lida
@@ -89,6 +91,7 @@ export function compact(m: MessageView, c: Contacts): CompactMsg {
   const textoResolvido = m.text ? resolveMentions(m.text, c) : undefined;
   const ehMidia = m.type !== "text";
   return {
+    id: m.id,
     timestamp: m.timestamp,
     hora_brt: horaBRT(m.timestamp),
     de: m.senderName,

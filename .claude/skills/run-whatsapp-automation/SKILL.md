@@ -41,6 +41,23 @@ grupo (via `responder`, `responder_midia` com legenda, pelo painel, ou pela API 
 
 Isso vale para qualquer envio a grupo — é uma regra fixa, não opcional.
 
+## 🚨 Regras duras de envio
+
+O caso clássico: um envio "falha" no transporte, o agente contorna re-enviando por outro canal —
+e o destinatário recebe a mensagem em dobro (a original TINHA saído), mais um "teste" solto no
+meio. Pra isso nunca acontecer:
+
+1. **Nunca envie mensagem sem pedido explícito do operador PARA AQUELE chat** — nem "teste",
+   nem diagnóstico, nem "confirmar que o canal voltou". Envio falhou? Reporte a falha e pare;
+   não contorne enviando por outro canal.
+2. **Mensagem de teste é só em chat de teste** (um grupo dedicado a isso) — jamais em chat real.
+3. **Antes de re-tentar um envio que "falhou":** rode `ler_mensagens` no chat e confira se a
+   mensagem original saiu (`fromMe` recente com o mesmo texto). Erro de transporte NÃO significa
+   que a mensagem não chegou. Só re-envie se comprovadamente não saiu.
+4. **`Erro: fetch failed` no `responder`** normalmente é o MCP da sessão desatualizado (config
+   carregada no boot) ou o coletor local desligado. O fix é reconectar o MCP (`/mcp` → reconnect)
+   ou reiniciar a sessão — não é improvisar um canal alternativo de envio.
+
 > Instale a skill `humanizer` uma vez (global):
 > `git clone https://github.com/blader/humanizer.git ~/.claude/skills/humanizer`
 

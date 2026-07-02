@@ -6,7 +6,7 @@ import { readGroupsConfig } from './config';
 import type { GroupSummary, MessageView } from './data';
 import { listGroups, readGroupMessages } from './data';
 import type { TriageState } from './triage';
-import { readTriage, setAlert, setAutonomo, setMuted, setNote, setResolved } from './triage';
+import { readTriage, setAlert, setAutonomo, setMuted, setNote, setResolved, setTypos } from './triage';
 import { readAgentSeen, setAgentSeenMany } from './agent-seen';
 import { CONTROL_URL } from './paths';
 
@@ -90,22 +90,64 @@ export async function dsSetAutonomo(slug: string, value: boolean): Promise<void>
   if (mcpRemote()) { await cloudPost('/api/triage', { action: 'autonomo', slug, value }); return; }
   return setAutonomo(slug, value);
 }
+export async function dsSetTypos(slug: string, value: boolean): Promise<void> {
+  if (mcpRemote()) { await cloudPost('/api/triage', { action: 'typos', slug, value }); return; }
+  return setTypos(slug, value);
+}
 
 export async function dsSetAgentSeen(updates: Record<string, string>): Promise<void> {
   if (mcpRemote()) { await cloudPost('/api/agent-seen', { updates }); return; }
   return setAgentSeenMany(updates);
 }
 
+export interface SendOpts {
+  humano?: boolean;
+  slug?: string;
+  typos?: boolean;
+}
+
 /** Envio de texto: remoto via /api/send; local direto no control server. */
-export async function dsSend(jid: string, text: string): Promise<void> {
-  if (mcpRemote()) { await cloudPost('/api/send', { jid, text }); return; }
+export async function dsSend(jid: string, text: string, opts: SendOpts = {}): Promise<void> {
+  const body = { jid, text, ...opts };
+  if (mcpRemote()) { await cloudPost('/api/send', body); return; }
   const res = await fetch(`${CONTROL_URL}/send`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jid, text }),
+    body: JSON.stringify(body),
   });
   const data = (await res.json()) as { ok?: boolean; error?: string };
   if (!res.ok || !data.ok) throw new Error(data.error ?? 'falha no envio');
+}
+
+/** Edita mensagem PRÓPRIA já enviada. */
+export async function dsEditMessage(jid: string, msgId: string, texto: string): Promise<void> {
+  if (mcpRemote()) { await cloudPost('/api/edit-message', { jid, msgId, text: texto }); return; }
+  const res = await fetch(`${CONTROL_URL}/edit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jid, msgId, text: texto }),
+  });
+  const data = (await res.json()) as { ok?: boolean; error?: string };
+  if (!res.ok || !data.ok) throw new Error(data.error ?? 'falha na edição');
+}
+
+/** Reage (emoji) a uma mensagem; emoji vazio remove. */
+export async function dsReact(
+  jid: string,
+  msgId: string,
+  emoji: string,
+  participant?: string,
+  fromMe?: boolean,
+): Promise<void> {
+  const body = { jid, msgId, emoji, participant, fromMe };
+  if (mcpRemote()) { await cloudPost('/api/react', body); return; }
+  const res = await fetch(`${CONTROL_URL}/react`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json()) as { ok?: boolean; error?: string };
+  if (!res.ok || !data.ok) throw new Error(data.error ?? 'falha na reação');
 }
 
 interface SendMediaArgs {

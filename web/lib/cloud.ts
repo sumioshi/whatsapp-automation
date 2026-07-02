@@ -51,7 +51,7 @@ export async function cloudJson<T>(path: string): Promise<T> {
  * /api/* que este helper chama DEVE mapear falha lógica para status não-2xx (e
  * não devolver `200 {ok:false}`), senão a escrita remota engoliria o erro em
  * silêncio. As rotas atuais (/api/send, /api/send-media-json, /api/profile,
- * /api/triage) respeitam isso. */
+ * /api/triage, /api/edit-message, /api/react) respeitam isso. */
 export async function cloudPost(path: string, body: unknown): Promise<Response> {
   const base = cloudUrl();
   if (!base) throw new Error('WAC_CLOUD_URL não configurado');

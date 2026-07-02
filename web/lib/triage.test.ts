@@ -45,20 +45,32 @@ describe('setAlert / readTriage.alertar', () => {
     expect((await mod.readTriage()).alertar['acme-corp']).toBeUndefined();
   });
 
-  it('setAutonomo/isAutonomo: default confirmar, liga, desliga, normaliza chave', async () => {
-    // default ausente = confirmar (false)
-    expect(await mod.isAutonomo('grupo-novo')).toBe(false);
+  it('setTypos: default off, liga, desliga, normaliza chave', async () => {
+    // default ausente = OFF
+    expect((await mod.readTriage()).typos['grupo-novo']).toBeUndefined();
     // liga
-    await mod.setAutonomo('grupo-novo', true);
-    expect(await mod.isAutonomo('grupo-novo')).toBe(true);
-    expect((await mod.readTriage()).autonomo['grupo-novo']).toBe(true);
-    // chave crua (nome com emoji) normaliza pro mesmo slug
-    await mod.setAutonomo('Acme Corp', true);
-    expect(await mod.isAutonomo('acme-corp')).toBe(true);
+    await mod.setTypos('grupo-novo', true);
+    expect((await mod.readTriage()).typos['grupo-novo']).toBe(true);
+    // chave crua (nome com espaço/maiúscula) normaliza pro mesmo slug
+    await mod.setTypos('Acme Corp', true);
+    expect((await mod.readTriage()).typos['acme-corp']).toBe(true);
     // desliga remove a chave
-    await mod.setAutonomo('grupo-novo', false);
-    expect(await mod.isAutonomo('grupo-novo')).toBe(false);
-    expect((await mod.readTriage()).autonomo['grupo-novo']).toBeUndefined();
+    await mod.setTypos('grupo-novo', false);
+    expect((await mod.readTriage()).typos['grupo-novo']).toBeUndefined();
+  });
+
+  it('readTriage normaliza typos corrompido (descarta não-true)', async () => {
+    await mod.setTypos('ok2', true);
+    // injeta lixo direto no arquivo
+    const raw = JSON.parse(await readFile(TRIAGE(), 'utf8'));
+    raw.typos.lixo = 'sim';
+    raw.typos.falso = false;
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(TRIAGE(), JSON.stringify(raw), 'utf8');
+    const state = await mod.readTriage();
+    expect(state.typos.ok2).toBe(true);
+    expect(state.typos.lixo).toBeUndefined();
+    expect(state.typos.falso).toBeUndefined();
   });
 
   it('não afeta outros campos da triagem', async () => {

@@ -1,8 +1,13 @@
 import { existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { resolve, sep } from 'node:path';
+import { env } from '../config/env.js';
 import type { OutboundMedia } from '../core/message.js';
 import type { WhatsAppGateway } from '../core/ports.js';
+import { quebrarEmBaloes } from '../humano/baloes.js';
+import { foraDoExpediente } from '../humano/expediente.js';
+import { loadPerfilEnvio } from '../humano/perfil.js';
+import { planoDeEntrega } from '../humano/plano.js';
 import { logger } from '../logger.js';
 
 /** True se `path` (resolvido) está dentro de algum diretório permitido. */
@@ -15,6 +20,15 @@ interface SendBody {
   jid?: string;
   text?: string;
   mentions?: string[];
+  humano?: boolean;
+  slug?: string;
+  typos?: boolean;
+}
+
+interface EditBody {
+  jid?: string;
+  msgId?: string;
+  text?: string;
 }
 
 interface ReactBody {
@@ -122,9 +136,21 @@ export function startControlServer(
     if (req.method === 'POST' && req.url === '/send') {
       readJson(req)
         .then(async (parsed) => {
-          const { jid, text, mentions } = (parsed ?? {}) as SendBody;
+          const { jid, text, mentions, humano, slug, typos } = (parsed ?? {}) as SendBody;
           if (!jid || !text) {
             json(400, { error: 'jid e text são obrigatórios' });
+            return;
+          }
+          if (humano) {
+            const perfil = await loadPerfilEnvio(slug, env.DATA_DIR);
+            const baloes = quebrarEmBaloes(text, perfil);
+            const plano = planoDeEntrega(baloes, perfil, {
+              typos: typos === true,
+              foraDoExpediente: await foraDoExpediente(env.DATA_DIR),
+            });
+            const r = await gateway.entregarHumano(jid, plano);
+            logger.info({ jid, baloes: r.total }, '📤🧍 Entrega humanizada concluída.');
+            json(200, { ok: true, baloes: r.total });
             return;
           }
           await gateway.sendText(jid, text, Array.isArray(mentions) ? mentions : undefined);
@@ -162,6 +188,22 @@ export function startControlServer(
           }
           await gateway.sendReaction(jid, { id: msgId, participant, fromMe }, emoji);
           logger.info({ jid, emoji }, '👍 Reação enviada via API de controle.');
+          json(200, { ok: true });
+        })
+        .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/edit') {
+      readJson(req)
+        .then(async (parsed) => {
+          const { jid, msgId, text } = (parsed ?? {}) as EditBody;
+          if (!jid || !msgId || !text?.trim()) {
+            json(400, { error: 'jid, msgId e text são obrigatórios' });
+            return;
+          }
+          await gateway.editText(jid, msgId, text.trim());
+          logger.info({ jid, msgId }, '✏️  Mensagem editada via API de controle.');
           json(200, { ok: true });
         })
         .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));

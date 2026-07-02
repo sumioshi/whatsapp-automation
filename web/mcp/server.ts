@@ -49,6 +49,9 @@ import {
   dsSend,
   dsSendMedia,
   dsEditarPerfil,
+  dsEditMessage,
+  dsReact,
+  dsSetTypos,
 } from "../lib/data-source";
 import { numberFromJid, roleOf, sendableDmJid } from "../lib/contacts";
 
@@ -536,8 +539,10 @@ server.registerTool(
     try {
       const { jid, label } = await resolveDestino(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
-      await dsSend(jid, texto);
-      const modo = ((await dsTriage()).autonomo[slugify(grupo)] === true) ? "autonomo" : "confirmar";
+      const t = await dsTriage();
+      const slug = slugify(grupo);
+      await dsSend(jid, texto, { humano: true, slug, typos: t.typos?.[slug] === true });
+      const modo = t.autonomo[slug] === true ? "autonomo" : "confirmar";
       return ok({ destino: label, jid, modo }, `Mensagem enviada para "${label}".`);
     } catch (e) {
       return fail(e instanceof Error ? e.message : "coletor offline?");
@@ -570,6 +575,59 @@ server.registerTool(
       if (kind === "document" && !fileName) return fail("fileName é obrigatório para document");
       await dsSendMedia({ jid, kind, path: abs, caption, fileName, mimetype });
       return ok({ destino: label, jid, kind }, `Arquivo (${kind}) enviado para "${label}".`);
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "coletor offline?");
+    }
+  },
+);
+
+server.registerTool(
+  "editar_mensagem",
+  {
+    description:
+      "Edita uma mensagem JÁ ENVIADA por você/pela IA (o WhatsApp marca 'editada'). Use pra corrigir " +
+      "erro ou atualizar info numa msg recente. Só funciona em mensagem PRÓPRIA (fromMe). O msgId vem " +
+      "do ler_mensagens. CONFIRMAÇÃO: mesma convenção do responder — no modo 'confirmar', mostre o " +
+      "texto novo e espere OK antes de chamar.",
+    inputSchema: {
+      grupo: z.string().describe("slug do grupo/DM, nome exato, OU jid"),
+      msgId: z.string().describe("id da mensagem a editar (de ler_mensagens)"),
+      texto: z.string().describe("texto NOVO completo (substitui o anterior)"),
+    },
+  },
+  async ({ grupo, msgId, texto }) => {
+    try {
+      const { jid, label } = await resolveDestino(grupo);
+      if (!jid) return fail(`destino não encontrado: ${grupo}`);
+      await dsEditMessage(jid, msgId, texto);
+      return ok({ destino: label, msgId }, `Mensagem editada em "${label}".`);
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "coletor offline?");
+    }
+  },
+);
+
+server.registerTool(
+  "reagir",
+  {
+    description:
+      "Reage com um emoji a uma mensagem (👍, ❤️, 😂...). Às vezes a resposta humana é SÓ uma reação — " +
+      "prefira isso a um balão de 'ok!' quando couber. Emoji vazio ('') REMOVE a reação. O msgId vem do " +
+      "ler_mensagens; participant/fromMe só são necessários se a tool reclamar de não achar a msg em grupo.",
+    inputSchema: {
+      grupo: z.string().describe("slug do grupo/DM, nome exato, OU jid"),
+      msgId: z.string().describe("id da mensagem alvo (de ler_mensagens)"),
+      emoji: z.string().describe("emoji da reação; '' remove"),
+      participant: z.string().optional().describe("jid do autor da msg (opcional, msgs de grupo)"),
+      fromMe: z.boolean().optional().describe("true se a msg alvo é sua (opcional)"),
+    },
+  },
+  async ({ grupo, msgId, emoji, participant, fromMe }) => {
+    try {
+      const { jid, label } = await resolveDestino(grupo);
+      if (!jid) return fail(`destino não encontrado: ${grupo}`);
+      await dsReact(jid, msgId, emoji, participant, fromMe);
+      return ok({ destino: label, msgId, emoji }, emoji ? `Reação ${emoji} enviada.` : "Reação removida.");
     } catch (e) {
       return fail(e instanceof Error ? e.message : "coletor offline?");
     }
@@ -737,13 +795,20 @@ server.registerTool(
     inputSchema: {
       grupo: z.string().describe("slug do grupo ou DM (de listar_grupos; DM = dm-<id>)"),
       autonomo: z.boolean().describe("true = IA envia direto; false = volta pro padrão 'confirmar antes'"),
+      typos: z
+        .boolean()
+        .optional()
+        .describe(
+          "liga/desliga typo proposital (raro, ~3%) com correção via edição — humanização; default OFF",
+        ),
     },
   },
-  async ({ grupo, autonomo }) => {
+  async ({ grupo, autonomo, typos }) => {
     try {
       await dsSetAutonomo(grupo, autonomo);
+      if (typos !== undefined) await dsSetTypos(grupo, typos);
       return ok(
-        { grupo, modo: autonomo ? "autonomo" : "confirmar" },
+        { grupo, modo: autonomo ? "autonomo" : "confirmar", typos },
         `"${grupo}" agora em modo ${autonomo ? "AUTÔNOMO (envia direto)" : "CONFIRMAR (mostra antes)"}.`,
       );
     } catch (e) {

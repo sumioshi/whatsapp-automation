@@ -67,6 +67,16 @@ export interface WhatsAppGateway {
     key: { id: string; participant?: string; fromMe?: boolean },
     emoji: string,
   ): Promise<void>;
+  /** Edita uma mensagem PRÓPRIA já enviada (o texto novo substitui; WhatsApp marca "editada"). */
+  editText(jid: string, msgId: string, texto: string): Promise<void>;
+  /**
+   * Entrega humanizada: toca a partitura (visto → pausas → digitando → balões).
+   * Presença/visto são best-effort; falha de um balão aborta o resto.
+   */
+  entregarHumano(
+    jid: string,
+    plano: import('../humano/plano.js').Passo[],
+  ): Promise<{ enviados: number; total: number }>;
   /**
    * URL (alta-res) da foto de perfil de um grupo, ou null se não tiver/erro.
    * Encapsula a chamada ao Baileys; o download em si é feito pela aplicação.
