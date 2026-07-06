@@ -161,7 +161,7 @@ describe('modo REMOTO (flag=1) — busca via HTTP', () => {
     expect(fetchSpy).toHaveBeenCalledWith('https://nuvem.exemplo/api/react', expect.anything());
   });
 
-  it('dsSendMedia remoto sobe os BYTES do arquivo local (dataBase64), não o path', async () => {
+  it('dsSendMedia remoto sobe os BYTES do arquivo local via multipart (não o path)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'wac-send-'));
     const file = join(dir, 'foto.jpg');
     const bytes = Buffer.from('conteudo-binario-fake-da-imagem');
@@ -170,15 +170,21 @@ describe('modo REMOTO (flag=1) — busca via HTTP', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
     const { dsSendMedia } = await import('./data-source');
-    await dsSendMedia({ jid: 'x@g.us', kind: 'image', path: file, caption: 'oi', mimetype: 'image/jpeg' });
-    expect(fetchSpy).toHaveBeenCalledWith('https://nuvem.exemplo/api/send-media-json', expect.anything());
-    const body = JSON.parse((fetchSpy.mock.calls[0]![1] as RequestInit).body as string);
-    expect(body.dataBase64).toBe(bytes.toString('base64'));
-    expect(body.path).toBeUndefined();
-    expect(body).toMatchObject({ jid: 'x@g.us', kind: 'image', caption: 'oi', mimetype: 'image/jpeg' });
+    await dsSendMedia({ jid: 'x@g.us', kind: 'image', path: file, caption: 'oi', mimetype: 'image/jpeg', fileName: 'foto.jpg' });
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    expect(url).toBe('https://nuvem.exemplo/api/send-media-json');
+    const form = (init as RequestInit).body as FormData;
+    expect(form).toBeInstanceOf(FormData);
+    expect(form.get('jid')).toBe('x@g.us');
+    expect(form.get('kind')).toBe('image');
+    expect(form.get('caption')).toBe('oi');
+    expect(form.get('mimetype')).toBe('image/jpeg');
+    const fileField = form.get('file');
+    expect(fileField).toBeInstanceOf(Blob);
+    expect(Buffer.from(await (fileField as Blob).arrayBuffer())).toEqual(bytes);
   });
 
-  it('dsSendMedia remoto encaminha o path quando o arquivo não existe no disco local', async () => {
+  it('dsSendMedia remoto encaminha o path (JSON) quando o arquivo não existe no disco local', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));

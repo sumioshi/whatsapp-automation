@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { cloudJson, cloudPost, mcpRemote } from './cloud';
+import { cloudJson, cloudPost, cloudPostForm, mcpRemote } from './cloud';
 import type { Contacts } from './contacts';
 import { buildContacts } from './contacts';
 import type { GroupEntry } from './config';
@@ -163,12 +163,20 @@ interface SendMediaArgs {
 export async function dsSendMedia(args: SendMediaArgs): Promise<void> {
   if (mcpRemote()) {
     // A nuvem não enxerga o disco local. Se o arquivo existe aqui (arquivo novo do
-    // operador, ou mídia já baixada), sobe os BYTES; senão encaminha o path como
-    // mediaPath residente na nuvem (reenvio de mídia sincronizada).
+    // operador, ou mídia já baixada), sobe os BYTES via multipart (sem inflar em
+    // base64/JSON — importante pra vídeo); senão encaminha o path como mediaPath
+    // residente na nuvem (reenvio de mídia sincronizada).
     if (existsSync(args.path)) {
-      const { path: _path, ...rest } = args;
-      const dataBase64 = (await readFile(args.path)).toString('base64');
-      await cloudPost('/api/send-media-json', { ...rest, dataBase64 });
+      const bytes = await readFile(args.path);
+      const form = new FormData();
+      form.set('jid', args.jid);
+      form.set('kind', args.kind);
+      if (args.caption) form.set('caption', args.caption);
+      if (args.fileName) form.set('fileName', args.fileName);
+      if (args.mimetype) form.set('mimetype', args.mimetype);
+      const blob = new Blob([bytes], args.mimetype ? { type: args.mimetype } : {});
+      form.set('file', blob, args.fileName ?? 'file');
+      await cloudPostForm('/api/send-media-json', form);
       return;
     }
     await cloudPost('/api/send-media-json', args);

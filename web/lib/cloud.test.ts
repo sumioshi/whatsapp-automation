@@ -63,6 +63,44 @@ describe('cloudPost', () => {
     const { cloudPost } = await import('./cloud');
     await expect(cloudPost('/api/send', {})).rejects.toThrow(/500/);
   });
+  it('propaga a mensagem real do erro (corpo {error}) da rota', async () => {
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'arquivo não encontrado: x.jpg' }), { status: 400 }),
+    );
+    const { cloudPost } = await import('./cloud');
+    await expect(cloudPost('/api/send-media-json', {})).rejects.toThrow(/arquivo não encontrado: x\.jpg/);
+  });
+});
+
+describe('cloudPostForm', () => {
+  it('POST multipart com Basic Auth e SEM Content-Type manual (fetch põe o boundary)', async () => {
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    vi.stubEnv('WAC_CLOUD_USER', 'u');
+    vi.stubEnv('WAC_CLOUD_PASS', 'p');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const { cloudPostForm } = await import('./cloud');
+    const form = new FormData();
+    form.set('jid', 'x@g.us');
+    await cloudPostForm('/api/send-media-json', form);
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    expect(url).toBe('https://nuvem.exemplo/api/send-media-json');
+    expect((init as RequestInit).method).toBe('POST');
+    expect((init as RequestInit).body).toBe(form);
+    const headers = (init as RequestInit).headers as Record<string, string>;
+    expect(headers.Authorization).toBe(`Basic ${Buffer.from('u:p').toString('base64')}`);
+    expect(headers['Content-Type']).toBeUndefined();
+  });
+  it('propaga a mensagem real do erro', async () => {
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'kind inválido' }), { status: 400 }),
+    );
+    const { cloudPostForm } = await import('./cloud');
+    await expect(cloudPostForm('/api/send-media-json', new FormData())).rejects.toThrow(/kind inválido/);
+  });
 });
 
 describe('cloudJson', () => {

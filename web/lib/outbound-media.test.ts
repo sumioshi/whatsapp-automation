@@ -13,12 +13,12 @@ afterEach(() => {
 });
 
 describe('resolveOutboundMedia — materializa bytes ou reusa path', () => {
-  it('grava dataBase64 num temp dentro do DATA_DIR e devolve os bytes decodificados', async () => {
+  it('grava os bytes num temp dentro do DATA_DIR e devolve o path', async () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'wac-data-'));
     vi.stubEnv('WAC_DATA_DIR', dataDir);
     const bytes = Buffer.from('imagem-fake-do-operador');
     const { resolveOutboundMedia } = await import('./outbound-media');
-    const { abs, tmp } = await resolveOutboundMedia({ dataBase64: bytes.toString('base64') });
+    const { abs, tmp } = await resolveOutboundMedia({ bytes });
     expect(abs.startsWith(dataDir + sep)).toBe(true);
     expect(tmp).toBe(abs);
     expect((await readFile(abs))).toEqual(bytes);
@@ -53,7 +53,7 @@ describe('resolveOutboundMedia — materializa bytes ou reusa path', () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'wac-data-'));
     vi.stubEnv('WAC_DATA_DIR', dataDir);
     const { resolveOutboundMedia } = await import('./outbound-media');
-    const { abs } = await resolveOutboundMedia({ dataBase64: Buffer.from('a').toString('base64') });
+    const { abs } = await resolveOutboundMedia({ bytes: Buffer.from('a') });
     expect(abs).toContain(`${sep}.tmp-outbound${sep}`);
     expect(existsSync(abs)).toBe(true);
   });
