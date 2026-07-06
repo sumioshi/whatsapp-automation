@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 beforeEach(() => {
   vi.resetModules();
@@ -156,6 +159,34 @@ describe('modo REMOTO (flag=1) — busca via HTTP', () => {
     const { dsReact } = await import('./data-source');
     await dsReact('120363000000000001@g.us', 'ABC123', '👍');
     expect(fetchSpy).toHaveBeenCalledWith('https://nuvem.exemplo/api/react', expect.anything());
+  });
+
+  it('dsSendMedia remoto sobe os BYTES do arquivo local (dataBase64), não o path', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'wac-send-'));
+    const file = join(dir, 'foto.jpg');
+    const bytes = Buffer.from('conteudo-binario-fake-da-imagem');
+    await writeFile(file, bytes);
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const { dsSendMedia } = await import('./data-source');
+    await dsSendMedia({ jid: 'x@g.us', kind: 'image', path: file, caption: 'oi', mimetype: 'image/jpeg' });
+    expect(fetchSpy).toHaveBeenCalledWith('https://nuvem.exemplo/api/send-media-json', expect.anything());
+    const body = JSON.parse((fetchSpy.mock.calls[0]![1] as RequestInit).body as string);
+    expect(body.dataBase64).toBe(bytes.toString('base64'));
+    expect(body.path).toBeUndefined();
+    expect(body).toMatchObject({ jid: 'x@g.us', kind: 'image', caption: 'oi', mimetype: 'image/jpeg' });
+  });
+
+  it('dsSendMedia remoto encaminha o path quando o arquivo não existe no disco local', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const { dsSendMedia } = await import('./data-source');
+    await dsSendMedia({ jid: 'x@g.us', kind: 'image', path: '/nao/existe/aqui.jpg' });
+    const body = JSON.parse((fetchSpy.mock.calls[0]![1] as RequestInit).body as string);
+    expect(body.path).toBe('/nao/existe/aqui.jpg');
+    expect(body.dataBase64).toBeUndefined();
   });
 });
 

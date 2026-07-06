@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { cloudJson, cloudPost, mcpRemote } from './cloud';
 import type { Contacts } from './contacts';
 import { buildContacts } from './contacts';
@@ -159,7 +161,19 @@ interface SendMediaArgs {
   mimetype?: string;
 }
 export async function dsSendMedia(args: SendMediaArgs): Promise<void> {
-  if (mcpRemote()) { await cloudPost('/api/send-media-json', args); return; }
+  if (mcpRemote()) {
+    // A nuvem não enxerga o disco local. Se o arquivo existe aqui (arquivo novo do
+    // operador, ou mídia já baixada), sobe os BYTES; senão encaminha o path como
+    // mediaPath residente na nuvem (reenvio de mídia sincronizada).
+    if (existsSync(args.path)) {
+      const { path: _path, ...rest } = args;
+      const dataBase64 = (await readFile(args.path)).toString('base64');
+      await cloudPost('/api/send-media-json', { ...rest, dataBase64 });
+      return;
+    }
+    await cloudPost('/api/send-media-json', args);
+    return;
+  }
   const res = await fetch(`${CONTROL_URL}/send-media`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
