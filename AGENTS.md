@@ -5,11 +5,11 @@ WhatsApp deste projeto: `<slug-do-grupo>` (<nome do chat>). Consulte o históric
 Detalhes em `.claude/whatsapp.json`. As skills do projeto estão em `.agents/skills/`
 (mesmo padrão Agent Skills; fonte em `.claude/skills/`).
 
-Este arquivo é o espelho do `CLAUDE.md` pra agentes fora do Claude Code. O que for
-específico do harness do Claude (tool Monitor, `/loop`, `/plantao`) NÃO tem equivalente
-aqui — se o operador pedir "fica de olho"/"me avisa quando chegar mensagem", explique que
-esse acompanhamento contínuo roda no Claude Code e ofereça o que dá: checar `novidades`
-sob demanda ou ligar `alertar_chat` (notificação de tela no Mac pro humano).
+Este arquivo é o espelho do `CLAUDE.md` pra agentes fora do Claude Code. A skill
+`plantao` possui um adaptador em `.agents/skills/plantao/`: ele usa o mecanismo
+persistente de monitoramento disponível no runtime. Se o runtime atual não conseguir
+despertar o agente quando chegar um evento, não declare que o plantão foi armado;
+ofereça checar `novidades` sob demanda ou ligar `alertar_chat` (notificação no Mac).
 
 ## REGRAS DURAS de envio (não negociáveis)
 
