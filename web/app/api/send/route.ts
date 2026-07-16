@@ -9,6 +9,7 @@ interface Body {
   humano?: boolean;
   slug?: string;
   typos?: boolean;
+  umBalao?: boolean;
 }
 
 export async function POST(req: Request) {
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
         humano: body.humano === true,
         slug: body.slug,
         typos: body.typos === true,
+        umBalao: body.umBalao === true,
       }),
     });
     const data = (await res.json()) as { ok?: boolean; error?: string; baloes?: number };

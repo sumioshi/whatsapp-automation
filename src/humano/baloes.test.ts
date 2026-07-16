@@ -42,6 +42,31 @@ describe('quebrarEmBaloes', () => {
     expect(baloes.join(' ')).toBe(t);
   });
 
+  it('ponto SEM espaço depois (versão 2.1.0, URL, decimal) NÃO é fim de sentença', () => {
+    const t =
+      'irmão fechei aquele pacote de ajustes que a gente tinha listado na call de ontem à noite ' +
+      'e acabei de publicar a versão 2.1.0 no servidor de produção agora há pouco. ' +
+      'dá uma olhada quando puder e me fala se ficou do jeito que vc queria, qualquer coisa eu ajusto ainda hoje.';
+    const baloes = quebrarEmBaloes(t, { ...PERFIL_DEFAULT, tamanhoMedioBalao: 80 });
+    // nenhum balão pode terminar no meio da versão (ex.: "... versão 2." / "1.")
+    for (const b of baloes) {
+      expect(b).not.toMatch(/\d\.$/);
+    }
+    // a versão inteira sobrevive intacta em algum balão
+    expect(baloes.some((b) => b.includes('2.1.0'))).toBe(true);
+    expect(baloes.join(' ')).toBe(t);
+  });
+
+  it('decimais e URLs atravessam a quebra por sentença sem rachar', () => {
+    const t =
+      'o custo ficou em 3.75 por mil tokens, bem abaixo do teto que a gente tinha definido antes. ' +
+      'a doc completa tá em https://exemplo.com/v2.docs.html pra você conferir os detalhes com calma.';
+    const baloes = quebrarEmBaloes(t, { ...PERFIL_DEFAULT, tamanhoMedioBalao: 80 });
+    expect(baloes.some((b) => b.includes('3.75'))).toBe(true);
+    expect(baloes.some((b) => b.includes('https://exemplo.com/v2.docs.html'))).toBe(true);
+    expect(baloes.join(' ')).toBe(t);
+  });
+
   it('fusão por excesso de parágrafos preserva conteúdo', () => {
     const partes = Array.from({ length: 5 }, (_, i) => `pensamento ${i} com corpo suficiente aqui dentro`);
     const baloes = quebrarEmBaloes(partes.join('\n\n'));

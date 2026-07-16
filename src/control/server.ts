@@ -23,6 +23,7 @@ interface SendBody {
   humano?: boolean;
   slug?: string;
   typos?: boolean;
+  umBalao?: boolean;
 }
 
 interface EditBody {
@@ -136,14 +137,15 @@ export function startControlServer(
     if (req.method === 'POST' && req.url === '/send') {
       readJson(req)
         .then(async (parsed) => {
-          const { jid, text, mentions, humano, slug, typos } = (parsed ?? {}) as SendBody;
+          const { jid, text, mentions, humano, slug, typos, umBalao } = (parsed ?? {}) as SendBody;
           if (!jid || !text) {
             json(400, { error: 'jid e text são obrigatórios' });
             return;
           }
           if (humano) {
             const perfil = await loadPerfilEnvio(slug, env.DATA_DIR);
-            const baloes = quebrarEmBaloes(text, perfil);
+            // umBalao: entrega humanizada (visto/pausa/digitando) mas SEM fatiar o texto.
+            const baloes = umBalao ? [text.trim()] : quebrarEmBaloes(text, perfil);
             const plano = planoDeEntrega(baloes, perfil, {
               typos: typos === true,
               foraDoExpediente: await foraDoExpediente(env.DATA_DIR),

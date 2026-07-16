@@ -106,6 +106,7 @@ export interface SendOpts {
   humano?: boolean;
   slug?: string;
   typos?: boolean;
+  umBalao?: boolean;
 }
 
 /** Envio de texto: remoto via /api/send; local direto no control server. */

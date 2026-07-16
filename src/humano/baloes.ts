@@ -31,21 +31,23 @@ export function quebrarEmBaloes(texto: string, perfil: PerfilEnvio = PERFIL_DEFA
   return [...partes.slice(0, MAX_BALOES - 1), partes.slice(MAX_BALOES - 1).join(' ')];
 }
 
-/** Junta sentenças até chegar perto do alvo; nunca corta no meio de uma sentença. */
+/** Junta sentenças até chegar perto do alvo; nunca corta no meio de uma sentença.
+ * Fim de sentença = pontuação seguida de ESPAÇO (ou fim do texto) — ponto colado
+ * em outro caractere (versão 2.1.0, decimal 3.75, URL) não é fronteira. */
 function quebrarPorSentenca(texto: string, alvo: number): string[] {
   if (texto.length <= alvo * 1.5) return [texto];
-  const sentencas = texto.match(/[^.!?]+[.!?]+[\s]*|[^.!?]+$/g) ?? [texto];
+  const sentencas = texto.split(/(?<=[.!?])\s+/);
   const baloes: string[] = [];
   let atual = '';
   for (const s of sentencas) {
-    if (atual && (atual + s).trim().length > alvo * 1.4) {
-      baloes.push(atual.trim());
+    if (atual && `${atual} ${s}`.length > alvo * 1.4) {
+      baloes.push(atual);
       atual = s;
     } else {
-      atual += s;
+      atual = atual ? `${atual} ${s}` : s;
     }
   }
-  if (atual.trim()) baloes.push(atual.trim());
+  if (atual) baloes.push(atual);
   return baloes.flatMap((b) => (b.length > alvo * 2 ? quebrarPorPalavra(b, alvo) : [b]));
 }
 

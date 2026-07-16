@@ -524,7 +524,11 @@ server.registerTool(
       "CONFIRMAÇÃO: cada chat tem um modo (definir_modo). No modo 'confirmar' (DEFAULT), você DEVE " +
       "ter mostrado o texto e recebido OK do operador antes de chamar — passe pela skill humanizer + " +
       "comunicacao-cliente. No modo 'autonomo', pode enviar direto. O retorno traz o `modo` do chat. " +
-      "(Isto é convenção que você respeita, não trava de código — não burle o 'confirmar'.)",
+      "(Isto é convenção que você respeita, não trava de código — não burle o 'confirmar'.) " +
+      "BALÕES: por default o texto é fatiado em até 3 balões (parágrafos em branco = quebras " +
+      "explícitas suas). Use `um_balao: true` quando a mensagem deve chegar INTEIRA num balão só — " +
+      "texto coeso/técnico (changelog, lista, instruções passo a passo), ou quando o operador pedir " +
+      "'manda numa mensagem só'. VOCÊ escolhe por mensagem; conversa curta e informal fica melhor em balões.",
     inputSchema: {
       grupo: z
         .string()
@@ -533,15 +537,27 @@ server.registerTool(
             "(grupo @g.us / DM '<numero>@s.whatsapp.net'). Slug é o jeito mais seguro.",
         ),
       texto: z.string().describe("mensagem a enviar"),
+      um_balao: z
+        .boolean()
+        .optional()
+        .describe(
+          "true = envia o texto INTEIRO num único balão (sem fatiar), mantendo a entrega " +
+            "humanizada (visto/digitando). Default false = quebra em até 3 balões.",
+        ),
     },
   },
-  async ({ grupo, texto }) => {
+  async ({ grupo, texto, um_balao }) => {
     try {
       const { jid, label } = await resolveDestino(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
       const t = await dsTriage();
       const slug = slugify(grupo);
-      await dsSend(jid, texto, { humano: true, slug, typos: t.typos?.[slug] === true });
+      await dsSend(jid, texto, {
+        humano: true,
+        slug,
+        typos: t.typos?.[slug] === true,
+        umBalao: um_balao === true,
+      });
       const modo = t.autonomo[slug] === true ? "autonomo" : "confirmar";
       return ok({ destino: label, jid, modo }, `Mensagem enviada para "${label}".`);
     } catch (e) {
