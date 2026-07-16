@@ -10,34 +10,52 @@ Caminho canônico — siga nesta ordem, não improvise:
 
 1. **Descubra o cwd absoluto** com `pwd`. Esse é o `repoPath`.
 
-2. **Liste os chats disponíveis.** Tente primeiro o painel (traz grupos E DMs já com slug):
-   `curl -s http://localhost:3000/api/links` → campo `chats` (cada um: `slug`, `name`, `messageCount`, `tipo`).
-   Se o painel estiver fora, use o MCP: ferramenta `listar_grupos` (slug de DM é `dm-<id>`).
-   Mostre as opções relevantes ao usuário e **pergunte qual** é a conversa deste projeto. Não adivinhe.
+2. **Descubra o painel (híbrido: local → Railway).** Nunca hardcode URL nem credenciais — descubra
+   em runtime, nesta ordem:
+   - **Local:** `curl -s --max-time 3 http://localhost:3000/api/links`. Se responder JSON, use
+     `PANEL=http://localhost:3000` sem auth.
+   - **Railway (se o local estiver fora):** use o MCP `railway` — `list_projects`, ache o projeto
+     do coletor de WhatsApp (ex.: `whatsapp-collector`), depois `list_services` e `list_variables`
+     do serviço do painel/coletor. Das variáveis, tire:
+     `RAILWAY_PUBLIC_DOMAIN` (→ `PANEL=https://<domínio>`) e `PANEL_USER`/`PANEL_PASS`
+     (→ `curl -u "$PANEL_USER:$PANEL_PASS"` em toda chamada).
+   - Se nenhum dos dois responder, pule direto pro fallback do passo 6 (lado do repo apenas).
 
-3. **Confirme os campos** com o usuário (curto): `cliente` (nome do cliente/projeto), `tipo`
+3. **Liste os chats disponíveis.** `curl -s [auth] $PANEL/api/links` → campo `chats` (cada um:
+   `slug`, `name`, `messageCount`, `tipo`). Se a lista for grande, filtre por termos do projeto.
+   Se o chat esperado **não aparecer**, provavelmente está sem watch no coletor — ative com
+   `curl -s [auth] -X POST $PANEL/api/groups -H 'Content-Type: application/json' -d '{"id":"<jid>","watch":true}'`
+   (o JID sai do MCP `listar_grupos`); a coleta começa dali pra frente e o slug segue o padrão
+   kebab-case do nome. Mostre as opções relevantes ao usuário e **pergunte qual** é a conversa
+   deste projeto. Não adivinhe.
+
+4. **Confirme os campos** com o usuário (curto): `cliente` (nome do cliente/projeto), `tipo`
    (`dm`, `grupo` ou `projeto`), `notas` (uma linha de contexto). Sugira o tipo a partir do slug
    (`dm-…` → `dm`).
 
-4. **Grave o link.** Caminho preferido — POST no painel, que já escreve os dois lados de uma vez
+5. **Grave o link.** Caminho preferido — POST no painel, que já escreve os dois lados de uma vez
    (`data/links.json` central + `.claude/whatsapp.json` + linha no `CLAUDE.md` do repo):
    ```bash
-   curl -s -X POST http://localhost:3000/api/links \
+   curl -s [auth] -X POST $PANEL/api/links \
      -H 'Content-Type: application/json' \
      -d '{"slug":"<slug>","repoPath":"<pwd>","cliente":"<cliente>","tipo":"<tipo>","notas":"<notas>"}'
    ```
    Confira a resposta (deve voltar `links` com a entrada).
+   ⚠️ **Painel na nuvem:** ele valida o `repoPath` no filesystem **do container**, então caminhos
+   locais são rejeitados com `"repoPath não existe"`. Nesse caso, trate como painel indisponível
+   pro lado do repo: siga o passo 6 e avise que o índice central ficou pendente.
 
-5. **Fallback se o painel estiver fora** (o curl falhar): faça o lado do repo você mesmo, pra não
+6. **Fallback (painel fora ou POST rejeitado):** faça o lado do repo você mesmo, pra não
    deixar o usuário na mão —
    - Escreva `<pwd>/.claude/whatsapp.json` com `{ "grupo": "<slug>", "cliente": "<cliente>", "tipo": "<tipo>", "notas": "<notas>" }`.
    - No `<pwd>/CLAUDE.md` (crie se não existir), faça upsert do bloco entre os marcadores
      `<!-- wa-link:start -->` e `<!-- wa-link:end -->`, com uma linha tipo:
      "WhatsApp deste projeto: `<slug>` (<cliente>). Consulte o histórico via MCP `whatsapp-collector`
      usando esse slug. Pra acompanhar ativamente, use `acompanhar_chat`. Detalhes em `.claude/whatsapp.json`."
-   - Avise o usuário: o índice central (painel) **não** foi atualizado; rode o painel e re-rode
-     `/link-whatsapp` depois pra indexar o lado WhatsApp→repo.
+   - Avise o usuário: o índice central (painel) **não** foi atualizado e por quê (fora do ar, ou
+     validação de `repoPath` do painel na nuvem).
 
-6. **Confirme ao usuário** o que foi gravado (slug, repoPath, e se o central foi indexado ou ficou pendente).
+7. **Confirme ao usuário** o que foi gravado (slug, repoPath, painel usado — local ou Railway — e
+   se o central foi indexado ou ficou pendente).
 
 Regra: este comando só **cria/atualiza** o link. Não envie mensagem, não mexa em outra config.

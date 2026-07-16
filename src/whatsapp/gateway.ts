@@ -14,8 +14,13 @@
  * limitations under the License.
  */
 
+import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { extname } from 'node:path';
+import { unlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { extname, join } from 'node:path';
+import { promisify } from 'node:util';
 import type {
   AnyMessageContent,
   BaileysEventMap,
@@ -121,6 +126,21 @@ const MIME_BY_EXT: Record<string, string> = {
 
 function inferDocumentMimetype(path: string): string {
   return MIME_BY_EXT[extname(path).toLowerCase()] ?? 'application/octet-stream';
+}
+
+const pexec = promisify(execFile);
+
+/**
+ * Nota de voz no WhatsApp exige OGG/Opus de verdade — mandar outro codec (mp3,
+ * m4a...) com o mimetype de opus forjado faz o app do destinatário falhar ao
+ * decodificar (o erro genérico de download que ele mostra não tem nada a ver
+ * com rede). Reencoda sempre, mesmo em arquivos que já dizem ser .ogg, pra não
+ * confiar cegamente na extensão.
+ */
+async function toOggOpus(inputPath: string): Promise<string> {
+  const outPath = join(tmpdir(), `wac-audio-${randomUUID()}.ogg`);
+  await pexec('ffmpeg', ['-y', '-i', inputPath, '-c:a', 'libopus', '-b:a', '32k', '-vn', outPath]);
+  return outPath;
 }
 
 /** Traduz uma OutboundMedia de domínio no content que o Baileys espera. */
@@ -304,8 +324,18 @@ export class BaileysGateway implements WhatsAppGateway {
 
   async sendMedia(jid: string, media: OutboundMedia): Promise<void> {
     if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
-    const sent = await this.sock.sendMessage(jid, toMessageContent(media));
-    this.echoSent(jid, sent);
+    if (media.kind !== 'audio') {
+      const sent = await this.sock.sendMessage(jid, toMessageContent(media));
+      this.echoSent(jid, sent);
+      return;
+    }
+    const oggPath = await toOggOpus(media.path);
+    try {
+      const sent = await this.sock.sendMessage(jid, toMessageContent({ ...media, path: oggPath }));
+      this.echoSent(jid, sent);
+    } finally {
+      await unlink(oggPath).catch(() => {});
+    }
   }
 
   async sendReaction(
