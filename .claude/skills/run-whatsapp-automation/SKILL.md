@@ -218,6 +218,14 @@ o que perdeu no período off via `WAC_CLOUD_URL`/`WAC_CLOUD_USER`/`WAC_CLOUD_PAS
 - **MCP via tsx:** o `tsx` está em `web/node_modules` (não na raiz). O driver usa `web/node_modules/.bin/tsx`. `web` não é `type:module` → o server usa `main()` (top-level await quebraria em CJS).
 - **Envio é real e local:** controle (:4310) e painel mandam mensagem como você — só em `127.0.0.1`, nunca expor. Boot do pm2 exige `pm2 startup` (sudo, 1x).
 - **`data/`, `auth/`, `groups.config.json`** são gitignored (conteúdo + sessão). Não versionar.
+- **Grupo renomeado NÃO muda o slug.** O slug é estável por jid (persistido no
+  `groups.config.json` na primeira vez que o grupo é visto); renomear só troca o `name`.
+  `listar_grupos` traz um bloco `renomeados` quando nome atual ≠ slug, e
+  `ler_mensagens`/`responder` aceitam o nome novo e traduzem pro slug estável sozinhos.
+  Se um chat parecer "mudo"/congelado, suspeite de rename ANTES de achar que o sync quebrou.
+  Diretório duplicado de rename antigo (anterior à feature): fundir com
+  `npm run migrar-slug -- <slug-canonico> <slug-duplicado>` (na nuvem: via `railway ssh`,
+  `cd /app && npx tsx scripts/migrar-slug.ts ...`).
 
 ## Troubleshooting
 
@@ -228,3 +236,4 @@ o que perdeu no período off via `WAC_CLOUD_URL`/`WAC_CLOUD_USER`/`WAC_CLOUD_PAS
 | `Top-level await ... cjs` no MCP | server precisa do wrapper `main()` (já aplicado). |
 | Balão "Você" não aparece após enviar | coletor precisa do `gateway.sendText` que auto-emite (rebuild `npm run build` + `pm2 restart wa-collector`). |
 | `connection: qr` não some | pareie o QR em `/config`; sessão deslogada → apague `auth/` e pareie de novo. |
+| Chat "parou de receber" mas outros chats seguem vivos | Provável rename do grupo: confira `renomeados` no `listar_grupos` e siga usando o slug estável; split antigo → `npm run migrar-slug`. |

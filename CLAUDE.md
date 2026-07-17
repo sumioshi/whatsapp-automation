@@ -73,6 +73,14 @@ completa; o Mac só tem o que capturou ligado. Quando uma mensagem de mídia vem
 tool de mídia normalmente, ela busca da nuvem. Só num setup 100% local (sem `WAC_CLOUD_*`) é que
 `midia_pendente` significa "essa mídia não foi capturada aqui".
 
+## Grupo renomeado ≠ chat morto (slug é estável)
+
+O slug é **estável por jid** (persistido no `groups.config.json` no primeiro contato); renomear
+o grupo muda só o nome exibido, o diretório/slug fica. `listar_grupos` traz `renomeados` quando
+nome atual ≠ slug; `ler_mensagens`/`responder` aceitam o nome novo e traduzem pro slug estável.
+Chat que "parou de receber" enquanto os outros seguem vivos → suspeite de rename antes de achar
+que o sync quebrou. Split legado (rename anterior à feature): `npm run migrar-slug -- <canonico> <duplicado>`.
+
 ## Organização da info de mensagem (pra não se perder)
 
 O `ler_mensagens` separa coisas que antes confundiam a leitura:

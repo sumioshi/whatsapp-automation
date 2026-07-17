@@ -73,5 +73,9 @@ respeite o modo do chat (`confirmar` é o default).
   LOCAL rodando (`npm run dev`). Com o Mac limpo o arquivo não cresce e o monitor fica MUDO.
   Use sempre o script da nuvem (passo 4); a receita local é só pra quando o dev está de pé.
 - **Pular o passo 2:** monitor armado num grupo com `watch: false` nunca dispara.
+- **Monitor mudo depois de renomearem o grupo:** o slug é estável por jid (não muda com o
+  nome), então o plantão continua válido — mas se o monitor foi armado ANTES da era do slug
+  estável num slug derivado do nome antigo/novo errado, re-resolva o slug no passo 1
+  (`listar_grupos` traz `renomeados`) e rearme.
 - **Checar pm2/coletor local como pré-requisito:** não é — nada roda no boot do Mac por decisão
   do operador, e o plantão via nuvem não precisa de processo local nenhum.

@@ -54,6 +54,13 @@ Com a nuvem ligada (`WAC_CLOUD_*` no `.env`), mensagem de mídia com `midia_pend
 baixam sob demanda. Chame a tool de mídia normalmente. Só num setup 100% local é que
 significa "não capturada aqui".
 
+## Grupo renomeado ≠ chat morto (slug é estável)
+
+O slug é estável por jid (persistido no `groups.config.json`); renomear o grupo muda só o nome
+exibido. `listar_grupos` traz `renomeados` quando nome atual ≠ slug, e `ler_mensagens`/`responder`
+traduzem o nome novo pro slug estável. Chat "mudo" com os outros vivos → suspeite de rename.
+Split legado: `npm run migrar-slug -- <canonico> <duplicado>`.
+
 ## Organização da info de mensagem
 
 O `ler_mensagens` separa: **`legenda`** (texto que veio COM a mídia) vs **`texto`** (msg
