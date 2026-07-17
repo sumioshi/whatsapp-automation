@@ -1,11 +1,16 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 import type { GroupInfo } from '../core/message.js';
+import { logger } from '../logger.js';
+import { slugify } from '../storage/paths.js';
 
 const GroupEntrySchema = z.object({
   id: z.string(),
   name: z.string(),
   watch: z.boolean().default(false),
+  // Slug estável do diretório em data/: definido quando o grupo é visto pela
+  // primeira vez e preservado em renomeações, pra não fragmentar o histórico.
+  slug: z.string().optional(),
 });
 
 const GroupsConfigSchema = z.array(GroupEntrySchema);
@@ -36,14 +41,26 @@ export class GroupConfig {
     }
   }
 
-  /** Mescla grupos descobertos (preserva `watch` existente) e persiste. */
+  /**
+   * Mescla grupos descobertos e persiste. Preserva `watch` e o `slug` já
+   * gravado; entrada sem slug (config antigo) ganha o slug do nome que estava
+   * no arquivo — assim uma renomeação nunca troca o diretório de dados.
+   */
   async sync(groups: GroupInfo[]): Promise<void> {
     for (const g of groups) {
       const existing = this.entries.get(g.id);
+      const slug = existing?.slug ?? slugify(existing?.name ?? g.name);
+      if (existing && existing.name !== g.name) {
+        logger.info(
+          { de: existing.name, para: g.name, slug },
+          '✏️  Grupo renomeado — slug/diretório mantidos.',
+        );
+      }
       this.entries.set(g.id, {
         id: g.id,
         name: g.name,
         watch: existing?.watch ?? false,
+        slug,
       });
     }
     await this.persist();
@@ -51,6 +68,20 @@ export class GroupConfig {
 
   isWatched(jid: string): boolean {
     return this.entries.get(jid)?.watch === true;
+  }
+
+  /** Slug persistido do grupo (undefined se o jid ainda não passou pelo sync). */
+  slugOf(jid: string): string | undefined {
+    return this.entries.get(jid)?.slug;
+  }
+
+  /** Mapa jid→slug de todas as entradas com slug persistido. */
+  slugMap(): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const e of this.entries.values()) {
+      if (e.slug) map.set(e.id, e.slug);
+    }
+    return map;
   }
 
   watchedCount(): number {

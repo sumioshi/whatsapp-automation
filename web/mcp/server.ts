@@ -28,7 +28,7 @@ import { ensureLocalMedia } from "../lib/cloud-media";
 import { extractDocumentText } from "../lib/documents";
 import { safeDataPath } from "../lib/paths";
 import { marcarRajadas } from "../lib/rajada";
-import { matchGrupo } from "../lib/resolve-grupo";
+import { canonicalSlug, matchGrupo } from "../lib/resolve-grupo";
 import { slugify } from "../lib/slug";
 import { transcribe, transcribeBatch } from "../lib/transcribe";
 import { ultimaMidiaPath } from "../lib/ultima-midia";
@@ -144,7 +144,18 @@ server.registerTool(
   async () => {
     const grupos = await dsListGroups();
     const config = await dsGroupsConfig();
-    return text({ grupos, monitorados: config.filter((g) => g.watch).map((g) => g.name) });
+    // Grupo renomeado: o nome atual não bate mais com o slug do diretório.
+    // Avisa pro agente continuar usando o slug estável (o histórico está lá).
+    const renomeados = config
+      .filter((g) => g.slug && slugify(g.name) !== g.slug)
+      .map((g) => ({ slug: g.slug, nome_atual: g.name }));
+    return text({
+      grupos,
+      monitorados: config.filter((g) => g.watch).map((g) => g.name),
+      ...(renomeados.length
+        ? { renomeados, nota: "grupos renomeados: use o `slug` (estável); o nome mudou mas o histórico segue no mesmo diretório" }
+        : {}),
+    });
   },
 );
 
@@ -174,7 +185,13 @@ server.registerTool(
   },
   async ({ grupo, desde, limite }) => {
     try {
-      let msgs = await dsGroupMessages(grupo);
+      // Canonicaliza: se o agente passou nome/jid/slug-do-nome-novo de um grupo
+      // renomeado, lê do diretório estável em vez de falhar num dir vazio.
+      const match = matchGrupo(grupo, await dsGroupsConfig());
+      const slug = match ? canonicalSlug(match) : grupo;
+      const notaRename =
+        slug !== grupo ? { nota_slug: `lendo "${slug}" (slug estável de "${grupo}")` } : {};
+      let msgs = await dsGroupMessages(slug);
       const totalGrupo = msgs.length;
       if (desde) msgs = msgs.filter((m) => m.timestamp >= desde);
       // Default de 50 só quando nenhum filtro foi dado — senão respeita o que o
@@ -183,7 +200,8 @@ server.registerTool(
       if (teto) msgs = msgs.slice(-teto);
       const c = await contacts();
       return text({
-        grupo,
+        grupo: slug,
+        ...notaRename,
         total: msgs.length,
         ...(msgs.length < totalGrupo && !desde && !limite
           ? { nota: `mostrando as ${msgs.length} mais recentes de ${totalGrupo}; passe limite/desde p/ mais` }
@@ -502,17 +520,25 @@ server.registerTool(
  *    real em vez de destino inexistente (a antiga causa das "mensagens fantasma");
  *  - senão                 → nome/id de grupo em groups.config.json.
  */
-async function resolveDestino(grupo: string): Promise<{ jid: string | null; label: string }> {
+async function resolveDestino(
+  grupo: string,
+): Promise<{ jid: string | null; label: string; slug?: string }> {
   const g = grupo.trim();
-  if (g.endsWith("@g.us")) return { jid: g, label: g };
+  if (g.endsWith("@g.us")) {
+    const match = matchGrupo(g, await dsGroupsConfig());
+    return { jid: g, label: match?.name ?? g, ...(match ? { slug: canonicalSlug(match) } : {}) };
+  }
   if (g.includes("@") || /^\d{8,}$/.test(g)) {
     const userPart = numberFromJid(g);
     const jid = sendableDmJid(await contacts(), userPart);
     return jid ? { jid, label: jid } : { jid: null, label: g };
   }
   // Grupo: casa por jid, nome exato OU slug (ver matchGrupo / resolve-grupo.ts).
+  // O slug devolvido é o CANÔNICO (persistido) — estável mesmo se renomearem o grupo.
   const match = matchGrupo(g, await dsGroupsConfig());
-  return match ? { jid: match.id, label: match.name } : { jid: null, label: g };
+  return match
+    ? { jid: match.id, label: match.name, slug: canonicalSlug(match) }
+    : { jid: null, label: g };
 }
 
 server.registerTool(
@@ -548,10 +574,13 @@ server.registerTool(
   },
   async ({ grupo, texto, um_balao }) => {
     try {
-      const { jid, label } = await resolveDestino(grupo);
+      const destino = await resolveDestino(grupo);
+      const { jid, label } = destino;
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
       const t = await dsTriage();
-      const slug = slugify(grupo);
+      // Slug canônico do destino — modo/typos/perfil ficam no diretório certo
+      // mesmo quando o agente passa o nome novo de um grupo renomeado.
+      const slug = destino.slug ?? slugify(grupo);
       await dsSend(jid, texto, {
         humano: true,
         slug,

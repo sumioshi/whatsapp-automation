@@ -31,4 +31,14 @@ describe('matchGrupo', () => {
   it('NÃO inventa destino pra grupo inexistente', () => {
     expect(matchGrupo('naoexiste-xyz', GROUPS)).toBeNull();
   });
+
+  it('casa pelo slug PERSISTIDO quando o grupo foi renomeado', () => {
+    const renamed: GroupRef[] = [
+      { id: '9@g.us', name: 'Acme Corp ATÉ 16/08', slug: 'acme-corp' },
+    ];
+    // slug antigo (persistido) continua resolvendo…
+    expect(matchGrupo('acme-corp', renamed)?.id).toBe('9@g.us');
+    // …e o slug do nome NOVO também resolve (quem só viu o nome atual não fica preso)
+    expect(matchGrupo('acme-corp-ate-16-08', renamed)?.id).toBe('9@g.us');
+  });
 });

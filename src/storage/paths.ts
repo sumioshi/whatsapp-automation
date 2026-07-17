@@ -13,6 +13,23 @@ export function slugify(value: string): string {
   return slug || 'sem-nome';
 }
 
+/**
+ * Registro de slugs estáveis por jid (vindos do groups.config.json). Vive aqui
+ * — módulo neutro que coletor e mapper já importam — pra toda resolução de
+ * conversa usar o slug persistido em vez de derivar do nome atual do grupo.
+ */
+const groupSlugOverrides = new Map<string, string>();
+
+export function setGroupSlugOverrides(entries: ReadonlyMap<string, string>): void {
+  groupSlugOverrides.clear();
+  for (const [jid, slug] of entries) groupSlugOverrides.set(jid, slug);
+}
+
+/** Slug da conversa de grupo: o persistido pro jid, ou o derivado do nome. */
+export function slugForGroup(jid: string, name: string): string {
+  return groupSlugOverrides.get(jid) ?? slugify(name);
+}
+
 /** Timestamp ordenável: 2026-06-22_14-30-05 (hora local). */
 export function timestampSlug(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');

@@ -26,6 +26,7 @@ import { startControlServer } from './control/server.js';
 import type { GroupInfo } from './core/message.js';
 import { logger } from './logger.js';
 import { FileStore } from './storage/fileStore.js';
+import { setGroupSlugOverrides } from './storage/paths.js';
 import { PresenceStore } from './storage/presenceStore.js';
 import { StatusStore } from './storage/statusStore.js';
 import { BaileysGateway } from './whatsapp/gateway.js';
@@ -41,6 +42,7 @@ async function main(): Promise<void> {
 
   const groupConfig = new GroupConfig(env.GROUPS_CONFIG);
   await groupConfig.load();
+  setGroupSlugOverrides(groupConfig.slugMap());
 
   const store = new FileStore(env.DATA_DIR);
   const status = new StatusStore(env.DATA_DIR);
@@ -56,6 +58,7 @@ async function main(): Promise<void> {
   // Quando a lista de grupos chega, mescla no arquivo e orienta o usuário.
   gateway.onGroups(async (groups) => {
     await groupConfig.sync(groups);
+    setGroupSlugOverrides(groupConfig.slugMap());
     const watched = groupConfig.watchedCount();
     await status.setWatchedCount(watched);
     if (watched === 0) {
@@ -153,6 +156,7 @@ function watchGroupsConfig(path: string, groupConfig: GroupConfig, status: Statu
         groupConfig
           .load()
           .then(async () => {
+            setGroupSlugOverrides(groupConfig.slugMap());
             const watched = groupConfig.watchedCount();
             await status.setWatchedCount(watched);
             logger.info({ watched }, '♻️  groups.config.json recarregado.');

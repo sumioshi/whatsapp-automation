@@ -37,7 +37,7 @@ import type {
 } from '../core/message.js';
 import type { MessageStore } from '../core/ports.js';
 import { logger } from '../logger.js';
-import { mediaFileName, slugify } from '../storage/paths.js';
+import { mediaFileName, slugForGroup } from '../storage/paths.js';
 import type { PresenceStore } from '../storage/presenceStore.js';
 
 /**
@@ -237,7 +237,7 @@ export class Collector {
    */
   async saveAvatar(groupJid: string, groupName: string, url: string | null): Promise<void> {
     if (!url || !this.groups.isWatched(groupJid)) return;
-    const slug = slugify(groupName);
+    const slug = slugForGroup(groupJid, groupName);
     try {
       const res = await fetch(url);
       if (!res.ok || !res.body) return;

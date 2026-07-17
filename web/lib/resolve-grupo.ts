@@ -4,6 +4,8 @@ import { slugify } from './slug';
 export interface GroupRef {
   id: string; // jid '<...>@g.us'
   name: string;
+  /** Slug estável persistido pelo coletor (sobrevive a renomeações). */
+  slug?: string;
 }
 
 /**
@@ -23,7 +25,12 @@ export function matchGrupo(grupo: string, groups: GroupRef[]): GroupRef | null {
   // 1) id (jid) ou nome EXATO.
   const exact = groups.find((x) => x.id === g || x.name === g);
   if (exact) return exact;
-  // 2) slug (name slugificado).
+  // 2) slug — o persistido (estável em rename) OU o derivado do nome atual.
   const wanted = slugify(g);
-  return groups.find((x) => slugify(x.name) === wanted) ?? null;
+  return groups.find((x) => x.slug === wanted || slugify(x.name) === wanted) ?? null;
+}
+
+/** Slug canônico de um grupo resolvido: o persistido, ou o derivado do nome. */
+export function canonicalSlug(ref: GroupRef): string {
+  return ref.slug ?? slugify(ref.name);
 }

@@ -13,7 +13,7 @@ import type {
   PresenceState,
   ReceiptStatus,
 } from '../core/message.js';
-import { slugify } from '../storage/paths.js';
+import { slugForGroup, slugify } from '../storage/paths.js';
 import { buildMediaDescriptor } from './media.js';
 
 /** True se o JID é uma conversa 1:1 (contato), não um grupo. */
@@ -47,7 +47,11 @@ export function resolveConversation(
       groupName: pushName?.trim() || handle,
     };
   }
-  return { isDirect: false, conversationSlug: slugify(knownGroupName), groupName: knownGroupName };
+  return {
+    isDirect: false,
+    conversationSlug: slugForGroup(remoteJid, knownGroupName),
+    groupName: knownGroupName,
+  };
 }
 
 /**

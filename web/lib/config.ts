@@ -8,6 +8,8 @@ export interface GroupEntry {
   id: string;
   name: string;
   watch: boolean;
+  /** Slug estável persistido pelo coletor — preservar em toda reescrita. */
+  slug?: string;
 }
 
 export interface GroupWithTags extends GroupEntry {
@@ -21,7 +23,12 @@ export async function readGroupsConfig(): Promise<GroupEntry[]> {
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter((e): e is GroupEntry => !!e && typeof e === 'object' && 'id' in e)
-      .map((e) => ({ id: String(e.id), name: String(e.name ?? e.id), watch: e.watch === true }));
+      .map((e) => ({
+        id: String(e.id),
+        name: String(e.name ?? e.id),
+        watch: e.watch === true,
+        ...(typeof e.slug === 'string' && e.slug ? { slug: e.slug } : {}),
+      }));
   } catch {
     return [];
   }
