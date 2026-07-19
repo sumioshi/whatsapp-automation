@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs';
+import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
+import { join, resolve, sep } from 'node:path';
 import { env } from '../config/env.js';
 import type { OutboundMedia } from '../core/message.js';
 import type { WhatsAppGateway } from '../core/ports.js';
@@ -9,6 +11,7 @@ import { foraDoExpediente } from '../humano/expediente.js';
 import { loadPerfilEnvio } from '../humano/perfil.js';
 import { planoDeEntrega } from '../humano/plano.js';
 import { logger } from '../logger.js';
+import { slugify } from '../storage/paths.js';
 
 /** True se `path` (resolvido) está dentro de algum diretório permitido. */
 function isWithin(path: string, allowedDirs: string[]): boolean {
@@ -117,6 +120,60 @@ function readJson(req: import('node:http').IncomingMessage): Promise<unknown> {
   });
 }
 
+interface SendMediaUrlBody {
+  jid?: string;
+  url?: string;
+  kind?: string;
+  fileName?: string;
+  caption?: string;
+}
+
+/** Uma mensagem já achatada para consumo externo (ex.: painel do Radar). */
+interface ConversationMessage {
+  fromMe: boolean;
+  text: string;
+  timestamp: number;
+  author: string | null;
+}
+
+/**
+ * Lê as últimas `limit` mensagens de uma conversa (grupo ou DM) direto do
+ * messages.jsonl do slug. Conversa inexistente (ex.: lead que ainda não
+ * respondeu) devolve lista vazia. Não aplica edições/deletes — é uma leitura
+ * simples para exibição, não a fonte canônica do painel.
+ */
+async function readRecentMessages(
+  dataDir: string,
+  slug: string,
+  limit: number,
+): Promise<ConversationMessage[]> {
+  const file = join(dataDir, slug, 'messages.jsonl');
+  if (!existsSync(file)) return [];
+  const raw = await readFile(file, 'utf8');
+  const lines = raw.split('\n').filter((line) => line.trim());
+  const recent = lines.slice(-limit);
+  const messages: ConversationMessage[] = [];
+  for (const line of recent) {
+    try {
+      const record = JSON.parse(line) as {
+        fromMe?: boolean;
+        text?: string;
+        timestamp?: string;
+        senderName?: string;
+      };
+      messages.push({
+        fromMe: record.fromMe === true,
+        text: record.text ?? '',
+        timestamp: record.timestamp ? Date.parse(record.timestamp) : 0,
+        author: record.senderName ?? null,
+      });
+    } catch {
+      // linha corrompida — ignora e segue.
+    }
+  }
+  return messages;
+}
+
 /**
  * API de controle local (apenas 127.0.0.1) para o painel/MCP pedirem envios.
  * O coletor é o único processo com a conexão do WhatsApp, então ele envia.
@@ -150,6 +207,59 @@ export function startControlServer(
           const result = await gateway.checkNumber(digits);
           logger.info({ exists: result.exists }, '🔎 Número verificado via API de controle.');
           json(200, result);
+        })
+        .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));
+      return;
+    }
+
+    // Leitura da conversa (grupo ou DM). Slug de DM = dm-<handle-do-jid>.
+    if (req.method === 'GET' && req.url?.startsWith('/messages/')) {
+      const path = req.url.split('?')[0] ?? '';
+      const rawSlug = path.slice('/messages/'.length);
+      const slug = rawSlug ? decodeURIComponent(rawSlug) : '';
+      if (!slug || slug.includes('/') || slug.includes('..')) {
+        json(400, { error: 'slug inválido' });
+        return;
+      }
+      readRecentMessages(env.DATA_DIR, slug, 30)
+        .then((messages) => json(200, { messages }))
+        .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));
+      return;
+    }
+
+    // Envia mídia a partir de uma URL pública (baixa pra tmp e envia). Evita
+    // expor o filesystem como o /send-media cru (que aceita path local).
+    if (req.method === 'POST' && req.url === '/send-media-url') {
+      readJson(req)
+        .then(async (parsed) => {
+          const { jid, url, kind, fileName, caption } = (parsed ?? {}) as SendMediaUrlBody;
+          if (!jid || !url || !kind) {
+            json(400, { error: 'jid, url e kind são obrigatórios' });
+            return;
+          }
+          if (kind !== 'image' && kind !== 'document') {
+            json(400, { error: 'kind deve ser image ou document' });
+            return;
+          }
+          const download = await fetch(url);
+          if (!download.ok) {
+            json(502, { error: `download falhou: HTTP ${download.status}` });
+            return;
+          }
+          const buffer = Buffer.from(await download.arrayBuffer());
+          const tmpPath = resolve(tmpdir(), `wac-${slugify(fileName ?? 'anexo')}-${buffer.length}`);
+          await writeFile(tmpPath, buffer);
+          try {
+            const media: OutboundMedia =
+              kind === 'document'
+                ? { kind: 'document', path: tmpPath, fileName: fileName ?? 'documento.pdf', caption }
+                : { kind: 'image', path: tmpPath, caption };
+            await gateway.sendMedia(jid, media);
+            logger.info({ kind }, '📎🔗 Mídia (via URL) enviada via API de controle.');
+            json(200, { ok: true });
+          } finally {
+            await unlink(tmpPath).catch(() => {});
+          }
         })
         .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));
       return;
