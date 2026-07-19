@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -12,6 +13,10 @@ import { loadPerfilEnvio } from '../humano/perfil.js';
 import { planoDeEntrega } from '../humano/plano.js';
 import { logger } from '../logger.js';
 import { slugify } from '../storage/paths.js';
+import { assertPublicHttpUrl } from './safe-url.js';
+
+/** Teto de download do /send-media-url (16 MB) — evita estourar a RAM do container. */
+const MAX_MEDIA_URL_BYTES = 16 * 1024 * 1024;
 
 /** True se `path` (resolvido) está dentro de algum diretório permitido. */
 function isWithin(path: string, allowedDirs: string[]): boolean {
@@ -142,7 +147,7 @@ interface ConversationMessage {
  * respondeu) devolve lista vazia. Não aplica edições/deletes — é uma leitura
  * simples para exibição, não a fonte canônica do painel.
  */
-async function readRecentMessages(
+export async function readRecentMessages(
   dataDir: string,
   slug: string,
   limit: number,
@@ -241,13 +246,29 @@ export function startControlServer(
             json(400, { error: 'kind deve ser image ou document' });
             return;
           }
-          const download = await fetch(url);
+          let safeUrl: URL;
+          try {
+            safeUrl = await assertPublicHttpUrl(url);
+          } catch (e) {
+            json(400, { error: e instanceof Error ? e.message : 'url inválida' });
+            return;
+          }
+          const download = await fetch(safeUrl);
           if (!download.ok) {
             json(502, { error: `download falhou: HTTP ${download.status}` });
             return;
           }
+          const declared = Number(download.headers.get('content-length') ?? 0);
+          if (declared > MAX_MEDIA_URL_BYTES) {
+            json(413, { error: 'arquivo excede o limite de 16 MB' });
+            return;
+          }
           const buffer = Buffer.from(await download.arrayBuffer());
-          const tmpPath = resolve(tmpdir(), `wac-${slugify(fileName ?? 'anexo')}-${buffer.length}`);
+          if (buffer.length > MAX_MEDIA_URL_BYTES) {
+            json(413, { error: 'arquivo excede o limite de 16 MB' });
+            return;
+          }
+          const tmpPath = resolve(tmpdir(), `wac-${slugify(fileName ?? 'anexo')}-${randomUUID()}`);
           await writeFile(tmpPath, buffer);
           try {
             const media: OutboundMedia =

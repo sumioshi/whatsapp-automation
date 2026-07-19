@@ -35,7 +35,13 @@ async function proxy(req: Request, path: string[]): Promise<NextResponse> {
     return NextResponse.json({ error: "não autorizado" }, { status: 401 });
   }
   const route = path.join("/");
-  if (!ALLOWED.has(route) && !route.startsWith("messages/")) {
+  // Rejeita travessia: um segmento ".." resolveria pra fora da allowlist quando a
+  // URL é normalizada (ex.: messages/../send-media → /send-media, que expõe path local).
+  if (path.some((seg) => seg === "." || seg === "..")) {
+    return NextResponse.json({ error: "rota inválida" }, { status: 400 });
+  }
+  const isMessages = route.startsWith("messages/") && path.length === 2;
+  if (!ALLOWED.has(route) && !isMessages) {
     return NextResponse.json({ error: "rota não permitida" }, { status: 404 });
   }
 
