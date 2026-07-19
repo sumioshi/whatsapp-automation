@@ -322,6 +322,12 @@ export class BaileysGateway implements WhatsAppGateway {
     this.echoSent(jid, sent);
   }
 
+  async checkNumber(number: string): Promise<{ exists: boolean; jid: string | null }> {
+    if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
+    const [result] = (await this.sock.onWhatsApp(number)) ?? [];
+    return result?.exists ? { exists: true, jid: result.jid } : { exists: false, jid: null };
+  }
+
   async sendMedia(jid: string, media: OutboundMedia): Promise<void> {
     if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
     if (media.kind !== 'audio') {

@@ -59,6 +59,11 @@ export interface WhatsAppGateway {
   /** Envia uma mídia (imagem, documento, áudio ou vídeo) para um grupo/contato (jid). */
   sendMedia(jid: string, media: OutboundMedia): Promise<void>;
   /**
+   * Verifica se um número (só dígitos, com DDI, ex: 5511999999999) tem conta
+   * de WhatsApp. Retorna o jid canônico se existir, null caso contrário.
+   */
+  checkNumber(number: string): Promise<{ exists: boolean; jid: string | null }>;
+  /**
    * Reage (emoji) a uma mensagem identificada por `key`. `emoji` vazio ('')
    * remove a reação. A própria reação também é emitida no fluxo de onReaction.
    */

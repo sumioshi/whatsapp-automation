@@ -49,6 +49,10 @@ interface SendMediaBody {
   mimetype?: string;
 }
 
+interface CheckNumberBody {
+  number?: string;
+}
+
 interface ProfileNameBody {
   name?: string;
 }
@@ -131,6 +135,23 @@ export function startControlServer(
 
     if (req.method === 'GET' && req.url === '/health') {
       json(200, { ok: true });
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/check-number') {
+      readJson(req)
+        .then(async (parsed) => {
+          const { number } = (parsed ?? {}) as CheckNumberBody;
+          const digits = (number ?? '').replace(/\D/g, '');
+          if (!digits) {
+            json(400, { error: 'number é obrigatório (dígitos com DDI)' });
+            return;
+          }
+          const result = await gateway.checkNumber(digits);
+          logger.info({ exists: result.exists }, '🔎 Número verificado via API de controle.');
+          json(200, result);
+        })
+        .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));
       return;
     }
 
