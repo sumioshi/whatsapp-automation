@@ -10,9 +10,18 @@ export const runtime = "nodejs";
  * (fail closed). O Basic Auth do painel não se aplica aqui (ver web/proxy.ts);
  * a autenticação desta rota é exclusivamente o Bearer.
  *
- * Só repassa rotas de leitura/envio simples (sem paths de arquivo locais).
+ * Só repassa rotas de leitura/envio simples. `send-media-url` baixa a mídia de
+ * uma URL (o `/send-media` cru, que aceita path de arquivo local, NÃO é exposto).
+ * `messages/<slug>` lê uma conversa (prefixo, o slug é o último segmento).
  */
-const ALLOWED = new Set(["health", "check-number", "send", "react", "edit"]);
+const ALLOWED = new Set([
+  "health",
+  "check-number",
+  "send",
+  "send-media-url",
+  "react",
+  "edit",
+]);
 
 async function proxy(req: Request, path: string[]): Promise<NextResponse> {
   const token = process.env.CONTROL_TOKEN;
@@ -26,7 +35,13 @@ async function proxy(req: Request, path: string[]): Promise<NextResponse> {
     return NextResponse.json({ error: "não autorizado" }, { status: 401 });
   }
   const route = path.join("/");
-  if (!ALLOWED.has(route)) {
+  // Rejeita travessia: um segmento ".." resolveria pra fora da allowlist quando a
+  // URL é normalizada (ex.: messages/../send-media → /send-media, que expõe path local).
+  if (path.some((seg) => seg === "." || seg === "..")) {
+    return NextResponse.json({ error: "rota inválida" }, { status: 400 });
+  }
+  const isMessages = route.startsWith("messages/") && path.length === 2;
+  if (!ALLOWED.has(route) && !isMessages) {
     return NextResponse.json({ error: "rota não permitida" }, { status: 404 });
   }
 
