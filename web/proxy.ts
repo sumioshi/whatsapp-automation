@@ -31,6 +31,7 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  // protege tudo, menos os assets estáticos do Next e o favicon
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // protege tudo, menos os assets estáticos do Next, o favicon e o proxy da
+  // API de controle (/api/control/*), que tem auth própria por Bearer token
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/control).*)"],
 };
