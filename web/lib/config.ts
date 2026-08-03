@@ -85,7 +85,7 @@ export async function setGroupTags(id: string, tagList: string[]): Promise<Group
 // ---------- Status do coletor ----------
 
 export interface CollectorStatus {
-  connection: 'open' | 'connecting' | 'qr' | 'close' | 'unknown' | 'offline';
+  connection: 'open' | 'connecting' | 'qr' | 'close' | 'logged_out' | 'unknown' | 'offline';
   qr: string | null;
   watchedCount: number;
   updatedAt: string | null;

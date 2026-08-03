@@ -63,6 +63,7 @@ import { baileysLogger, logger } from '../logger.js';
 import { ChatStateStore } from '../storage/chatStateStore.js';
 import { ContactStore } from '../storage/contactStore.js';
 import { PollStore } from '../storage/pollStore.js';
+import { archiveAuthDir } from './auth-reset.js';
 import {
   editedTextFrom,
   isDirectJid,
@@ -927,22 +928,32 @@ export class BaileysGateway implements WhatsAppGateway {
       this.reconnectAttempts = 0; // conexão estável → zera o backoff
       void this.refreshGroups();
     }
-    if (connection === 'close') {
-      this.onClose(lastDisconnect);
+    // `logged_out` distingue, para o painel e para vigias externos, a sessão
+    // invalidada (exige re-pareamento) da queda transitória que reconecta só.
+    let effective: string | undefined = connection;
+    if (connection === 'close' && this.onClose(lastDisconnect)) {
+      effective = 'logged_out';
     }
     // Publica o estado para o painel (QR aparece no navegador também).
-    if (connection || qr) {
-      this.emitter.emit('status', { connection, qr: qr ?? null } satisfies GatewayStatus);
+    if (effective || qr) {
+      this.emitter.emit('status', {
+        connection: effective,
+        qr: qr ?? null,
+      } satisfies GatewayStatus);
     }
   }
 
-  private onClose(lastDisconnect: ConnectionUpdate['lastDisconnect']): void {
-    if (this.stopping) return;
+  /** Trata a queda de conexão. Retorna true quando a sessão foi invalidada. */
+  private onClose(lastDisconnect: ConnectionUpdate['lastDisconnect']): boolean {
+    if (this.stopping) return false;
     const statusCode = (lastDisconnect?.error as { output?: { statusCode?: number } })?.output
       ?.statusCode;
     if (statusCode === DisconnectReason.loggedOut) {
-      logger.error('⚠️  Sessão deslogada no celular. Apague a pasta auth/ e pareie novamente.');
-      return;
+      logger.error(
+        '⚠️  Sessão invalidada pelo servidor. Arquivando credenciais e voltando ao modo de pareamento (QR no painel /config).',
+      );
+      void this.repair();
+      return true;
     }
     // Backoff exponencial com teto + jitter — evita loop apertado de reconexão.
     const base = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** this.reconnectAttempts);
@@ -957,6 +968,22 @@ export class BaileysGateway implements WhatsAppGateway {
       this.reconnectTimer = null;
       void this.connect();
     }, delayMs);
+    return false;
+  }
+
+  /**
+   * Sessão invalidada: arquiva as credenciais mortas e reconecta sem elas —
+   * o Baileys entra em modo de pareamento e o QR novo chega ao painel.
+   * Reconectar com as credenciais antigas seria inútil (o servidor as rejeita).
+   */
+  private async repair(): Promise<void> {
+    try {
+      const backup = await archiveAuthDir(this.authDir);
+      if (backup) logger.warn({ backup }, '🗄️  Credenciais antigas arquivadas.');
+      await this.connect();
+    } catch (err) {
+      logger.error({ err }, 'Falha ao voltar ao modo de pareamento após logout.');
+    }
   }
 
   private async onMessagesUpsert(upsert: MessagesUpsert): Promise<void> {

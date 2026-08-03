@@ -47,6 +47,7 @@ const BADGES: Record<
   connecting: { label: "Conectando…", dot: "bg-accent" },
   qr: { label: "Aguardando QR", dot: "bg-info" },
   close: { label: "Desconectado", dot: "bg-danger" },
+  logged_out: { label: "Sessão invalidada — gerando QR novo…", dot: "bg-danger" },
   unknown: { label: "Estado desconhecido", dot: "bg-fg-faint" },
   offline: { label: "Coletor offline", dot: "bg-fg-faint" },
 };

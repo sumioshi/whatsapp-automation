@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-export type ConnectionState = 'open' | 'connecting' | 'qr' | 'close' | 'unknown';
+export type ConnectionState = 'open' | 'connecting' | 'qr' | 'close' | 'logged_out' | 'unknown';
 
 export interface CollectorStatus {
   connection: ConnectionState;
@@ -31,6 +31,7 @@ export class StatusStore {
     else if (connection === 'open') this.connection = 'open';
     else if (connection === 'connecting') this.connection = 'connecting';
     else if (connection === 'close') this.connection = 'close';
+    else if (connection === 'logged_out') this.connection = 'logged_out';
     await this.flush();
   }
 
