@@ -27,6 +27,8 @@ export interface ChatStateEntry {
   archived: boolean;
   /** true se foi marcado manualmente como não-lido (markedAsUnread). */
   markedAsUnread: boolean;
+  /** Última atividade do chat segundo o WhatsApp (conversationTimestamp, unix s). */
+  lastActivity?: number | null;
 }
 
 /** Formato do arquivo `.chats.json`. */
@@ -62,9 +64,15 @@ export class ChatStateStore {
       muted: false,
       archived: false,
       markedAsUnread: false,
+      lastActivity: null,
     };
     this.bySlug.set(slug, { ...prev, ...update });
     this.scheduleFlush();
+  }
+
+  /** Estado atual de um chat (ou undefined se nunca visto). */
+  get(slug: string): ChatStateEntry | undefined {
+    return this.bySlug.get(slug);
   }
 
   /** Remove o chat do sidecar (chats.delete). */

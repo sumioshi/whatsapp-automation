@@ -645,6 +645,7 @@ export class BaileysGateway implements WhatsAppGateway {
       archived?: boolean | null;
       muteEndTime?: number | { toNumber(): number } | null;
       markedAsUnread?: boolean | null;
+      conversationTimestamp?: number | { toNumber(): number } | null;
     },
   ): void {
     if (!jid) return;
@@ -659,12 +660,18 @@ export class BaileysGateway implements WhatsAppGateway {
     const muteEndSec =
       muteRaw == null ? 0 : typeof muteRaw === 'number' ? muteRaw : muteRaw.toNumber();
 
+    const convRaw = chat.conversationTimestamp;
+    const lastActivity =
+      convRaw == null ? undefined : typeof convRaw === 'number' ? convRaw : convRaw.toNumber();
+
     this.chatStates.upsert(slug, {
       pinned: Boolean(pinnedTs),
       pinnedAt: pinnedTs ?? null,
       muted: muteEndSec > nowSec,
       archived: Boolean(chat.archived),
       markedAsUnread: Boolean(chat.markedAsUnread),
+      // Só grava quando o evento trouxe o timestamp (senão preserva o anterior).
+      ...(lastActivity !== undefined ? { lastActivity } : {}),
     });
   }
 
@@ -701,6 +708,7 @@ export class BaileysGateway implements WhatsAppGateway {
       if ('archived' in update) partial.archived = update.archived ?? null;
       if ('muteEndTime' in update) partial.muteEndTime = update.muteEndTime as number | null;
       if ('markedAsUnread' in update) partial.markedAsUnread = update.markedAsUnread ?? null;
+      const comTimestamp = 'conversationTimestamp' in update;
 
       // Se nenhum campo de estado chegou, ignora (pode ser timestamp/lastMsg only).
       const hasState =
@@ -708,9 +716,12 @@ export class BaileysGateway implements WhatsAppGateway {
         'archived' in update ||
         'muteEndTime' in update ||
         'markedAsUnread' in update;
-      if (!hasState) continue;
+      if (!hasState && !comTimestamp) continue;
 
-      this.applyChatState(update.id, partial);
+      this.applyChatState(update.id, {
+        ...partial,
+        ...(comTimestamp ? { conversationTimestamp: update.conversationTimestamp } : {}),
+      });
     }
   }
 
@@ -1125,7 +1136,31 @@ export class BaileysGateway implements WhatsAppGateway {
     if (lid || phone) this.contacts.merge({ lid, phone, name });
   }
 
-  private async refreshGroups(): Promise<void> {
+  /** Última atividade conhecida (unix s) de um chat, pelo sidecar de estado. */
+  lastActivityOf(slug: string): number | null {
+    return this.chatStates.get(slug)?.lastActivity ?? null;
+  }
+
+  /**
+   * Pede ao celular o histórico ANTERIOR à âncora (on-demand history sync).
+   * A resposta chega assíncrona via messaging-history.set (dedup por id já
+   * protege contra duplicata). Retorna false sem socket vivo.
+   */
+  async fetchHistoryBefore(
+    jid: string,
+    ancora: { id: string; timestampMs: number; fromMe: boolean; sender: string },
+  ): Promise<boolean> {
+    const sock = this.sock;
+    if (!sock) return false;
+    const key: WAMessageKey = { remoteJid: jid, id: ancora.id, fromMe: ancora.fromMe };
+    if (jid.endsWith('@g.us') && !ancora.fromMe && ancora.sender.includes('@')) {
+      key.participant = ancora.sender;
+    }
+    await sock.fetchMessageHistory(50, key, Math.floor(ancora.timestampMs / 1000));
+    return true;
+  }
+
+  async refreshGroups(): Promise<void> {
     const sock = this.sock;
     if (!sock) {
       this.markGroupsReady();

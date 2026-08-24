@@ -189,6 +189,8 @@ export interface GroupSummary {
   muted?: boolean;
   /** true se o chat está arquivado. */
   archived?: boolean;
+  /** Última atividade segundo o WhatsApp (unix s), se conhecida. */
+  lastActivity?: number | null;
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -279,6 +281,8 @@ interface ChatStateEntry {
   muted: boolean;
   archived: boolean;
   markedAsUnread: boolean;
+  /** Última atividade segundo o WhatsApp (unix s) — detector de "desatualizado". */
+  lastActivity?: number | null;
 }
 
 interface ChatStateSidecar {
@@ -348,6 +352,7 @@ export async function listGroups(): Promise<GroupSummary[]> {
       pinnedAt: state?.pinnedAt ?? null,
       muted: state?.muted ?? false,
       archived: state?.archived ?? false,
+      lastActivity: state?.lastActivity ?? null,
     };
     }),
   );

@@ -19,6 +19,8 @@ export interface ClienteCard {
   /** Primeira linha das notas de triagem (mini-CRM), se houver. */
   nota: string | null;
   silenciado: boolean;
+  /** true se o WhatsApp conhece atividade mais nova que a última msg local. */
+  desatualizado: boolean;
   /** Etiquetas do chat (empresa/contrato), definidas pelo operador ou pela IA. */
   etiquetas: string[];
   /** true se a última palavra é do cliente (sem resposta sua depois). */
@@ -103,6 +105,10 @@ export async function buildClientes(): Promise<ClienteCard[]> {
           : null,
         mensagens: g.messageCount,
         nota: primeiraLinha(triage.notes[g.slug]),
+        desatualizado:
+          g.lastActivity != null &&
+          g.lastActivity * 1000 - (ultimaTimestamp ? new Date(ultimaTimestamp).getTime() : 0) >
+            5 * 60_000,
         etiquetas: triage.etiquetas[g.slug] ?? [],
         silenciado: Boolean(triage.muted[g.slug]),
         aguardando,

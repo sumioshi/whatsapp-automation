@@ -29,6 +29,7 @@ export default function ConfigPage() {
       <div className="mx-auto max-w-2xl space-y-6">
         <h1 className="mono text-[13px] uppercase tracking-wider text-fg-dim">Configurações</h1>
         <ConnectionCard />
+        <SyncCard />
         <GroupsCard />
         <TeamCard />
         <TranscriptionCard />
@@ -496,6 +497,78 @@ function TranscriptionCard() {
         <Button onClick={save}>Salvar</Button>
         {saved && <span className="mono text-sm text-ok">Salvo ✓</span>}
       </div>
+    </Card>
+  );
+}
+
+
+/* ------------------------- Sincronização ------------------------- */
+
+function SyncCard() {
+  const [intervalo, setIntervalo] = useState("15");
+  const [ultima, setUltima] = useState<string | null>(null);
+  const [salvo, setSalvo] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/reconciler", { cache: "no-store" });
+        const data = (await res.json()) as {
+          intervaloMin?: number;
+          status?: { ultimaExecucao?: string | null } | null;
+        };
+        if (!alive) return;
+        if (data.intervaloMin) setIntervalo(String(data.intervaloMin));
+        setUltima(data.status?.ultimaExecucao ?? null);
+      } catch {
+        /* coletor fora do ar */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function salvar() {
+    const n = Number(intervalo);
+    if (!Number.isFinite(n) || n < 1) return;
+    await fetch("/api/reconciler", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ intervaloMin: n }),
+    }).catch(() => {});
+    setSalvo(true);
+    setTimeout(() => setSalvo(false), 2000);
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Sincronização automática" />
+      <p className="mb-3 text-sm text-fg-dim">
+        De tempos em tempos o coletor confere nomes de grupo e busca buracos de
+        histórico direto do WhatsApp. O botão &quot;agora&quot; fica na tela de Clientes.
+      </p>
+      <div className="flex items-center gap-2">
+        <label className="text-sm text-fg-dim" htmlFor="sync-intervalo">
+          A cada
+        </label>
+        <Input
+          id="sync-intervalo"
+          type="number"
+          min={1}
+          value={intervalo}
+          onChange={(e) => setIntervalo(e.target.value)}
+          className="w-20"
+        />
+        <span className="text-sm text-fg-dim">min</span>
+        <Button onClick={() => void salvar()}>{salvo ? "Salvo ✓" : "Salvar"}</Button>
+      </div>
+      {ultima && (
+        <p className="mono mt-2 text-[10px] text-fg-faint">
+          última execução: {new Date(ultima).toLocaleString("pt-BR")}
+        </p>
+      )}
     </Card>
   );
 }

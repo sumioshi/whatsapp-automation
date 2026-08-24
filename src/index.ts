@@ -29,6 +29,7 @@ import { FileStore } from './storage/fileStore.js';
 import { setGroupSlugOverrides } from './storage/paths.js';
 import { PresenceStore } from './storage/presenceStore.js';
 import { StatusStore } from './storage/statusStore.js';
+import { Reconciler } from './app/reconciler.js';
 import { BaileysGateway } from './whatsapp/gateway.js';
 
 async function main(): Promise<void> {
@@ -51,9 +52,23 @@ async function main(): Promise<void> {
   const gateway = new BaileysGateway(env.AUTH_DIR, env.DATA_DIR, env.PAIR_NUMBER);
 
   // Publica o estado de conexão (QR/open/close) para o painel ler.
+  let conectado = false;
   gateway.onStatus((s) => {
+    if (s.connection === 'open') conectado = true;
+    else if (s.connection) conectado = false;
     void status.setConnection(s.connection, s.qr);
   });
+
+  // Reconciliador: nomes + buracos de histórico, no intervalo do painel.
+  const reconciler = new Reconciler({
+    dataDir: env.DATA_DIR,
+    connected: () => conectado,
+    refreshGroups: () => gateway.refreshGroups(),
+    lastActivityOf: (slug) => gateway.lastActivityOf(slug),
+    fetchHistoryBefore: (jid, ancora) => gateway.fetchHistoryBefore(jid, ancora),
+    watchedEntries: () => groupConfig.watchedEntries(),
+  });
+  void reconciler.start();
 
   // Quando a lista de grupos chega, mescla no arquivo e orienta o usuário.
   gateway.onGroups(async (groups) => {
@@ -116,7 +131,7 @@ async function main(): Promise<void> {
   });
 
   watchGroupsConfig(env.GROUPS_CONFIG, groupConfig, status);
-  startControlServer(gateway, env.CONTROL_PORT, [env.DATA_DIR, tmpdir()]);
+  startControlServer(gateway, env.CONTROL_PORT, [env.DATA_DIR, tmpdir()], reconciler);
   registerShutdown(gateway);
 
   logger.info('🚀 Coletor iniciando...');

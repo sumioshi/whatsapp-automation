@@ -84,6 +84,15 @@ export class GroupConfig {
     return map;
   }
 
+  /** Entradas monitoradas (jid + slug) — insumo do reconciliador. */
+  watchedEntries(): Array<{ id: string; slug: string | undefined }> {
+    const out: Array<{ id: string; slug: string | undefined }> = [];
+    for (const e of this.entries.values()) {
+      if (e.watch) out.push({ id: e.id, slug: e.slug });
+    }
+    return out;
+  }
+
   watchedCount(): number {
     let count = 0;
     for (const entry of this.entries.values()) {

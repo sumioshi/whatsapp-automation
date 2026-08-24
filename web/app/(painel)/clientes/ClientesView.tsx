@@ -5,6 +5,7 @@ import type { ClienteCard } from "@/lib/clientes";
 import type { KanbanState } from "@/lib/kanban";
 import { ClientesGrid } from "./ClientesGrid";
 import { corDaEtiqueta } from "./Etiqueta";
+import { SyncWidget } from "./SyncWidget";
 import { KanbanBoard } from "./KanbanBoard";
 
 type Modo = "grade" | "kanban";
@@ -72,6 +73,7 @@ export function ClientesView({ cards, kanban }: { cards: ClienteCard[]; kanban: 
             arraste os cards entre colunas · duplo clique renomeia
           </span>
         )}
+        <SyncWidget />
       </div>
       {modo === "grade" ? (
         <ClientesGrid cards={visiveis} conhecidas={conhecidas} />

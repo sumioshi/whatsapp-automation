@@ -187,6 +187,7 @@ export function startControlServer(
   gateway: WhatsAppGateway,
   port: number,
   allowedDirs: string[],
+  reconciler?: { tickNow(motivo: 'auto' | 'manual'): Promise<unknown> },
 ): void {
   const allowed = allowedDirs.map((d) => resolve(d));
   const server = createServer((req, res) => {
@@ -197,6 +198,19 @@ export function startControlServer(
 
     if (req.method === 'GET' && req.url === '/health') {
       json(200, { ok: true });
+      return;
+    }
+
+    // Dispara um ciclo do reconciliador fora de hora (o painel usa no "agora").
+    if (req.method === 'POST' && req.url === '/reconcile') {
+      if (!reconciler) {
+        json(503, { error: 'reconciliador indisponível' });
+        return;
+      }
+      reconciler
+        .tickNow('manual')
+        .then((resumo) => json(200, { ok: true, resumo }))
+        .catch((err) => json(500, { error: err instanceof Error ? err.message : 'falhou' }));
       return;
     }
 
