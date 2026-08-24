@@ -98,7 +98,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <main className="signal-grid flex min-h-dvh items-center justify-center px-4">
+    <main className="flex min-h-dvh items-center justify-center px-4">
       <Suspense>
         <LoginForm />
       </Suspense>

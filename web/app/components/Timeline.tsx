@@ -351,7 +351,7 @@ export function Timeline({
         <div
           ref={scrollRef}
           onScroll={onScroll}
-          className="signal-grid flex-1 space-y-2.5 overflow-y-auto px-4 py-6 md:px-10"
+          className="flex-1 space-y-2.5 overflow-y-auto px-4 py-6 md:px-10"
         >
           {shown.length === 0 ? (
             <p className="mono mt-12 text-center text-sm text-fg-faint">

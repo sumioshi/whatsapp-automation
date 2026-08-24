@@ -96,9 +96,9 @@ export function SidebarLink({ group, isNav = false, onNavEnter }: SidebarLinkPro
   const containerClass = [
     "group relative flex items-center gap-3 overflow-hidden rounded-control px-2.5 py-2 transition-colors",
     active
-      ? "bg-elevated ring-1 ring-inset ring-accent/20"
+      ? "bg-elevated"
       : isNav
-        ? "bg-surface-2 ring-1 ring-inset ring-accent/35"
+        ? "bg-surface-2 ring-1 ring-inset ring-line-2"
         : "hover:bg-surface-2",
   ].join(" ");
 
@@ -114,19 +114,11 @@ export function SidebarLink({ group, isNav = false, onNavEnter }: SidebarLinkPro
         <img
           src={`/api/media/${group.avatarPath.split("/").map(encodeURIComponent).join("/")}`}
           alt=""
-          className={`h-10 w-10 shrink-0 rounded-[10px] border object-cover transition-colors ${
-            active ? "border-accent/40" : isNav ? "border-accent/30" : "border-line"
-          }`}
+          className="h-10 w-10 shrink-0 rounded-[10px] border border-line object-cover"
         />
       ) : (
         <div
-          className={`grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border text-xs font-semibold transition-colors ${
-            active
-              ? "border-accent/40 bg-accent/10 text-accent"
-              : isNav
-                ? "border-accent/25 bg-accent/8 text-accent/80"
-                : "border-line bg-surface-2 text-fg-dim group-hover:text-fg"
-          }`}
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border border-line bg-surface-2 text-xs font-semibold text-fg-dim transition-colors group-hover:text-fg"
         >
           {group.name.slice(0, 2).toUpperCase()}
         </div>

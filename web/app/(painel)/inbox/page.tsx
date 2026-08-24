@@ -50,7 +50,7 @@ export default async function InboxPage() {
         )}
       </header>
 
-      <div className="signal-grid flex-1 overflow-y-auto px-4 py-6 md:px-10">
+      <div className="flex-1 overflow-y-auto px-4 py-6 md:px-10">
         {n === 0 ? (
           <EmptyState
             icon={

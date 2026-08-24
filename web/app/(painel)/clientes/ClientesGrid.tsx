@@ -33,7 +33,7 @@ export function ClientesGrid({ cards, conhecidas = [] }: { cards: ClienteCard[];
   }, [cards, filtro, busca]);
 
   return (
-    <div className="signal-grid flex-1 overflow-y-auto px-4 py-5 md:px-8">
+    <div className="flex-1 overflow-y-auto px-4 py-5 md:px-8">
       <div className="mx-auto max-w-6xl">
         <div className="mb-5 flex flex-wrap items-center gap-2">
           <div className="flex rounded-control border border-line bg-surface p-0.5">
