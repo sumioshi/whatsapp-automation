@@ -1,5 +1,5 @@
 import { type Contacts, buildContacts, numberFromJid, roleOf } from "./contacts";
-import { type GroupSummary, type MessageView, listGroups, readGroupMessages } from "./data";
+import { type GroupSummary, type MessageView, listGroups, readGroupRecords } from "./data";
 import { readTriage } from "./triage";
 import { type SlaBand, buildSlaInfo } from "./sla";
 
@@ -37,7 +37,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 /** Prévia curta de uma mensagem: texto/transcrição ou rótulo de mídia. */
-function previewOf(m: MessageView): string {
+function previewOf(m: MensagemAvaliavel): string {
   const body = m.text?.trim() || m.transcript?.trim() || "";
   if (body) return body.length > 120 ? `${body.slice(0, 117)}…` : body;
   return m.type !== "text" ? `[${TYPE_LABEL[m.type] ?? m.type}]` : "";
@@ -85,7 +85,15 @@ export interface GroupVerdict {
  * direto; mídia sem transcrição entra como "[áudio]" etc. Comece honesto: é um
  * radar de "tem coisa parada", não um classificador de intenção.
  */
-export function evaluateGroup(messages: MessageView[], contacts: Contacts): GroupVerdict | null {
+export type MensagemAvaliavel = Pick<
+  MessageView,
+  'sender' | 'senderName' | 'timestamp' | 'text' | 'type' | 'fromMe'
+> & { transcript?: string | null };
+
+export function evaluateGroup(
+  messages: MensagemAvaliavel[],
+  contacts: Contacts,
+): GroupVerdict | null {
   if (messages.length === 0) return null;
 
   // Índice da última mensagem sua — tudo depois dela está "sem resposta".
@@ -174,7 +182,7 @@ export async function buildInbox(): Promise<InboxItem[]> {
 
   const items = await Promise.all(
     candidates.map(async (g) => {
-      const messages = await readGroupMessages(g.slug);
+      const messages = await readGroupRecords(g.slug);
       const verdict = evaluateGroup(messages, contacts);
       if (!verdict) return null;
 

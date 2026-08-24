@@ -1,5 +1,5 @@
 import { buildContacts } from './contacts';
-import { type GroupSummary, listGroups, readGroupMessages } from './data';
+import { type GroupSummary, listGroups, readGroupRecords } from './data';
 import { evaluateGroup } from './inbox';
 import { type SlaBand, buildSlaInfo, relativeLabel } from './sla';
 import { readTriage } from './triage';
@@ -80,7 +80,7 @@ export async function buildClientes(): Promise<ClienteCard[]> {
 
   const cards = await Promise.all(
     groups.map(async (g: GroupSummary): Promise<ClienteCard> => {
-      const messages = await readGroupMessages(g.slug);
+      const messages = await readGroupRecords(g.slug);
       const verdict = evaluateGroup(messages, contacts);
       const aguardando = verdict?.reason === 'client-waiting' || verdict?.reason === 'mentioned';
       const sla = aguardando && verdict ? buildSlaInfo(verdict.waitingSince, now) : null;

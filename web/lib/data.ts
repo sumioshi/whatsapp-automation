@@ -618,6 +618,18 @@ async function readCalls(
 }
 
 /** Lê as mensagens de um grupo já com transcrição, reações, receipts e enquetes. */
+/**
+ * Registros crus do chat, direto do cache por mtime — sem sidecars, sem
+ * transcrições, sem remontagem de view. É o leitor das visões agregadas
+ * (inbox, clientes), que varrem TODOS os chats por request: o caminho
+ * completo (readGroupMessages) abre um arquivo de transcrição por mídia e
+ * não escala pra varredura.
+ */
+export async function readGroupRecords(slug: string): Promise<MessageRecord[]> {
+  const records = await cachedByStat(safeDataPath(slug, 'messages.jsonl'), parseJsonl);
+  return records ?? [];
+}
+
 export async function readGroupMessages(slug: string): Promise<MessageView[]> {
   const jsonlPath = safeDataPath(slug, 'messages.jsonl');
   const records = await cachedByStat(jsonlPath, parseJsonl);
