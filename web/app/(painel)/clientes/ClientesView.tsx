@@ -9,8 +9,8 @@ import { KanbanBoard } from "./KanbanBoard";
 
 type Modo = "grade" | "kanban";
 const CHAVE = "wac-clientes-modo";
-/** Etiquetas sempre ofertadas no editor/filtro, mesmo antes do primeiro uso. */
-const SEMENTES = ["Acme", "Acme", "Freelance", "Pessoal"];
+/** Etiquetas sugeridas antes do primeiro uso (as em uso nos chats somam a estas). */
+const SEMENTES = ["Pessoal"];
 
 /** Alterna Grade ⇄ Kanban; a preferência fica no navegador. */
 export function ClientesView({ cards, kanban }: { cards: ClienteCard[]; kanban: KanbanState }) {

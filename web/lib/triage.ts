@@ -17,7 +17,7 @@ export interface TriageState {
   autonomo: Record<string, boolean>; // slug -> agente envia sem confirmar (default ausente = confirmar)
   typos: Record<string, true>; // slug -> typo proposital ligado no envio (opt-in por chat; default ausente = OFF)
   memorySources: Record<string, string[]>; // slug -> lista de dirs absolutos de memória vinculados
-  etiquetas: Record<string, string[]>; // slug -> etiquetas do chat (empresa/contrato: "Acme", "Acme"...)
+  etiquetas: Record<string, string[]>; // slug -> etiquetas do chat (empresa/contrato/pessoal)
 }
 
 function emptyState(): TriageState {

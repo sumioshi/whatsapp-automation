@@ -944,7 +944,7 @@ server.registerTool(
   "etiquetar",
   {
     description:
-      "Define as ETIQUETAS de um chat (empresa/contrato: 'Acme', 'Acme', 'Freelance', 'Pessoal'...). " +
+      "Define as ETIQUETAS de um chat (empresa/contrato/pessoal — ex.: 'Empresa A', 'Freelance'). " +
       "É o rótulo que diz de qual contexto de trabalho aquele grupo/contato é — use pra saber COM QUEM " +
       "está falando antes de redigir. Lista vazia remove todas. Pra LER as etiquetas de todos os chats, " +
       "use estado_triagem (campo `etiquetas`).",

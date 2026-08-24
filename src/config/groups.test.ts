@@ -15,24 +15,24 @@ describe('GroupConfig — slug estável por jid', () => {
   it('primeiro sync persiste o slug derivado do nome da época', async () => {
     const cfg = new GroupConfig(path);
     await cfg.load();
-    await cfg.sync([{ id: '1@g.us', name: 'Orion App 🤝 Acme' }]);
+    await cfg.sync([{ id: '1@g.us', name: 'Acme App 🤝 Contoso' }]);
 
     const disk = JSON.parse(await readFile(path, 'utf8'));
     expect(disk).toEqual([
-      { id: '1@g.us', name: 'Orion App 🤝 Acme', watch: false, slug: 'orion-app-projeto-185-ai' },
+      { id: '1@g.us', name: 'Acme App 🤝 Contoso', watch: false, slug: 'acme-app-contoso' },
     ]);
   });
 
   it('rename atualiza o name mas MANTÉM o slug (identidade, não apelido)', async () => {
     const cfg = new GroupConfig(path);
     await cfg.load();
-    await cfg.sync([{ id: '1@g.us', name: 'Orion App 🤝 Acme' }]);
-    await cfg.sync([{ id: '1@g.us', name: 'Orion App 🤝 Acme TERMINA EM 16/08/2026' }]);
+    await cfg.sync([{ id: '1@g.us', name: 'Acme App 🤝 Contoso' }]);
+    await cfg.sync([{ id: '1@g.us', name: 'Acme App 🤝 Contoso RENOMEADO' }]);
 
     const disk = JSON.parse(await readFile(path, 'utf8'));
-    expect(disk[0].name).toBe('Orion App 🤝 Acme TERMINA EM 16/08/2026');
-    expect(disk[0].slug).toBe('orion-app-projeto-185-ai');
-    expect(cfg.slugOf('1@g.us')).toBe('orion-app-projeto-185-ai');
+    expect(disk[0].name).toBe('Acme App 🤝 Contoso RENOMEADO');
+    expect(disk[0].slug).toBe('acme-app-contoso');
+    expect(cfg.slugOf('1@g.us')).toBe('acme-app-contoso');
   });
 
   it('config legado (sem slug) ganha slug do nome que está no arquivo, não do novo', async () => {
