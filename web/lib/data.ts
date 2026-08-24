@@ -1,6 +1,6 @@
 import { access, readdir, readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { buildContacts, numberFromJid } from './contacts';
+import { buildContacts, type Contacts, displayNameOf, numberFromJid } from './contacts';
 import { CHATS_FILE, DATA_DIR, safeDataPath } from './paths';
 import { cachedByStat } from './file-cache';
 import { readTriage } from './triage';
@@ -205,8 +205,8 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 /** Monta a prévia "Quem: texto" da última mensagem pra sidebar. */
-function previewOf(r: MessageRecord): string {
-  const who = r.fromMe ? "Você" : r.senderName;
+function previewOf(r: MessageRecord, contacts: Contacts): string {
+  const who = r.fromMe ? "Você" : displayNameOf(contacts, r.senderName, numberFromJid(r.sender));
   const body = r.text?.trim() || (r.type !== "text" ? `[${TYPE_LABEL[r.type] ?? r.type}]` : "");
   return body ? `${who}: ${body}` : who;
 }
@@ -261,11 +261,15 @@ export function conversationName(
   msgs: ReadonlyArray<{ fromMe?: boolean; senderName?: string }>,
 ): string {
   if (!slug.startsWith('dm-')) return fallback;
+  let cru: string | null = null;
   for (let i = msgs.length - 1; i >= 0; i--) {
     const m = msgs[i];
-    if (!m.fromMe && m.senderName && m.senderName !== 'Você') return m.senderName;
+    if (m.fromMe || !m.senderName || m.senderName === 'Você') continue;
+    // Prefere um nome legível; id numérico/"desconhecido" fica de reserva.
+    if (m.senderName !== 'desconhecido' && !/^\d{6,}$/.test(m.senderName)) return m.senderName;
+    cru ??= m.senderName;
   }
-  return fallback;
+  return cru ?? fallback;
 }
 
 /** Formato do sidecar `.chats.json` escrito pelo coletor. */
@@ -303,7 +307,11 @@ export async function listGroups(): Promise<GroupSummary[]> {
   if (!(await exists(DATA_DIR))) return [];
   const entries = await readdir(DATA_DIR, { withFileTypes: true });
   const groups: GroupSummary[] = [];
-  const [{ lastSeen }, chatStates] = await Promise.all([readTriage(), readChatStates()]);
+  const [{ lastSeen }, chatStates, contacts] = await Promise.all([
+    readTriage(),
+    readChatStates(),
+    buildContacts(),
+  ]);
 
   // Paralelo + cache por mtime: o caminho quente vira um stat() por chat;
   // o parse do jsonl só roda pra arquivo que mudou desde a última leitura.
@@ -325,11 +333,16 @@ export async function listGroups(): Promise<GroupSummary[]> {
     const state = chatStates[slug];
     return {
       slug,
-      name: conversationName(slug, last?.group ?? slug, records),
+      name: (() => {
+        const raw = conversationName(slug, last?.group ?? slug, records);
+        if (!slug.startsWith('dm-')) return raw;
+        // DM: nunca exibir slug/id cru — resolve pelo índice de contatos.
+        return displayNameOf(contacts, raw === slug ? '' : raw, slug.slice(3));
+      })(),
       messageCount: records.length,
       lastTimestamp: last?.timestamp ?? null,
       avatarPath: hasAvatar ? `${slug}/avatar.jpg` : null,
-      lastPreview: last ? previewOf(last) : null,
+      lastPreview: last ? previewOf(last, contacts) : null,
       unread,
       pinned: state?.pinned ?? false,
       pinnedAt: state?.pinnedAt ?? null,

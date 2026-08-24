@@ -1,7 +1,7 @@
 import { buildContacts } from './contacts';
 import { type GroupSummary, listGroups, readGroupRecords } from './data';
 import { evaluateGroup } from './inbox';
-import { type SlaBand, buildSlaInfo, relativeLabel } from './sla';
+import { type SlaBand, aguardandoValido, buildSlaInfo, relativeLabel } from './sla';
 import { readTriage } from './triage';
 
 /** Card da visão CRM (/clientes): um chat monitorado com seu estado de conversa. */
@@ -82,8 +82,11 @@ export async function buildClientes(): Promise<ClienteCard[]> {
     groups.map(async (g: GroupSummary): Promise<ClienteCard> => {
       const messages = await readGroupRecords(g.slug);
       const verdict = evaluateGroup(messages, contacts);
-      const aguardando = verdict?.reason === 'client-waiting' || verdict?.reason === 'mentioned';
-      const sla = aguardando && verdict ? buildSlaInfo(verdict.waitingSince, now) : null;
+      const pedeAtencao = verdict?.reason === 'client-waiting' || verdict?.reason === 'mentioned';
+      let sla = pedeAtencao && verdict ? buildSlaInfo(verdict.waitingSince, now) : null;
+      // Espera antiga demais = histórico morto, não cliente aguardando.
+      if (sla && !aguardandoValido(sla.waitingMs)) sla = null;
+      const aguardando = sla !== null;
       const ultimaTimestamp = g.lastTimestamp;
 
       return {

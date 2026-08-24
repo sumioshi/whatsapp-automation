@@ -191,3 +191,36 @@ export async function buildContacts(): Promise<Contacts> {
     hasSidecar: sidecar.hasSidecar,
   };
 }
+
+/** Formata telefone BR (55 + DDD + número) como +55 DD 9XXXX-XXXX; outros saem com "+". */
+export function formatPhoneBR(digits: string): string {
+  const m = digits.match(/^55(\d{2})(\d{4,5})(\d{4})$/);
+  if (m) return `+55 ${m[1]} ${m[2]}-${m[3]}`;
+  return `+${digits}`;
+}
+
+/** true se o texto parece um id numérico cru (LID/telefone), não um nome. */
+function looksLikeRawId(s: string): boolean {
+  return /^\d{6,}$/.test(s.trim());
+}
+
+/**
+ * Nome de exibição que NUNCA vaza id cru nem "desconhecido" pra UI:
+ * senderName legível → nome do índice de contatos → telefone formatado →
+ * "Contato". Usar em card, preview e sidebar.
+ */
+export function displayNameOf(c: Contacts, senderName: string, id: string): string {
+  const name = senderName?.trim() ?? '';
+  if (name && name !== 'desconhecido' && !looksLikeRawId(name)) return name;
+
+  const known = c.names.get(id);
+  if (known && !looksLikeRawId(known)) return known;
+
+  const phone = c.phones.get(id);
+  if (phone) return formatPhoneBR(phone);
+  // id que já é um telefone plausível (não LID): mostra formatado.
+  if (looksLikeRawId(id) && !c.lids.has(id) && id.length >= 10 && id.length <= 15) {
+    return formatPhoneBR(id);
+  }
+  return 'Contato';
+}

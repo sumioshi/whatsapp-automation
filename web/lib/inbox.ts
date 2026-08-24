@@ -1,7 +1,7 @@
-import { type Contacts, buildContacts, numberFromJid, roleOf } from "./contacts";
+import { type Contacts, buildContacts, displayNameOf, numberFromJid, roleOf } from "./contacts";
 import { type GroupSummary, type MessageView, listGroups, readGroupRecords } from "./data";
 import { readTriage } from "./triage";
-import { type SlaBand, buildSlaInfo } from "./sla";
+import { type SlaBand, aguardandoValido, buildSlaInfo } from "./sla";
 
 /** Por que um grupo aparece na caixa de entrada. Ordem = prioridade visual. */
 export type InboxReason = "client-waiting" | "mentioned";
@@ -127,7 +127,7 @@ export function evaluateGroup(
     return {
       reason: "client-waiting",
       preview: previewOf(last),
-      who: last.senderName,
+      who: displayNameOf(contacts, last.senderName, numberFromJid(last.sender)),
       timestamp: last.timestamp,
       waitingSince,
     };
@@ -142,7 +142,7 @@ export function evaluateGroup(
       return {
         reason: "mentioned",
         preview: previewOf(m),
-        who: m.senderName,
+        who: displayNameOf(contacts, m.senderName, numberFromJid(m.sender)),
         timestamp: m.timestamp,
         // Para menções, a espera começa na mensagem da menção em si.
         waitingSince: m.timestamp,
@@ -191,6 +191,8 @@ export async function buildInbox(): Promise<InboxItem[]> {
       if (resolvedAt && resolvedAt >= verdict.timestamp) return null;
 
       const sla = buildSlaInfo(verdict.waitingSince, now);
+      // Espera antiga demais = histórico morto, não fila (SLA_MAX_IDADE_MS).
+      if (!aguardandoValido(sla.waitingMs)) return null;
 
       return {
         slug: g.slug,

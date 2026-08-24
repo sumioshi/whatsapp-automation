@@ -88,3 +88,14 @@ export function countByBand(items: Array<{ band: SlaBand }>): Record<SlaBand, nu
   }
   return counts;
 }
+
+/**
+ * Conversa parada há mais que isto não conta como "aguardando resposta":
+ * é histórico morto (ex.: DMs antigas do history sync), não fila de trabalho.
+ */
+export const SLA_MAX_IDADE_MS = 30 * MS_24H;
+
+/** true se um tempo de espera ainda representa cliente aguardando de verdade. */
+export function aguardandoValido(waitingMs: number): boolean {
+  return waitingMs <= SLA_MAX_IDADE_MS;
+}

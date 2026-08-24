@@ -38,3 +38,50 @@ describe('sendableDmJid', () => {
     expect(sendableDmJid(contacts(), '')).toBeNull();
   });
 });
+
+// ── displayNameOf: nunca vazar JID/“desconhecido” pra UI ─────────────────────
+import { displayNameOf, formatPhoneBR } from './contacts';
+
+describe('displayNameOf', () => {
+  const c = {
+    names: new Map([
+      ['100000000000003', 'Daniel Souza'],
+      ['5544900000001', 'Fulano 44'],
+    ]),
+    ownIds: new Set<string>(),
+    teamIds: new Set<string>(),
+    phones: new Map([['10000000000006', '5511987654321']]),
+    lids: new Set(['10000000000006']),
+    hasSidecar: true,
+  } as never;
+
+  it('nome legível existente passa direto', () => {
+    expect(displayNameOf(c, 'Pedro Lima', 'qualquer')).toBe('Pedro Lima');
+  });
+
+  it('senderName numérico resolve pelo índice de contatos', () => {
+    expect(displayNameOf(c, '100000000000003', '100000000000003')).toBe('Daniel Souza');
+  });
+
+  it('"desconhecido" com id conhecido resolve pelo índice', () => {
+    expect(displayNameOf(c, 'desconhecido', '5544900000001')).toBe('Fulano 44');
+  });
+
+  it('sem nome mas com telefone no sidecar → telefone formatado', () => {
+    expect(displayNameOf(c, 'desconhecido', '10000000000006')).toBe('+55 11 98765-4321');
+  });
+
+  it('sem nada conhecido → número formatado se parecer telefone, senão "Contato"', () => {
+    expect(displayNameOf(c, '5531999887766', '5531999887766')).toBe('+55 31 99988-7766');
+    expect(displayNameOf(c, 'desconhecido', '999')).toBe('Contato');
+  });
+});
+
+describe('formatPhoneBR', () => {
+  it('formata número BR de 13 dígitos', () => {
+    expect(formatPhoneBR('5544900000001')).toBe('+55 44 90000-0001');
+  });
+  it('número não-BR ou curto sai com + na frente', () => {
+    expect(formatPhoneBR('14155552671')).toBe('+14155552671');
+  });
+});
