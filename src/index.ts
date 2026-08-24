@@ -68,6 +68,8 @@ async function main(): Promise<void> {
     fetchHistoryBefore: (jid, ancora) => gateway.fetchHistoryBefore(jid, ancora),
     watchedEntries: () => groupConfig.watchedEntries(),
     phoneOf: (userPart) => gateway.phoneOfContact(userPart),
+    avatarUrl: (jid) => gateway.getAvatarUrl(jid),
+    saveAvatarDm: (slug, url) => collector.saveAvatarDm(slug, url),
   });
   void reconciler.start();
 

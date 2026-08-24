@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { logger } from '../logger.js';
 import { writeJsonAtomicNode } from '../storage/atomic.js';
 import { fundirConversa } from '../storage/fundir-conversa.js';
-import { type Buraco, detectarBuraco, proximaExecucaoMs, type RegistroTail } from './reconciler-core.js';
+import { type Buraco, detectarBuraco, precisaAvatar, proximaExecucaoMs, type RegistroTail } from './reconciler-core.js';
 
 /**
  * Reconciliador: de tempos em tempos (intervalo configurável pelo painel),
@@ -24,6 +24,10 @@ export interface ReconcilerDeps {
   watchedEntries(): Array<{ id: string; slug: string | undefined }>;
   /** Telefone real de um user-part (LID→fone), pelo sidecar de contatos. */
   phoneOf(userPart: string): string | null;
+  /** URL da foto de perfil de um jid (null se não tem/erro). */
+  avatarUrl(jid: string): Promise<string | null>;
+  /** Baixa e grava a foto de um contato no diretório do slug. */
+  saveAvatarDm(slug: string, url: string | null): Promise<boolean>;
 }
 
 export interface ReconcilerResumo {
@@ -33,6 +37,7 @@ export interface ReconcilerResumo {
   pedidosBackfill: number;
   aguardandoAncora: string[];
   duplicatasFundidas: number;
+  avataresAtualizados: number;
 }
 
 interface StatusFile {
@@ -110,6 +115,7 @@ export class Reconciler {
         pedidosBackfill: 0,
         aguardandoAncora: [],
         duplicatasFundidas: 0,
+        avataresAtualizados: 0,
       };
     }
     this.rodando = true;
@@ -120,6 +126,7 @@ export class Reconciler {
       pedidosBackfill: 0,
       aguardandoAncora: [],
       duplicatasFundidas: 0,
+      avataresAtualizados: 0,
     };
     try {
       if (resumo.conectado) {
@@ -145,6 +152,9 @@ export class Reconciler {
       }
       // 3) DMs duplicadas (LID×telefone) — fusão local, independe da conexão.
       await this.fundirDuplicatasDm(resumo);
+
+      // 4) Fotos de perfil de contatos ativos (grupos já têm fluxo próprio).
+      if (resumo.conectado) await this.atualizarAvataresDm(resumo);
       logger.info({ motivo, ...resumo }, '🔄 Reconciliador executado.');
     } finally {
       this.rodando = false;
@@ -204,6 +214,55 @@ export class Reconciler {
       if (r.ok) {
         resumo.duplicatasFundidas++;
         logger.info({ de: dir, para: alvo }, '🧬 DM duplicada fundida.');
+      }
+    }
+  }
+
+  /**
+   * Busca foto de perfil pros DMs ativos sem avatar (ou com avatar velho).
+   * Teto por tick + pausa entre chamadas — foto de perfil tem rate limit.
+   */
+  private async atualizarAvataresDm(resumo: ReconcilerResumo): Promise<void> {
+    const TETO_POR_TICK = 8;
+    let dirs: string[];
+    try {
+      dirs = (await readdir(this.deps.dataDir)).filter((d) => d.startsWith('dm-'));
+    } catch {
+      return;
+    }
+    const agora = Date.now();
+    for (const dir of dirs) {
+      if (resumo.avataresAtualizados >= TETO_POR_TICK) return;
+      let msgsMtime: number;
+      try {
+        msgsMtime = (await stat(join(this.deps.dataDir, dir, 'messages.jsonl'))).mtimeMs;
+      } catch {
+        continue;
+      }
+      let avatarMtime: number | null = null;
+      try {
+        avatarMtime = (await stat(join(this.deps.dataDir, dir, 'avatar.jpg'))).mtimeMs;
+      } catch {
+        // sem avatar ainda
+      }
+      if (!precisaAvatar(msgsMtime, avatarMtime, agora)) continue;
+
+      const id = dir.slice(3);
+      const fone = this.deps.phoneOf(id) ?? (/^\d{10,15}$/.test(id) ? id : null);
+      if (!fone) continue; // LID sem telefone conhecido — sem jid discável
+      try {
+        const url = await this.deps.avatarUrl(`${fone}@s.whatsapp.net`);
+        const ok = await this.deps.saveAvatarDm(dir, url);
+        if (ok) {
+          resumo.avataresAtualizados++;
+          logger.info({ slug: dir }, '🖼️  Foto do contato atualizada.');
+        } else if (avatarMtime === null) {
+          // Sem foto disponível (privacidade/sem foto): não insistir a cada tick.
+          // O mtime do jsonl segue guiando; o custo de re-tentar é 1 chamada — ok.
+        }
+        await new Promise((r) => setTimeout(r, 400));
+      } catch (err) {
+        logger.warn({ err, slug: dir }, 'Falha ao buscar foto do contato.');
       }
     }
   }

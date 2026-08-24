@@ -52,3 +52,27 @@ describe('proximaExecucaoMs', () => {
     expect(proximaExecucaoMs(1000, -5)).toBe(1000 + 1 * MIN);
   });
 });
+
+// ── precisaAvatar: quando vale buscar foto de perfil de um contato ───────────
+import { precisaAvatar } from './reconciler-core.js';
+
+describe('precisaAvatar', () => {
+  const DIA = 24 * HORA;
+  const agora = 1_000 * DIA;
+
+  it('chat ativo sem avatar → buscar', () => {
+    expect(precisaAvatar(agora - 2 * DIA, null, agora)).toBe(true);
+  });
+
+  it('avatar recente (< 7 dias) → não busca de novo', () => {
+    expect(precisaAvatar(agora - 2 * DIA, agora - 3 * DIA, agora)).toBe(false);
+  });
+
+  it('avatar velho (> 7 dias) em chat ativo → renovar', () => {
+    expect(precisaAvatar(agora - 2 * DIA, agora - 10 * DIA, agora)).toBe(true);
+  });
+
+  it('chat morto (> 30 dias sem msg) → não gasta busca', () => {
+    expect(precisaAvatar(agora - 60 * DIA, null, agora)).toBe(false);
+  });
+});

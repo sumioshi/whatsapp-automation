@@ -249,6 +249,24 @@ export class Collector {
     }
   }
 
+  /**
+   * Foto de perfil de CONTATO (DM): salva direto pelo slug — DMs não passam
+   * pelo groups.config, então não há guard de watch aqui.
+   */
+  async saveAvatarDm(slug: string, url: string | null): Promise<boolean> {
+    if (!url) return false;
+    try {
+      const res = await fetch(url);
+      if (!res.ok || !res.body) return false;
+      const stream = Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]);
+      await this.store.saveAvatar(slug, stream);
+      return true;
+    } catch (err) {
+      logger.warn({ err, slug }, 'Falha ao baixar foto do contato.');
+      return false;
+    }
+  }
+
   /** Baixa e salva a mídia. Erros são logados sem derrubar o processo. */
   private async persistMedia(msg: InboundMessage, slug: string): Promise<string | null> {
     const media = msg.media;

@@ -60,3 +60,24 @@ export function proximaExecucaoMs(agoraMs: number, intervaloMin: number): number
   const min = Math.max(1, intervaloMin);
   return agoraMs + min * 60_000;
 }
+
+const DIA_MS = 24 * 60 * 60_000;
+/** Só busca foto de contato pra chat com atividade recente. */
+const AVATAR_ATIVIDADE_MAX_MS = 30 * DIA_MS;
+/** Foto buscada há menos que isto não é renovada. */
+const AVATAR_FRESCO_MS = 7 * DIA_MS;
+
+/**
+ * Decide se vale buscar a foto de perfil de um contato: chat ativo (mensagem
+ * nos últimos 30 dias) e avatar ausente ou com mais de 7 dias. Evita gastar
+ * chamadas com histórico morto e re-buscar toda hora.
+ */
+export function precisaAvatar(
+  mtimeMsgsMs: number,
+  mtimeAvatarMs: number | null,
+  agoraMs: number,
+): boolean {
+  if (agoraMs - mtimeMsgsMs > AVATAR_ATIVIDADE_MAX_MS) return false;
+  if (mtimeAvatarMs === null) return true;
+  return agoraMs - mtimeAvatarMs > AVATAR_FRESCO_MS;
+}
