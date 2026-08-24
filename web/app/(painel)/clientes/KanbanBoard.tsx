@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ClienteCard } from "@/lib/clientes";
 import { colunaDoCartao, type KanbanState } from "@/lib/kanban";
+import { corDoPonto } from "@/app/components/Etiqueta";
 import { CardCliente } from "./ClientesGrid";
 
 async function postKanban(body: Record<string, unknown>): Promise<KanbanState | null> {
@@ -69,8 +70,10 @@ export function KanbanBoard({
     <div className="flex min-h-0 flex-1 flex-col">
       {aguardando.length > 0 && (
         <section className="border-b border-line px-4 py-3 md:px-8">
-          <h2 className="mono mb-2 text-[11px] uppercase tracking-wider text-fg-dim">
-            ⏳ Aguardando resposta · {aguardando.length}
+          <h2 className="mb-2 flex items-center gap-2 text-[13px] font-medium text-fg">
+            <span className="h-2 w-2 rounded-full bg-amber-400" />
+            Aguardando resposta
+            <span className="mono text-[11px] font-normal text-fg-faint">{aguardando.length}</span>
           </h2>
           <div className="flex gap-2 overflow-x-auto pb-1">
             {aguardando.map((c) => (
@@ -84,7 +87,7 @@ export function KanbanBoard({
           </div>
         </section>
       )}
-      <div className="flex flex-1 gap-3 overflow-x-auto px-4 py-5 md:px-8">
+      <div className="flex flex-1 gap-5 overflow-x-auto px-4 py-5 md:px-8">
       {kanban.colunas.map((col) => {
         const itens = porColuna.get(col.id) ?? [];
         if (col.recolhida) {
@@ -106,8 +109,9 @@ export function KanbanBoard({
               }
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => soltar(col.id)}
-              className="flex w-9 shrink-0 flex-col items-center gap-2 rounded-card border border-line bg-surface py-3 text-fg-dim transition-colors hover:text-fg"
+              className="flex w-9 shrink-0 flex-col items-center gap-2 self-start rounded-[8px] bg-surface-2 py-3 text-fg-dim transition-colors hover:text-fg"
             >
+              <span className={`h-1.5 w-1.5 rounded-full ${corDoPonto(col.nome)}`} />
               <span className="mono text-[10px]">{itens.length}</span>
               <span className="text-xs font-medium [writing-mode:vertical-rl]">{col.nome}</span>
             </button>
@@ -122,11 +126,12 @@ export function KanbanBoard({
             }}
             onDragLeave={() => setSobre((s) => (s === col.id ? null : s))}
             onDrop={() => soltar(col.id)}
-            className={`flex w-80 shrink-0 flex-col rounded-card border bg-surface/60 ${
-              sobre === col.id && arrastando ? "border-accent/50" : "border-line"
+            className={`group/col flex w-72 shrink-0 flex-col rounded-[10px] transition-colors ${
+              sobre === col.id && arrastando ? "bg-surface-2/60" : ""
             }`}
           >
-            <header className="flex items-center gap-2 border-b border-line px-3 py-2">
+            <header className="flex items-center gap-2 px-1.5 pb-2">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${corDoPonto(col.nome)}`} />
               {renomeando === col.id ? (
                 <input
                   defaultValue={col.nome}
@@ -156,13 +161,13 @@ export function KanbanBoard({
                   type="button"
                   onDoubleClick={() => setRenomeando(col.id)}
                   title="Duplo clique para renomear"
-                  className="truncate text-sm font-semibold text-fg"
+                  className="truncate text-[13px] font-medium text-fg"
                 >
                   {col.nome}
                 </button>
               )}
-              <span className="mono text-[10px] text-fg-faint">{itens.length}</span>
-              <span className="ml-auto flex items-center gap-1">
+              <span className="mono text-[11px] text-fg-faint">{itens.length}</span>
+              <span className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover/col:opacity-100">
                 <button
                   type="button"
                   title="Recolher coluna"
@@ -201,7 +206,7 @@ export function KanbanBoard({
                 )}
               </span>
             </header>
-            <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto p-2">
+            <div className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-0.5 pb-2">
               {itens.map((c) => (
                 <div
                   key={c.slug}
