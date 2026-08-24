@@ -1,15 +1,22 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
 /**
- * Basic Auth no painel inteiro (páginas + rotas /api). Ativa SÓ quando PANEL_USER
- * e PANEL_PASS estão definidas (na nuvem). Sem elas (dev local no Mac) o painel
- * fica liberado, como hoje. Atrás do HTTPS do Railway, Basic Auth é seguro o
- * suficiente pra um usuário.
+ * Autenticação do painel (páginas + rotas /api). Ativa SÓ quando PANEL_USER e
+ * PANEL_PASS estão definidas (na nuvem). Sem elas (dev local no Mac) o painel
+ * fica liberado, como hoje.
+ *
+ * Dois jeitos de entrar, com o mesmo par de credenciais:
+ *  - **Cookie de sessão** (navegador): emitido pelo /login, HttpOnly, 30 dias.
+ *    Navegador sem sessão é REDIRECIONADO pra /login — nada de popup nativo
+ *    de Basic Auth, que gerenciador de senha não preenche.
+ *  - **Basic Auth por header** (clientes programáticos): MCP remoto, sync,
+ *    SSE do plantão e integrações seguem mandando Authorization como sempre.
  *
  * Next.js 16 renomeou a convenção `middleware` → `proxy` (arquivo proxy.ts,
  * função `proxy`). O matcher em `config` segue idêntico.
  */
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const user = process.env.PANEL_USER;
   const pass = process.env.PANEL_PASS;
   if (!user || !pass) return NextResponse.next();
@@ -24,14 +31,27 @@ export function proxy(req: NextRequest) {
       return NextResponse.next();
     }
   }
-  return new NextResponse("Autenticação necessária.", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="WhatsApp Painel", charset="UTF-8"' },
-  });
+
+  const cookie = req.cookies.get(SESSION_COOKIE)?.value ?? "";
+  if (cookie && (await verifySession(cookie, user, pass))) {
+    return NextResponse.next();
+  }
+
+  // Navegação de página (documento) → tela de login, preservando o destino.
+  if (req.headers.get("sec-fetch-dest") === "document") {
+    const login = new URL("/login", req.url);
+    const dest = req.nextUrl.pathname + req.nextUrl.search;
+    if (dest !== "/") login.searchParams.set("next", dest);
+    return NextResponse.redirect(login);
+  }
+
+  // Demais requisições (fetch/API) sem credencial: 401 seco, sem o header
+  // WWW-Authenticate — é ele que dispara o popup nativo do navegador.
+  return new NextResponse("Autenticação necessária.", { status: 401 });
 }
 
 export const config = {
-  // protege tudo, menos os assets estáticos do Next, o favicon e o proxy da
-  // API de controle (/api/control/*), que tem auth própria por Bearer token
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/control).*)"],
+  // protege tudo, menos: assets estáticos do Next, favicon, o proxy da API de
+  // controle (auth própria por Bearer) e o próprio fluxo de login.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/control|api/login|login).*)"],
 };
