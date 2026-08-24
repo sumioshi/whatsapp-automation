@@ -17,10 +17,11 @@ export interface TriageState {
   autonomo: Record<string, boolean>; // slug -> agente envia sem confirmar (default ausente = confirmar)
   typos: Record<string, true>; // slug -> typo proposital ligado no envio (opt-in por chat; default ausente = OFF)
   memorySources: Record<string, string[]>; // slug -> lista de dirs absolutos de memória vinculados
+  etiquetas: Record<string, string[]>; // slug -> etiquetas do chat (empresa/contrato: "Acme", "Acme"...)
 }
 
 function emptyState(): TriageState {
-  return { resolved: {}, muted: {}, notes: {}, lastSeen: {}, copilot: {}, alertar: {}, autonomo: {}, typos: {}, memorySources: {} };
+  return { resolved: {}, muted: {}, notes: {}, lastSeen: {}, copilot: {}, alertar: {}, autonomo: {}, typos: {}, memorySources: {}, etiquetas: {} };
 }
 
 /** Normaliza um objeto cru em Record<string, T>, descartando entradas do tipo errado. */
@@ -65,6 +66,7 @@ export async function readTriage(): Promise<TriageState> {
       autonomo: pick(parsed.autonomo, isBool),
       typos: pick(parsed.typos, isTrue),
       memorySources: pickArrays(parsed.memorySources),
+      etiquetas: pickArrays(parsed.etiquetas),
     };
   } catch {
     return emptyState();
@@ -154,5 +156,14 @@ export async function setMemorySources(slug: string, dirs: string[]): Promise<vo
   const clean = dirs.filter(Boolean);
   if (clean.length > 0) state.memorySources[slug] = clean;
   else delete state.memorySources[slug];
+  await writeJsonAtomic(TRIAGE_FILE, state);
+}
+
+/** Define as etiquetas de um chat (empresa/contrato). Lista vazia remove. */
+export async function setEtiquetas(slug: string, etiquetas: string[]): Promise<void> {
+  const state = await readTriage();
+  const limpas = [...new Set(etiquetas.map((e) => e.trim()).filter(Boolean))];
+  if (limpas.length > 0) state.etiquetas[slug] = limpas;
+  else delete state.etiquetas[slug];
   await writeJsonAtomic(TRIAGE_FILE, state);
 }

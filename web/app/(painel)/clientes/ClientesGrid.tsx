@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState, Input } from "@/app/components/ui";
+import { ChipEtiqueta, EditorEtiquetas } from "./Etiqueta";
 import type { ClienteCard } from "@/lib/clientes";
 import { BAND_LABEL_CLASS } from "@/lib/sla";
 
@@ -17,7 +18,7 @@ const FILTROS: Array<{ id: Filtro; label: string }> = [
 ];
 
 /** Grade CRM dos chats: filtros + busca client-side sobre os cards do servidor. */
-export function ClientesGrid({ cards }: { cards: ClienteCard[] }) {
+export function ClientesGrid({ cards, conhecidas = [] }: { cards: ClienteCard[]; conhecidas?: string[] }) {
   const router = useRouter();
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [busca, setBusca] = useState("");
@@ -77,7 +78,7 @@ export function ClientesGrid({ cards }: { cards: ClienteCard[] }) {
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {visiveis.map((c) => (
-              <CardCliente key={c.slug} c={c} />
+              <CardCliente key={c.slug} c={c} conhecidas={conhecidas} />
             ))}
           </div>
         )}
@@ -95,7 +96,9 @@ function iniciais(nome: string): string {
   return partes.map((p) => [...p][0]?.toUpperCase() ?? "").join("") || "?";
 }
 
-export function CardCliente({ c }: { c: ClienteCard }) {
+export function CardCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecidas?: string[] }) {
+  const [etiquetas, setEtiquetas] = useState<string[]>(c.etiquetas);
+  const [editando, setEditando] = useState(false);
   const badge = c.aguardando ? (
     <span
       className={`mono shrink-0 text-[11px] font-medium ${c.band ? BAND_LABEL_CLASS[c.band] : "text-fg-dim"}`}
@@ -133,6 +136,33 @@ export function CardCliente({ c }: { c: ClienteCard }) {
           {c.nome}
         </span>
         {badge}
+      </div>
+
+      <div className="relative flex flex-wrap items-center gap-1">
+        {etiquetas.map((e) => (
+          <ChipEtiqueta key={e} nome={e} />
+        ))}
+        <button
+          type="button"
+          title="Etiquetas"
+          onClick={(ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            setEditando((v) => !v);
+          }}
+          className="rounded-full border border-dashed border-line px-1.5 text-[10px] text-fg-faint transition-colors hover:border-line-2 hover:text-fg"
+        >
+          {etiquetas.length === 0 ? "+ etiqueta" : "+"}
+        </button>
+        {editando && (
+          <EditorEtiquetas
+            slug={c.slug}
+            atuais={etiquetas}
+            conhecidas={conhecidas}
+            onSalvo={setEtiquetas}
+            onFechar={() => setEditando(false)}
+          />
+        )}
       </div>
 
       {c.ultimaPreview && (

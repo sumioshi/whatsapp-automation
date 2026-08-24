@@ -389,6 +389,31 @@ export function Timeline({
   return (
     <>
       <header className="flex items-center gap-3 border-b border-line bg-surface px-5 py-3">
+        <button
+          type="button"
+          title="Voltar"
+          onClick={() => {
+            if (window.history.length > 1) window.history.back();
+            else window.location.assign("/clientes");
+          }}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-control border border-line bg-surface-2 text-fg-dim transition-colors hover:text-fg"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="m12 19-7-7 7-7" />
+            <path d="M19 12H5" />
+          </svg>
+        </button>
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-line bg-surface-2 text-xs font-semibold text-fg-dim">
           {groupName.slice(0, 2).toUpperCase()}
         </div>

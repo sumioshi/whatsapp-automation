@@ -52,7 +52,7 @@ import {
   dsEditMessage,
   dsReact,
   dsSetTypos,
-} from "../lib/data-source";
+  dsSetEtiquetas } from "../lib/data-source";
 import { numberFromJid, roleOf, sendableDmJid } from "../lib/contacts";
 
 // O MCP server é lançado pelo Claude Code (não pelo `npm run dev`), então não herda o
@@ -941,10 +941,35 @@ server.registerTool(
 );
 
 server.registerTool(
+  "etiquetar",
+  {
+    description:
+      "Define as ETIQUETAS de um chat (empresa/contrato: 'Acme', 'Acme', 'Freelance', 'Pessoal'...). " +
+      "É o rótulo que diz de qual contexto de trabalho aquele grupo/contato é — use pra saber COM QUEM " +
+      "está falando antes de redigir. Lista vazia remove todas. Pra LER as etiquetas de todos os chats, " +
+      "use estado_triagem (campo `etiquetas`).",
+    inputSchema: {
+      grupo: z.string().describe("slug do grupo ou DM (de listar_grupos; DM = dm-<id>)"),
+      etiquetas: z
+        .array(z.string())
+        .describe("lista completa de etiquetas do chat (substitui as atuais; [] remove)"),
+    },
+  },
+  async ({ grupo, etiquetas }) => {
+    try {
+      await dsSetEtiquetas(grupo, etiquetas);
+      return ok({ grupo, etiquetas }, `Etiquetas de "${grupo}": ${etiquetas.join(", ") || "(nenhuma)"}.`);
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "falha ao etiquetar");
+    }
+  },
+);
+
+server.registerTool(
   "estado_triagem",
   {
     description:
-      "Retorna o estado de triagem inteiro (resolved/muted/notes/lastSeen/copilot/alertar/autonomo) pra " +
+      "Retorna o estado de triagem inteiro (resolved/muted/notes/lastSeen/copilot/alertar/autonomo/etiquetas) pra " +
       "IA saber o que já foi tratado, quais chats acompanha (copilot), quais alertam, e o modo de envio " +
       "de cada um (autonomo: true = envia direto; ausente = confirmar antes).",
     inputSchema: {},

@@ -4,14 +4,23 @@ import { useEffect, useState } from "react";
 import type { ClienteCard } from "@/lib/clientes";
 import type { KanbanState } from "@/lib/kanban";
 import { ClientesGrid } from "./ClientesGrid";
+import { corDaEtiqueta } from "./Etiqueta";
 import { KanbanBoard } from "./KanbanBoard";
 
 type Modo = "grade" | "kanban";
 const CHAVE = "wac-clientes-modo";
+/** Etiquetas sempre ofertadas no editor/filtro, mesmo antes do primeiro uso. */
+const SEMENTES = ["Acme", "Acme", "Freelance", "Pessoal"];
 
 /** Alterna Grade ⇄ Kanban; a preferência fica no navegador. */
 export function ClientesView({ cards, kanban }: { cards: ClienteCard[]; kanban: KanbanState }) {
   const [modo, setModo] = useState<Modo>("grade");
+  const [etiqueta, setEtiqueta] = useState<string | null>(null);
+
+  const conhecidas = [
+    ...new Set([...SEMENTES, ...cards.flatMap((c) => c.etiquetas)]),
+  ];
+  const visiveis = etiqueta ? cards.filter((c) => c.etiquetas.includes(etiqueta)) : cards;
 
   useEffect(() => {
     const salvo = window.localStorage.getItem(CHAVE);
@@ -45,6 +54,19 @@ export function ClientesView({ cards, kanban }: { cards: ClienteCard[]; kanban: 
             </button>
           ))}
         </div>
+        <span className="mx-1 h-4 w-px bg-line" />
+        {conhecidas.map((e) => (
+          <button
+            key={e}
+            type="button"
+            onClick={() => setEtiqueta((atual) => (atual === e ? null : e))}
+            className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-opacity ${corDaEtiqueta(e)} ${
+              etiqueta === null || etiqueta === e ? "" : "opacity-35 hover:opacity-70"
+            }`}
+          >
+            {e}
+          </button>
+        ))}
         {modo === "kanban" && (
           <span className="mono text-[10px] text-fg-faint">
             arraste os cards entre colunas · duplo clique renomeia
@@ -52,9 +74,9 @@ export function ClientesView({ cards, kanban }: { cards: ClienteCard[]; kanban: 
         )}
       </div>
       {modo === "grade" ? (
-        <ClientesGrid cards={cards} />
+        <ClientesGrid cards={visiveis} conhecidas={conhecidas} />
       ) : (
-        <KanbanBoard cards={cards} inicial={kanban} />
+        <KanbanBoard cards={visiveis} inicial={kanban} conhecidas={conhecidas} />
       )}
     </div>
   );

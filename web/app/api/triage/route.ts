@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readTriage, setAlert, setAutonomo, setCopilot, setLastSeen, setMuted, setNote, setResolved, setTypos } from "@/lib/triage";
+import { readTriage, setAlert, setAutonomo, setCopilot, setLastSeen, setMuted, setNote, setResolved, setTypos, setEtiquetas } from "@/lib/triage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export async function GET() {
 }
 
 interface TriagePost {
-  action?: "resolved" | "muted" | "note" | "lastSeen" | "copilot" | "alertar" | "autonomo" | "typos";
+  action?: "resolved" | "muted" | "note" | "lastSeen" | "copilot" | "alertar" | "autonomo" | "typos" | "etiquetas";
   slug?: string;
   value?: string | boolean;
 }
@@ -75,6 +75,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "value deve ser boolean" }, { status: 400 });
       }
       await setTypos(slug, value === true);
+      break;
+    case "etiquetas":
+      if (!Array.isArray(value) || !value.every((v) => typeof v === "string")) {
+        return NextResponse.json({ error: "value deve ser string[]" }, { status: 400 });
+      }
+      await setEtiquetas(slug, value);
       break;
     default:
       return NextResponse.json({ error: "action inválida" }, { status: 400 });

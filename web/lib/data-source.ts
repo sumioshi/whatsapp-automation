@@ -8,7 +8,7 @@ import { readGroupsConfig } from './config';
 import type { GroupSummary, MessageView } from './data';
 import { listGroups, readGroupMessages } from './data';
 import type { TriageState } from './triage';
-import { readTriage, setAlert, setAutonomo, setMuted, setNote, setResolved, setTypos } from './triage';
+import { readTriage, setAlert, setAutonomo, setMuted, setNote, setResolved, setTypos, setEtiquetas } from './triage';
 import { readAgentSeen, setAgentSeenMany } from './agent-seen';
 import { CONTROL_URL } from './paths';
 
@@ -95,6 +95,10 @@ export async function dsSetAutonomo(slug: string, value: boolean): Promise<void>
 export async function dsSetTypos(slug: string, value: boolean): Promise<void> {
   if (mcpRemote()) { await cloudPost('/api/triage', { action: 'typos', slug, value }); return; }
   return setTypos(slug, value);
+}
+export async function dsSetEtiquetas(slug: string, etiquetas: string[]): Promise<void> {
+  if (mcpRemote()) { await cloudPost('/api/triage', { action: 'etiquetas', slug, value: etiquetas }); return; }
+  return setEtiquetas(slug, etiquetas);
 }
 
 export async function dsSetAgentSeen(updates: Record<string, string>): Promise<void> {

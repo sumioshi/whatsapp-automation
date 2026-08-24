@@ -19,6 +19,8 @@ export interface ClienteCard {
   /** Primeira linha das notas de triagem (mini-CRM), se houver. */
   nota: string | null;
   silenciado: boolean;
+  /** Etiquetas do chat (empresa/contrato), definidas pelo operador ou pela IA. */
+  etiquetas: string[];
   /** true se a última palavra é do cliente (sem resposta sua depois). */
   aguardando: boolean;
   waitingMs: number;
@@ -101,6 +103,7 @@ export async function buildClientes(): Promise<ClienteCard[]> {
           : null,
         mensagens: g.messageCount,
         nota: primeiraLinha(triage.notes[g.slug]),
+        etiquetas: triage.etiquetas[g.slug] ?? [],
         silenciado: Boolean(triage.muted[g.slug]),
         aguardando,
         waitingMs: sla?.waitingMs ?? 0,

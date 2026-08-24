@@ -61,7 +61,7 @@ describe('displayNameOf', () => {
 
   it('índice contaminado com "desconhecido" não vaza pra UI', () => {
     const sujo = {
-      ...c,
+      ...(c as object),
       names: new Map([['554590000002', 'desconhecido']]),
     } as never;
     expect(displayNameOf(sujo, 'desconhecido', '554590000002')).toBe('+55 45 9000-0002');

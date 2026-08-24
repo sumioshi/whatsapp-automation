@@ -21,7 +21,15 @@ async function postKanban(body: Record<string, unknown>): Promise<KanbanState | 
 }
 
 /** Board de colunas do operador; arrastar um card muda a coluna do chat. */
-export function KanbanBoard({ cards, inicial }: { cards: ClienteCard[]; inicial: KanbanState }) {
+export function KanbanBoard({
+  cards,
+  inicial,
+  conhecidas = [],
+}: {
+  cards: ClienteCard[];
+  inicial: KanbanState;
+  conhecidas?: string[];
+}) {
   // Otimista: aplica local na hora e reconcilia com a resposta do servidor.
   const [kanban, setKanban] = useState<KanbanState>(inicial);
   const [arrastando, setArrastando] = useState<string | null>(null);
@@ -181,7 +189,7 @@ export function KanbanBoard({ cards, inicial }: { cards: ClienteCard[]; inicial:
                   }}
                   className={arrastando === c.slug ? "opacity-40" : ""}
                 >
-                  <CardCliente c={c} />
+                  <CardCliente c={c} conhecidas={conhecidas} />
                 </div>
               ))}
             </div>
