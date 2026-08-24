@@ -1,7 +1,8 @@
-import { open, readFile } from 'node:fs/promises';
+import { open, readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { logger } from '../logger.js';
 import { writeJsonAtomicNode } from '../storage/atomic.js';
+import { fundirConversa } from '../storage/fundir-conversa.js';
 import { type Buraco, detectarBuraco, proximaExecucaoMs, type RegistroTail } from './reconciler-core.js';
 
 /**
@@ -21,6 +22,8 @@ export interface ReconcilerDeps {
     ancora: { id: string; timestampMs: number; fromMe: boolean; sender: string },
   ): Promise<boolean>;
   watchedEntries(): Array<{ id: string; slug: string | undefined }>;
+  /** Telefone real de um user-part (LID→fone), pelo sidecar de contatos. */
+  phoneOf(userPart: string): string | null;
 }
 
 export interface ReconcilerResumo {
@@ -29,6 +32,7 @@ export interface ReconcilerResumo {
   chatsVerificados: number;
   pedidosBackfill: number;
   aguardandoAncora: string[];
+  duplicatasFundidas: number;
 }
 
 interface StatusFile {
@@ -105,6 +109,7 @@ export class Reconciler {
         chatsVerificados: 0,
         pedidosBackfill: 0,
         aguardandoAncora: [],
+        duplicatasFundidas: 0,
       };
     }
     this.rodando = true;
@@ -114,6 +119,7 @@ export class Reconciler {
       chatsVerificados: 0,
       pedidosBackfill: 0,
       aguardandoAncora: [],
+      duplicatasFundidas: 0,
     };
     try {
       if (resumo.conectado) {
@@ -137,6 +143,8 @@ export class Reconciler {
           if (resumo.pedidosBackfill >= MAX_PEDIDOS_POR_TICK) break;
         }
       }
+      // 3) DMs duplicadas (LID×telefone) — fusão local, independe da conexão.
+      await this.fundirDuplicatasDm(resumo);
       logger.info({ motivo, ...resumo }, '🔄 Reconciliador executado.');
     } finally {
       this.rodando = false;
@@ -162,6 +170,41 @@ export class Reconciler {
       }
     } catch (err) {
       logger.warn({ err, slug }, 'Reconciliador: fetchMessageHistory falhou.');
+    }
+  }
+
+  /**
+   * Funde diretórios `dm-<lid>` no `dm-<telefone>` quando o sidecar de
+   * contatos conhece o mapeamento (fonte confiável — nunca por nome). Pula
+   * diretórios com escrita recente (o coletor pode estar gravando neles).
+   */
+  private async fundirDuplicatasDm(resumo: ReconcilerResumo): Promise<void> {
+    const TETO_POR_TICK = 3;
+    const ESCRITA_RECENTE_MS = 10 * 60_000;
+    let dirs: string[];
+    try {
+      dirs = (await readdir(this.deps.dataDir)).filter((d) => d.startsWith('dm-'));
+    } catch {
+      return;
+    }
+    for (const dir of dirs) {
+      if (resumo.duplicatasFundidas >= TETO_POR_TICK) return;
+      const id = dir.slice(3);
+      const fone = this.deps.phoneOf(id);
+      if (!fone || fone === id) continue;
+      const alvo = `dm-${fone}`;
+      if (alvo === dir) continue;
+      try {
+        const s = await stat(join(this.deps.dataDir, dir, 'messages.jsonl'));
+        if (Date.now() - s.mtimeMs < ESCRITA_RECENTE_MS) continue;
+      } catch {
+        // sem jsonl — fusão vira mover simples, segue
+      }
+      const r = await fundirConversa(this.deps.dataDir, alvo, dir);
+      if (r.ok) {
+        resumo.duplicatasFundidas++;
+        logger.info({ de: dir, para: alvo }, '🧬 DM duplicada fundida.');
+      }
     }
   }
 

@@ -42,6 +42,12 @@ export function KanbanBoard({
   for (const c of cards) {
     porColuna.get(colunaDoCartao(kanban, c.slug))?.push(c);
   }
+  // Raia virtual: estado computado ao vivo, nunca gravado — card respondido
+  // sai sozinho. A coluna manual do card permanece (mostrada no rodapé).
+  const aguardando = cards
+    .filter((c) => c.aguardando && !c.silenciado)
+    .sort((a, b) => b.waitingMs - a.waitingMs);
+  const nomeColuna = new Map(kanban.colunas.map((c) => [c.id, c.nome]));
 
   async function aplicar(otimista: KanbanState, body: Record<string, unknown>) {
     setKanban(otimista);
@@ -60,7 +66,25 @@ export function KanbanBoard({
   }
 
   return (
-    <div className="flex flex-1 gap-3 overflow-x-auto px-4 py-5 md:px-8">
+    <div className="flex min-h-0 flex-1 flex-col">
+      {aguardando.length > 0 && (
+        <section className="border-b border-line px-4 py-3 md:px-8">
+          <h2 className="mono mb-2 text-[11px] uppercase tracking-wider text-fg-dim">
+            ⏳ Aguardando resposta · {aguardando.length}
+          </h2>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {aguardando.map((c) => (
+              <div key={c.slug} className="w-72 shrink-0">
+                <CardCliente c={c} conhecidas={conhecidas} />
+                <p className="mono mt-0.5 px-1 text-[9px] text-fg-faint">
+                  coluna: {nomeColuna.get(colunaDoCartao(kanban, c.slug)) ?? "Entrada"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      <div className="flex flex-1 gap-3 overflow-x-auto px-4 py-5 md:px-8">
       {kanban.colunas.map((col) => {
         const itens = porColuna.get(col.id) ?? [];
         if (col.recolhida) {
@@ -225,6 +249,7 @@ export function KanbanBoard({
           + Coluna
         </button>
       )}
+      </div>
     </div>
   );
 }

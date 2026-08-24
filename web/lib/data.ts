@@ -191,6 +191,8 @@ export interface GroupSummary {
   archived?: boolean;
   /** Última atividade segundo o WhatsApp (unix s), se conhecida. */
   lastActivity?: number | null;
+  /** Etiquetas do chat (empresa/contrato/pessoal) definidas na triagem. */
+  etiquetas?: string[];
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -311,7 +313,7 @@ export async function listGroups(): Promise<GroupSummary[]> {
   if (!(await exists(DATA_DIR))) return [];
   const entries = await readdir(DATA_DIR, { withFileTypes: true });
   const groups: GroupSummary[] = [];
-  const [{ lastSeen }, chatStates, contacts] = await Promise.all([
+  const [{ lastSeen, etiquetas }, chatStates, contacts] = await Promise.all([
     readTriage(),
     readChatStates(),
     buildContacts(),
@@ -353,6 +355,7 @@ export async function listGroups(): Promise<GroupSummary[]> {
       muted: state?.muted ?? false,
       archived: state?.archived ?? false,
       lastActivity: state?.lastActivity ?? null,
+      etiquetas: etiquetas[slug] ?? [],
     };
     }),
   );

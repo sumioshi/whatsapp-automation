@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { EmptyState, Input } from "@/app/components/ui";
 import { ChipEtiqueta, EditorEtiquetas } from "./Etiqueta";
 import type { ClienteCard } from "@/lib/clientes";
@@ -19,15 +18,8 @@ const FILTROS: Array<{ id: Filtro; label: string }> = [
 
 /** Grade CRM dos chats: filtros + busca client-side sobre os cards do servidor. */
 export function ClientesGrid({ cards, conhecidas = [] }: { cards: ClienteCard[]; conhecidas?: string[] }) {
-  const router = useRouter();
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [busca, setBusca] = useState("");
-
-  // Mantém a grade viva sem WebSocket: re-render server-side a cada 30s.
-  useEffect(() => {
-    const id = setInterval(() => router.refresh(), 30_000);
-    return () => clearInterval(id);
-  }, [router]);
 
   const visiveis = useMemo(() => {
     const q = busca.trim().toLowerCase();

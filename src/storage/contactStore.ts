@@ -156,6 +156,13 @@ export class ContactStore {
   }
 
   /** user-parts de LID dos contatos cujo telefone ainda não foi resolvido. */
+  /** Telefone real conhecido de um user-part (LID ou telefone), ou null. */
+  phoneOf(userPart: string): string | null {
+    const key = this.aliasToKey.get(userPart);
+    const entry = key ? this.people.get(key) : undefined;
+    return entry?.phone ?? null;
+  }
+
   lidsWithoutPhone(): string[] {
     const out: string[] = [];
     for (const entry of this.people.values()) {

@@ -70,3 +70,24 @@ describe('tipoDoSlug', () => {
     expect(tipoDoSlug('acme-x-projeto-185')).toBe('grupo');
   });
 });
+
+// ── rotuloTempo: relativo quando urgente, data quando histórico ──────────────
+import { rotuloTempo } from './clientes';
+
+describe('rotuloTempo', () => {
+  const agora = new Date('2026-08-24T15:00:00Z').getTime();
+
+  it('até 7 dias → relativo', () => {
+    expect(rotuloTempo('2026-08-24T12:00:00Z', agora)).toBe('há 3h');
+    expect(rotuloTempo('2026-08-22T15:00:00Z', agora)).toBe('há 2 dias');
+  });
+
+  it('acima de 7 dias → data absoluta dd/mm/aa', () => {
+    expect(rotuloTempo('2026-08-05T20:30:18Z', agora)).toBe('05/08/26');
+    expect(rotuloTempo('2023-11-20T10:00:00Z', agora)).toBe('20/11/23');
+  });
+
+  it('null → null', () => {
+    expect(rotuloTempo(null, agora)).toBeNull();
+  });
+});

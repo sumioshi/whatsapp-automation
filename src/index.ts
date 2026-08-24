@@ -67,6 +67,7 @@ async function main(): Promise<void> {
     lastActivityOf: (slug) => gateway.lastActivityOf(slug),
     fetchHistoryBefore: (jid, ancora) => gateway.fetchHistoryBefore(jid, ancora),
     watchedEntries: () => groupConfig.watchedEntries(),
+    phoneOf: (userPart) => gateway.phoneOfContact(userPart),
   });
   void reconciler.start();
 

@@ -32,6 +32,23 @@ export interface ClienteCard {
 }
 
 const NOTA_MAX = 80;
+const MS_7D = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Rótulo de tempo pro card: relativo enquanto comunica urgência (até 7 dias),
+ * data absoluta dd/mm/aa quando é histórico — "há 27 dias" não informa nada.
+ */
+export function rotuloTempo(iso: string | null, agoraMs: number): string | null {
+  if (!iso) return null;
+  const ts = new Date(iso).getTime();
+  const delta = Math.max(0, agoraMs - ts);
+  if (delta <= MS_7D) return relativeLabel(delta);
+  const d = new Date(ts);
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const aa = String(d.getUTCFullYear() % 100).padStart(2, '0');
+  return `${dd}/${mm}/${aa}`;
+}
 
 /** Primeira linha não vazia de uma nota, truncada; null se não sobra nada. */
 export function primeiraLinha(nota: string | undefined, max = NOTA_MAX): string | null {
@@ -100,9 +117,7 @@ export async function buildClientes(): Promise<ClienteCard[]> {
         avatarPath: g.avatarPath,
         ultimaPreview: g.lastPreview,
         ultimaTimestamp,
-        atividadeLabel: ultimaTimestamp
-          ? relativeLabel(Math.max(0, now - new Date(ultimaTimestamp).getTime()))
-          : null,
+        atividadeLabel: rotuloTempo(ultimaTimestamp, now),
         mensagens: g.messageCount,
         nota: primeiraLinha(triage.notes[g.slug]),
         desatualizado:

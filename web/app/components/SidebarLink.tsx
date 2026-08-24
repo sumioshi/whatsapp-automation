@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { corDoPonto } from "@/app/(painel)/clientes/Etiqueta";
 import type { GroupSummary } from "@/lib/data";
 
 /**
@@ -131,8 +132,15 @@ export function SidebarLink({ group, isNav = false, onNavEnter }: SidebarLinkPro
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <div className={`truncate text-sm font-medium ${active || isNav ? "text-fg" : "text-fg/90"}`}>
-          {group.name}
+        <div className={`flex items-center gap-1.5 text-sm font-medium ${active || isNav ? "text-fg" : "text-fg/90"}`}>
+          <span className="truncate">{group.name}</span>
+          {(group.etiquetas ?? []).map((e) => (
+            <span
+              key={e}
+              title={e}
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${corDoPonto(e)}`}
+            />
+          ))}
         </div>
         <div
           className={`flex items-baseline gap-1 truncate text-[11px] ${group.unread > 0 ? "text-fg-dim" : "text-fg-faint"}`}

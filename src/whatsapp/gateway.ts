@@ -1136,6 +1136,11 @@ export class BaileysGateway implements WhatsAppGateway {
     if (lid || phone) this.contacts.merge({ lid, phone, name });
   }
 
+  /** Telefone real de um user-part (LID→fone) via sidecar de contatos. */
+  phoneOfContact(userPart: string): string | null {
+    return this.contacts.phoneOf(userPart);
+  }
+
   /** Última atividade conhecida (unix s) de um chat, pelo sidecar de estado. */
   lastActivityOf(slug: string): number | null {
     return this.chatStates.get(slug)?.lastActivity ?? null;

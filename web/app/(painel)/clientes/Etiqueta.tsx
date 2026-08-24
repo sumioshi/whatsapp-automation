@@ -12,6 +12,22 @@ const CORES = [
   "border-orange-500/40 bg-orange-500/10 text-orange-300",
 ];
 
+const PONTOS = [
+  "bg-sky-400",
+  "bg-emerald-400",
+  "bg-amber-400",
+  "bg-pink-400",
+  "bg-violet-400",
+  "bg-orange-400",
+];
+
+/** Cor de ponto (bg puro) da etiqueta — pro indicador compacto da sidebar. */
+export function corDoPonto(nome: string): string {
+  let h = 0;
+  for (const ch of nome) h = (h * 31 + ch.codePointAt(0)!) >>> 0;
+  return PONTOS[h % PONTOS.length] as string;
+}
+
 export function corDaEtiqueta(nome: string): string {
   let h = 0;
   for (const ch of nome) h = (h * 31 + ch.codePointAt(0)!) >>> 0;
