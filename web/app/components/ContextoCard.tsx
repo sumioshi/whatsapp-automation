@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChipEtiqueta, EditorEtiquetas } from "@/app/(painel)/clientes/Etiqueta";
+import { ChipEtiqueta, EditorEtiquetas } from "./Etiqueta";
 
 /** Dados de contexto do chat, montados server-side na página. */
 export interface ChatContexto {

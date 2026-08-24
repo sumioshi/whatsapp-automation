@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import type { ClienteCard } from "@/lib/clientes";
 import type { KanbanState } from "@/lib/kanban";
 import { ClientesGrid } from "./ClientesGrid";
-import { corDaEtiqueta } from "./Etiqueta";
+import { corDaEtiqueta } from "@/app/components/Etiqueta";
 import { SyncWidget } from "./SyncWidget";
 import { KanbanBoard } from "./KanbanBoard";
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { corDoPonto } from "@/app/(painel)/clientes/Etiqueta";
+import { corDoPonto } from "./Etiqueta";
 import type { GroupSummary } from "@/lib/data";
 
 /**

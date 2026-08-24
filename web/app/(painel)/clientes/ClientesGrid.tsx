@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { EmptyState, Input } from "@/app/components/ui";
-import { ChipEtiqueta, EditorEtiquetas } from "./Etiqueta";
+import { ChipEtiqueta, EditorEtiquetas } from "@/app/components/Etiqueta";
 import type { ClienteCard } from "@/lib/clientes";
 import { BAND_LABEL_CLASS } from "@/lib/sla";
 
