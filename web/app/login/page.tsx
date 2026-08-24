@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Button, Input } from "@/app/components/ui";
 
@@ -10,7 +10,6 @@ function safeNext(raw: string | null): string {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const next = safeNext(useSearchParams().get("next"));
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
@@ -28,15 +27,17 @@ function LoginForm() {
         body: JSON.stringify({ user, pass }),
       });
       if (res.ok) {
-        router.replace(next);
-        router.refresh();
-        return;
+        // Navegação completa (não client-side): o navegador mostra o progresso
+        // nativo enquanto a home renderiza no servidor — sem "clique morto" —
+        // e o documento já chega com o cookie novo pro proxy.
+        window.location.assign(next);
+        return; // mantém "Entrando…" até a página trocar
       }
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       setErro(data?.error ?? "não foi possível entrar");
+      setEnviando(false);
     } catch {
       setErro("falha de rede — tenta de novo");
-    } finally {
       setEnviando(false);
     }
   }
