@@ -998,6 +998,18 @@ export class BaileysGateway implements WhatsAppGateway {
   }
 
   private async onMessagesUpsert(upsert: MessagesUpsert): Promise<void> {
+    // Observabilidade do backfill: loga a chegada CRUA da notificação de
+    // history sync (a resposta do celular ao fetchMessageHistory), antes de
+    // qualquer filtro — separa "celular não respondeu" de "resposta descartada".
+    for (const wa of upsert.messages) {
+      const hs = wa.message?.protocolMessage?.historySyncNotification;
+      if (hs) {
+        logger.info(
+          { syncType: hs.syncType ?? null, upsertType: upsert.type },
+          '📥 historySyncNotification recebida.',
+        );
+      }
+    }
     if (upsert.type !== 'notify') return; // apenas tempo real (ignora histórico)
     // Espera os nomes de grupo carregarem: sem isso o slug sairia do JID cru e
     // fragmentaria o histórico do grupo (ver groupsReady). Instantâneo após o 1º.
