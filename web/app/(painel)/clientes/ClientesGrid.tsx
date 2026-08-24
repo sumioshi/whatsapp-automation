@@ -95,7 +95,7 @@ function iniciais(nome: string): string {
   return partes.map((p) => [...p][0]?.toUpperCase() ?? "").join("") || "?";
 }
 
-function CardCliente({ c }: { c: ClienteCard }) {
+export function CardCliente({ c }: { c: ClienteCard }) {
   const badge = c.aguardando ? (
     <span
       className={`mono shrink-0 text-[11px] font-medium ${c.band ? BAND_LABEL_CLASS[c.band] : "text-fg-dim"}`}

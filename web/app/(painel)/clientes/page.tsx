@@ -1,10 +1,11 @@
 import { buildClientes } from "@/lib/clientes";
-import { ClientesGrid } from "./ClientesGrid";
+import { readKanban } from "@/lib/kanban-store";
+import { ClientesView } from "./ClientesView";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientesPage() {
-  const cards = await buildClientes();
+  const [cards, kanban] = await Promise.all([buildClientes(), readKanban()]);
   const aguardando = cards.filter((c) => c.aguardando && !c.silenciado).length;
 
   return (
@@ -16,7 +17,7 @@ export default async function ClientesPage() {
           {aguardando > 0 && ` · ${aguardando} aguardando resposta`}
         </span>
       </header>
-      <ClientesGrid cards={cards} />
+      <ClientesView cards={cards} kanban={kanban} />
     </div>
   );
 }
