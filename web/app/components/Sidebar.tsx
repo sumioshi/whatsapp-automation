@@ -78,6 +78,32 @@ export function Sidebar({ groups }: { groups: GroupSummary[] }) {
       </Link>
 
       <Link
+        href="/clientes"
+        className="mx-2 mb-1 flex items-center gap-2.5 rounded-control px-2.5 py-2 text-sm text-fg-dim transition-colors hover:bg-surface-2 hover:text-fg"
+      >
+        <span className="grid h-7 w-7 place-items-center rounded-control border border-line bg-surface-2 text-fg-dim">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+          </svg>
+        </span>
+        <span className="font-medium">Clientes</span>
+      </Link>
+
+      <Link
         href="/novo?modo=contato"
         className="mx-2 mb-1 flex items-center gap-2.5 rounded-control px-2.5 py-2 text-sm text-fg-dim transition-colors hover:bg-surface-2 hover:text-fg"
       >

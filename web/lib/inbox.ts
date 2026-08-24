@@ -56,7 +56,7 @@ function mentionsMe(text: string, ownIds: Set<string>): boolean {
  * Tipo interno de resultado da avaliação (antes de calcular SLA).
  * waitingSince = timestamp ISO da 1ª mensagem do cliente sem resposta.
  */
-interface GroupVerdict {
+export interface GroupVerdict {
   reason: InboxReason;
   preview: string;
   who: string;
@@ -85,7 +85,7 @@ interface GroupVerdict {
  * direto; mídia sem transcrição entra como "[áudio]" etc. Comece honesto: é um
  * radar de "tem coisa parada", não um classificador de intenção.
  */
-function evaluateGroup(messages: MessageView[], contacts: Contacts): GroupVerdict | null {
+export function evaluateGroup(messages: MessageView[], contacts: Contacts): GroupVerdict | null {
   if (messages.length === 0) return null;
 
   // Índice da última mensagem sua — tudo depois dela está "sem resposta".
