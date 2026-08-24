@@ -5,6 +5,7 @@ import type { MessageView } from "@/lib/data";
 import { cn } from "./ui";
 import { CopilotPanel } from "./CopilotPanel";
 import { NotesPanel } from "./NotesPanel";
+import { type ChatContexto, ContextoCard } from "./ContextoCard";
 import { Timeline } from "./Timeline";
 
 type Panel = "notas" | "copiloto";
@@ -14,10 +15,12 @@ export function GroupWorkspace({
   slug,
   groupName,
   messages,
+  contexto,
 }: {
   slug: string;
   groupName: string;
   messages: MessageView[];
+  contexto?: ChatContexto;
 }) {
   const [panel, setPanel] = useState<Panel | null>(null);
   // Rascunho do copiloto → composer. O nonce reaplica o mesmo texto a cada "→ composer".
@@ -101,6 +104,8 @@ export function GroupWorkspace({
             "pop-in", // entrada sutil
           )}
         >
+          {contexto && <ContextoCard contexto={contexto} />}
+
           {/* Tab bar do painel — vive dentro do aside, sem colisão */}
           <PanelTabBar
             active={panel}
