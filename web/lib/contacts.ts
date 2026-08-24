@@ -204,17 +204,24 @@ function looksLikeRawId(s: string): boolean {
   return /^\d{6,}$/.test(s.trim());
 }
 
+/** true se o texto serve como nome de exibição (não é placeholder nem id). */
+function isNomeLegivel(s: string | undefined | null): s is string {
+  const t = s?.trim() ?? '';
+  return t.length > 0 && t !== 'desconhecido' && !looksLikeRawId(t);
+}
+
 /**
  * Nome de exibição que NUNCA vaza id cru nem "desconhecido" pra UI:
  * senderName legível → nome do índice de contatos → telefone formatado →
  * "Contato". Usar em card, preview e sidebar.
  */
 export function displayNameOf(c: Contacts, senderName: string, id: string): string {
-  const name = senderName?.trim() ?? '';
-  if (name && name !== 'desconhecido' && !looksLikeRawId(name)) return name;
+  if (isNomeLegivel(senderName)) return senderName.trim();
 
+  // O índice é montado das mensagens — pode estar contaminado com o mesmo
+  // placeholder/id cru que estamos evitando; valida antes de usar.
   const known = c.names.get(id);
-  if (known && !looksLikeRawId(known)) return known;
+  if (isNomeLegivel(known)) return known;
 
   const phone = c.phones.get(id);
   if (phone) return formatPhoneBR(phone);

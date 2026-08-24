@@ -59,6 +59,14 @@ describe('displayNameOf', () => {
     expect(displayNameOf(c, 'Pedro Lima', 'qualquer')).toBe('Pedro Lima');
   });
 
+  it('índice contaminado com "desconhecido" não vaza pra UI', () => {
+    const sujo = {
+      ...c,
+      names: new Map([['554590000002', 'desconhecido']]),
+    } as never;
+    expect(displayNameOf(sujo, 'desconhecido', '554590000002')).toBe('+55 45 9000-0002');
+  });
+
   it('senderName numérico resolve pelo índice de contatos', () => {
     expect(displayNameOf(c, '100000000000003', '100000000000003')).toBe('Daniel Souza');
   });
