@@ -59,7 +59,7 @@ export function SyncWidget() {
   const faltamMin = proxMs ? Math.max(0, Math.ceil((proxMs - agora) / 60_000)) : null;
 
   return (
-    <span className="ml-auto flex items-center gap-2">
+    <span className="flex items-center gap-2">
       <span className="mono text-[10px] text-fg-faint" title="Sincronização automática de nomes e histórico com o WhatsApp">
         {faltamMin === null ? "sync automático" : `sync em ${faltamMin}min`}
       </span>

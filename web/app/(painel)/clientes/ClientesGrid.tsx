@@ -1,67 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { EmptyState, Input } from "@/app/components/ui";
+import { useState } from "react";
+import { EmptyState } from "@/app/components/ui";
 import { ChipEtiqueta, EditorEtiquetas } from "@/app/components/Etiqueta";
 import type { ClienteCard } from "@/lib/clientes";
 import { BAND_LABEL_CLASS } from "@/lib/sla";
 
-type Filtro = "todos" | "aguardando" | "grupos" | "dms";
-
-const FILTROS: Array<{ id: Filtro; label: string }> = [
-  { id: "todos", label: "Todos" },
-  { id: "aguardando", label: "Aguardando" },
-  { id: "grupos", label: "Grupos" },
-  { id: "dms", label: "DMs" },
-];
-
-/** Grade CRM dos chats: filtros + busca client-side sobre os cards do servidor. */
+/** Grade CRM dos chats — filtros/busca vivem na toolbar do ClientesView. */
 export function ClientesGrid({ cards, conhecidas = [] }: { cards: ClienteCard[]; conhecidas?: string[] }) {
-  const [filtro, setFiltro] = useState<Filtro>("todos");
-  const [busca, setBusca] = useState("");
-
-  const visiveis = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    return cards.filter((c) => {
-      if (filtro === "aguardando" && !c.aguardando) return false;
-      if (filtro === "grupos" && c.tipo !== "grupo") return false;
-      if (filtro === "dms" && c.tipo !== "dm") return false;
-      if (q && !c.nome.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [cards, filtro, busca]);
-
   return (
     <div className="flex-1 overflow-y-auto px-4 py-5 md:px-8">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-5 flex flex-wrap items-center gap-2">
-          <div className="flex rounded-control border border-line bg-surface p-0.5">
-            {FILTROS.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setFiltro(f.id)}
-                className={`rounded-[6px] px-3 py-1 text-xs font-medium transition-colors ${
-                  filtro === f.id
-                    ? "bg-surface-2 text-fg"
-                    : "text-fg-dim hover:text-fg"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-          <Input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar cliente…"
-            className="w-56"
-            aria-label="Buscar cliente pelo nome"
-          />
-        </div>
-
-        {visiveis.length === 0 ? (
+        {cards.length === 0 ? (
           <EmptyState
             title="Nada por aqui"
             description="Nenhuma conversa bate com o filtro atual."
@@ -69,7 +20,7 @@ export function ClientesGrid({ cards, conhecidas = [] }: { cards: ClienteCard[];
           />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {visiveis.map((c) => (
+            {cards.map((c) => (
               <CardCliente key={c.slug} c={c} conhecidas={conhecidas} />
             ))}
           </div>
@@ -91,6 +42,7 @@ function iniciais(nome: string): string {
 export function CardCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecidas?: string[] }) {
   const [etiquetas, setEtiquetas] = useState<string[]>(c.etiquetas);
   const [editando, setEditando] = useState(false);
+  // Badge só quando há algo a dizer — "em dia" é a ausência de badge.
   const badge = c.aguardando ? (
     <span
       className={`mono shrink-0 text-[11px] font-medium ${c.band ? BAND_LABEL_CLASS[c.band] : "text-fg-dim"}`}
@@ -98,11 +50,7 @@ export function CardCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecidas
     >
       ● {c.waitingLabel ?? "aguardando"}
     </span>
-  ) : (
-    <span className="mono shrink-0 text-[11px] text-fg-faint" title="Última palavra foi sua">
-      em dia
-    </span>
-  );
+  ) : null;
 
   return (
     <Link
@@ -127,6 +75,14 @@ export function CardCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecidas
         <span className="min-w-0 flex-1 truncate text-base font-semibold text-fg" title={c.nome}>
           {c.nome}
         </span>
+        {c.naoLidas > 0 && (
+          <span
+            className="mono shrink-0 rounded-full bg-accent px-1.5 py-px text-[10px] font-semibold text-accent-ink"
+            title={`${c.naoLidas} mensagens novas desde a última visita`}
+          >
+            {c.naoLidas > 99 ? "99+" : c.naoLidas}
+          </span>
+        )}
         {badge}
       </div>
 
@@ -142,7 +98,7 @@ export function CardCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecidas
             ev.stopPropagation();
             setEditando((v) => !v);
           }}
-          className="rounded-full border border-dashed border-line px-1.5 text-[10px] text-fg-faint transition-colors hover:border-line-2 hover:text-fg"
+          className="rounded-full border border-dashed border-line px-1.5 text-[10px] text-fg-faint opacity-0 transition-all group-hover:opacity-100 hover:border-line-2 hover:text-fg"
         >
           {etiquetas.length === 0 ? "+ etiqueta" : "+"}
         </button>
@@ -175,8 +131,6 @@ export function CardCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecidas
         </p>
       )}
       <div className="mono mt-auto flex items-center gap-2 pt-1 text-[10px] text-fg-faint">
-        <span>{c.tipo === "dm" ? "contato" : "grupo"}</span>
-        <span>·</span>
         <span>{c.mensagens} msgs</span>
         {c.atividadeLabel && (
           <>
