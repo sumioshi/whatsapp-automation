@@ -7,6 +7,7 @@ import type { GroupSummary } from "@/lib/data";
 import { CmdkButton } from "./CmdkButton";
 import { ConnectionDot } from "./ConnectionDot";
 import { SidebarGroups } from "./SidebarGroups";
+import { ThemeToggle } from "./ThemeToggle";
 
 const CHAVE_RECOLHIDA = "wac-sidebar-recolhida";
 
@@ -106,6 +107,7 @@ export function Sidebar({ groups }: { groups: GroupSummary[] }) {
           ))}
         </nav>
         <div className="mt-auto flex flex-col items-center gap-1">
+          <ThemeToggle compacto />
           <Link
             href="/config"
             title="Configurações"
@@ -150,6 +152,7 @@ export function Sidebar({ groups }: { groups: GroupSummary[] }) {
               <path d="M12 1v3m0 16v3M4.22 4.22l2.12 2.12m11.32 11.32 2.12 2.12M1 12h3m16 0h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" />
             </svg>
           </Link>
+          <ThemeToggle />
           <button
             type="button"
             onClick={alternar}

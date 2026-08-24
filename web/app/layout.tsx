@@ -14,7 +14,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html lang="pt-BR" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Aplica o tema salvo ANTES da 1ª pintura — sem flash de tema errado. */}
+        <script
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: script estático de tema
+          dangerouslySetInnerHTML={{
+            __html:
+              'try{if(localStorage.getItem("wac-tema")==="light")document.documentElement.dataset.theme="light"}catch(e){}',
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

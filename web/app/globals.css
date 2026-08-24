@@ -272,3 +272,26 @@ body {
     opacity: 0.7;
   }
 }
+
+/* ── Tema claro ───────────────────────────────────────────────────────────
+   As utilities do Tailwind v4 compilam para var(--color-*), então o tema é
+   só um override de variáveis sob data-theme. Default = dark (identidade);
+   a escolha persiste no navegador e é aplicada antes da 1ª pintura. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f7f8f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f2f4;
+  --color-elevated: #e9ebee;
+  --color-line: #e2e4e8;
+  --color-line-2: #cfd3d9;
+  --color-fg: #17181a;
+  --color-fg-dim: #5f646b;
+  --color-fg-faint: #949aa3;
+  --color-bubble-mine: color-mix(in oklab, var(--color-accent) 11%, #ffffff);
+  --color-bubble-their: #eef0f3;
+  /* Profundidade pressionável no claro: luz de cima branca não aparece — usa contorno. */
+  --shadow-pressable: inset 0 -1px 0 rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-pressable-active: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  --shadow-key: inset 0 -1px 0 rgba(0, 0, 0, 0.08), 0 1px 1.5px rgba(0, 0, 0, 0.12);
+}
