@@ -2,6 +2,7 @@ import { access, readdir, readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { buildContacts, numberFromJid } from './contacts';
 import { CHATS_FILE, DATA_DIR, safeDataPath } from './paths';
+import { cachedByStat } from './file-cache';
 import { readTriage } from './triage';
 
 /** Espelha o MessageRecord gravado pelo coletor no messages.jsonl. */
@@ -304,13 +305,16 @@ export async function listGroups(): Promise<GroupSummary[]> {
   const groups: GroupSummary[] = [];
   const [{ lastSeen }, chatStates] = await Promise.all([readTriage(), readChatStates()]);
 
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+  // Paralelo + cache por mtime: o caminho quente vira um stat() por chat;
+  // o parse do jsonl só roda pra arquivo que mudou desde a última leitura.
+  const summaries = await Promise.all(
+    entries.map(async (entry): Promise<GroupSummary | null> => {
+    if (!entry.isDirectory()) return null;
     const slug = entry.name;
     const jsonlPath = safeDataPath(slug, 'messages.jsonl');
-    if (!(await exists(jsonlPath))) continue;
 
-    const records = parseJsonl(await readFile(jsonlPath, 'utf8'));
+    const records = await cachedByStat(jsonlPath, parseJsonl);
+    if (!records) return null;
     const last = records.at(-1);
     const hasAvatar = await exists(safeDataPath(slug, 'avatar.jpg'));
     const seen = lastSeen[slug];
@@ -319,7 +323,7 @@ export async function listGroups(): Promise<GroupSummary[]> {
       : 0;
 
     const state = chatStates[slug];
-    groups.push({
+    return {
       slug,
       name: conversationName(slug, last?.group ?? slug, records),
       messageCount: records.length,
@@ -331,8 +335,10 @@ export async function listGroups(): Promise<GroupSummary[]> {
       pinnedAt: state?.pinnedAt ?? null,
       muted: state?.muted ?? false,
       archived: state?.archived ?? false,
-    });
-  }
+    };
+    }),
+  );
+  groups.push(...summaries.filter((g): g is GroupSummary => g !== null));
 
   // Ordenação: fixados no topo (por pinnedAt desc, depois por recência), depois
   // ativos por recência, arquivados por último.
@@ -614,8 +620,8 @@ async function readCalls(
 /** Lê as mensagens de um grupo já com transcrição, reações, receipts e enquetes. */
 export async function readGroupMessages(slug: string): Promise<MessageView[]> {
   const jsonlPath = safeDataPath(slug, 'messages.jsonl');
-  if (!(await exists(jsonlPath))) return [];
-  const records = parseJsonl(await readFile(jsonlPath, 'utf8'));
+  const records = await cachedByStat(jsonlPath, parseJsonl);
+  if (!records) return [];
   const [reactions, contacts] = await Promise.all([
     readReactions(slug),
     buildContacts(),
