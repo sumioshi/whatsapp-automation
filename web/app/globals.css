@@ -4,15 +4,17 @@
    Central de triagem grau-terminal. Base midnight + graphite (Warp/Langbase),
    bordas hairline "ghost ink", rótulos em mono, acento ember único (Vapi). */
 @theme {
-  --color-bg: #0d0d0f;
-  --color-surface: #151518;
-  --color-surface-2: #1b1b20;
-  --color-elevated: #212128;
-  --color-line: #232327;
-  --color-line-2: #2e2e35;
-  --color-fg: #f4f4f3;
-  --color-fg-dim: #8c8c93;
-  --color-fg-faint: #5a5a62;
+  /* Paleta "midnight command center": canvas quase-preto e camadas graphite —
+     profundidade por COR (nunca sombra difusa), bordas hairline, 3 níveis de texto. */
+  --color-bg: #08090a;
+  --color-surface: #0f1011;
+  --color-surface-2: #161718;
+  --color-elevated: #1c1e21;
+  --color-line: #23252a;
+  --color-line-2: #323334;
+  --color-fg: #f7f8f8;
+  --color-fg-dim: #8a8f98;
+  --color-fg-faint: #62666d;
   --color-accent: #ff7a2d;
   --color-accent-2: #ff9a5c;
   --color-accent-ink: #1a0f06;
@@ -23,12 +25,18 @@
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
 
-  --radius-card: 12px;
-  --radius-control: 8px;
+  --radius-card: 8px;
+  --radius-control: 6px;
+
+  /* Balões de conversa: superfícies SÓLIDAS sem borda (profundidade por cor),
+     cauda assimétrica. O meu leva um tint escuro do accent; o deles, camada 2. */
+  --color-bubble-mine: color-mix(in oklab, var(--color-accent) 13%, #101112);
+  --color-bubble-their: #17181a;
 }
 
 :root {
   color-scheme: dark;
+  letter-spacing: -0.01em;
   /* Easing snap-in (outQuint, Raycast): ataque rápido, assentamento longo, sem bounce. */
   --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
   /* Bevel de tecla pressionável (Raycast, suavizado p/ chips pequenos). */
@@ -129,9 +137,9 @@ body {
 /* Grid sutil de terminal — textura de fundo do canvas do chat */
 .signal-grid {
   background-image:
-    linear-gradient(to right, color-mix(in oklab, var(--color-line) 55%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklab, var(--color-line) 55%, transparent) 1px, transparent 1px);
-  background-size: 32px 32px;
+    linear-gradient(to right, color-mix(in oklab, var(--color-line) 35%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-line) 35%, transparent) 1px, transparent 1px);
+  background-size: 40px 40px;
   background-position: center;
 }
 

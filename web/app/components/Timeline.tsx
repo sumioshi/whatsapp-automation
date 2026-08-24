@@ -1228,11 +1228,12 @@ function Bubble({
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"} ${fresh ? "msg-in" : ""}`}>
       <div
-        className={`group relative max-w-[640px] rounded-card px-3 py-2 transition-colors ${
+        className={`group relative max-w-[640px] px-3.5 py-2 transition-colors ${
           mine
-            ? "border border-accent/25 bg-accent/10 hover:border-accent/40"
-            : "border border-line bg-surface hover:border-line-2"
+            ? "rounded-[14px] rounded-br-[4px] bg-bubble-mine hover:brightness-110"
+            : "rounded-[14px] rounded-bl-[4px] bg-bubble-their hover:brightness-110"
         }`}
+        style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
       >
         <MessageActions m={m} />
         <div className="mb-1 flex items-baseline gap-2">
