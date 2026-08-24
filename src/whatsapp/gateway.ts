@@ -1161,7 +1161,9 @@ export class BaileysGateway implements WhatsAppGateway {
     if (jid.endsWith('@g.us') && !ancora.fromMe && ancora.sender.includes('@')) {
       key.participant = ancora.sender;
     }
-    await sock.fetchMessageHistory(50, key, Math.floor(ancora.timestampMs / 1000));
+    // O campo do protocolo é oldestMsgTimestampMs — MILISSEGUNDOS. Em segundos
+    // o celular procura a âncora em ~1970 e ignora o pedido em silêncio.
+    await sock.fetchMessageHistory(50, key, ancora.timestampMs);
     return true;
   }
 
