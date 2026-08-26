@@ -104,10 +104,11 @@ export function formatarFone(digits: string): string {
 /** Teto de nomes no digest — o resto vira "… e mais N" (detalhe fica no painel). */
 const DIGEST_MAX_NOMES = 8;
 
+/** Digest com formatação do WhatsApp: título em *negrito*, um item por linha. */
 export function formatarDigest(pendencias: Pendencia[]): string {
   const mostradas = pendencias.slice(0, DIGEST_MAX_NOMES);
   const resto = pendencias.length - mostradas.length;
-  const itens = mostradas.map((p) => `${p.nome} (${rotuloEspera(p.horas)})`).join(' · ');
-  const sufixo = resto > 0 ? ` … e mais ${resto}` : '';
-  return `⏰ ${pendencias.length} aguardando resposta: ${itens}${sufixo}`;
+  const itens = mostradas.map((p) => `• ${p.nome} — _${rotuloEspera(p.horas)}_`).join('\n');
+  const sufixo = resto > 0 ? `\n_… e mais ${resto}_` : '';
+  return `⏰ *${pendencias.length} aguardando resposta*\n\n${itens}${sufixo}`;
 }

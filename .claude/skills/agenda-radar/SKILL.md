@@ -37,8 +37,29 @@ com Google Calendar conectado e o MCP whatsapp-collector.
 ## Passo 3 — resumo
 
 Se criou QUALQUER coisa (ou achou incertos): mandar UMA mensagem no chat
-"você mesmo" do operador (MCP `responder` pro próprio número) com o resumo:
-lembretes criados, eventos detectados, incertos. Se não criou nada, não manda.
+"você mesmo" do operador (MCP `responder` pro próprio número, `um_balao: true`)
+com o resumo: lembretes criados, eventos detectados, incertos. Se não criou
+nada, não manda.
+
+FORMATAÇÃO OBRIGATÓRIA (WhatsApp, nada de parágrafo corrido):
+
+```
+📅 *agenda-radar — <dd/mm>*
+
+*Lembretes criados (N)*
+• Fulano — _25d sem resposta_
+• Beltrano — _12d_
+
+*Reuniões agendadas*
+• [radar] Call com Fulano — _qui 15:00_
+(ou "nenhuma com data/hora marcada")
+
+*Incertos*
+• Sicrano quer reunir com X — _sem horário_
+```
+
+Seções vazias somem (não escrever "nenhum" em tudo); listas longas cortam
+em 8 itens + `_… e mais N_`.
 
 ## Regras duras
 

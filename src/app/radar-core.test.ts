@@ -107,12 +107,14 @@ describe('digest', () => {
     expect(deveEnviarDigest('', 'h1', AGORA - 9 * H, AGORA, 120)).toBe(false);
   });
 
-  it('formata compacto com h/d', () => {
+  it('formata com negrito e um item por linha (WhatsApp)', () => {
     const p = [
       { slug: 'a', nome: 'Fulano', desdeIso: '', horas: 4 },
       { slug: 'b', nome: 'Acme', desdeIso: '', horas: 30 },
     ];
-    expect(formatarDigest(p)).toBe('⏰ 2 aguardando resposta: Fulano (4h) · Acme (1d)');
+    expect(formatarDigest(p)).toBe(
+      '⏰ *2 aguardando resposta*\n\n• Fulano — _4h_\n• Acme — _1d_',
+    );
   });
 
   it('lista longa é cortada em 8 nomes + "e mais N"', () => {
@@ -123,10 +125,10 @@ describe('digest', () => {
       horas: 5,
     }));
     const texto = formatarDigest(p);
-    expect(texto).toContain('12 aguardando resposta');
-    expect(texto).toContain('Chat7 (5h)');
+    expect(texto).toContain('*12 aguardando resposta*');
+    expect(texto).toContain('• Chat7 — _5h_');
     expect(texto).not.toContain('Chat8');
-    expect(texto).toContain('… e mais 4');
+    expect(texto).toContain('_… e mais 4_');
   });
 });
 
