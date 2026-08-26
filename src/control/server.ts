@@ -188,6 +188,7 @@ export function startControlServer(
   port: number,
   allowedDirs: string[],
   reconciler?: { tickNow(motivo: 'auto' | 'manual'): Promise<unknown> },
+  radar?: { tickNow(motivo: 'auto' | 'manual'): Promise<unknown> },
 ): void {
   const allowed = allowedDirs.map((d) => resolve(d));
   const server = createServer((req, res) => {
@@ -208,6 +209,19 @@ export function startControlServer(
         return;
       }
       reconciler
+        .tickNow('manual')
+        .then((resumo) => json(200, { ok: true, resumo }))
+        .catch((err) => json(500, { error: err instanceof Error ? err.message : 'falhou' }));
+      return;
+    }
+
+    // Dispara um tick do radar de sem-resposta fora de hora (painel usa no "agora").
+    if (req.method === 'POST' && req.url === '/radar') {
+      if (!radar) {
+        json(503, { error: 'radar indisponível' });
+        return;
+      }
+      radar
         .tickNow('manual')
         .then((resumo) => json(200, { ok: true, resumo }))
         .catch((err) => json(500, { error: err instanceof Error ? err.message : 'falhou' }));

@@ -316,6 +316,11 @@ export class BaileysGateway implements WhatsAppGateway {
     this.sock?.end(undefined);
   }
 
+  /** Jid normalizado da PRÓPRIA conta (chat "você mesmo") — null sem sessão. */
+  selfJid(): string | null {
+    return this.sock?.user?.id ? jidNormalizedUser(this.sock.user.id) : null;
+  }
+
   async sendText(jid: string, text: string, mentions?: string[]): Promise<void> {
     if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
     const content = mentions?.length ? { text, mentions } : { text };

@@ -29,6 +29,7 @@ import { FileStore } from './storage/fileStore.js';
 import { setGroupSlugOverrides } from './storage/paths.js';
 import { PresenceStore } from './storage/presenceStore.js';
 import { StatusStore } from './storage/statusStore.js';
+import { Radar } from './app/radar.js';
 import { Reconciler } from './app/reconciler.js';
 import { BaileysGateway } from './whatsapp/gateway.js';
 
@@ -72,6 +73,16 @@ async function main(): Promise<void> {
     saveAvatarDm: (slug, url) => collector.saveAvatarDm(slug, url),
   });
   void reconciler.start();
+
+  // Radar de sem-resposta: pendências + digest pro operador, no padrão do reconciler.
+  const radar = new Radar({
+    dataDir: env.DATA_DIR,
+    connected: () => conectado,
+    selfJid: () => gateway.selfJid(),
+    sendText: (jid, text) => gateway.sendText(jid, text),
+    lastActivityOf: (slug) => gateway.lastActivityOf(slug),
+  });
+  void radar.start();
 
   // Quando a lista de grupos chega, mescla no arquivo e orienta o usuário.
   gateway.onGroups(async (groups) => {
@@ -134,7 +145,7 @@ async function main(): Promise<void> {
   });
 
   watchGroupsConfig(env.GROUPS_CONFIG, groupConfig, status);
-  startControlServer(gateway, env.CONTROL_PORT, [env.DATA_DIR, tmpdir()], reconciler);
+  startControlServer(gateway, env.CONTROL_PORT, [env.DATA_DIR, tmpdir()], reconciler, radar);
   registerShutdown(gateway);
 
   logger.info('🚀 Coletor iniciando...');
