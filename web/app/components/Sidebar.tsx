@@ -7,6 +7,7 @@ import type { GroupSummary } from "@/lib/data";
 import { CmdkButton } from "./CmdkButton";
 import { ConnectionDot } from "./ConnectionDot";
 import { SidebarGroups } from "./SidebarGroups";
+import { InstallButton } from "./InstallButton";
 import { ThemeToggle } from "./ThemeToggle";
 
 const CHAVE_RECOLHIDA = "wac-sidebar-recolhida";
@@ -141,6 +142,7 @@ export function Sidebar({ groups }: { groups: GroupSummary[] }) {
           </span>
         </Link>
         <div className="flex items-center gap-0.5">
+          <InstallButton />
           <CmdkButton />
           <Link
             href="/config"
