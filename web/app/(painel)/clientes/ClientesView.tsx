@@ -6,6 +6,7 @@ import type { ClienteCard } from "@/lib/clientes";
 import type { KanbanState } from "@/lib/kanban";
 import { ClientesGrid } from "./ClientesGrid";
 import { corDaEtiqueta } from "@/app/components/Etiqueta";
+import { RadarBadge } from "./RadarBadge";
 import { SyncWidget } from "./SyncWidget";
 import { KanbanBoard } from "./KanbanBoard";
 
@@ -158,6 +159,7 @@ export function ClientesView({ cards, kanban }: { cards: ClienteCard[]; kanban: 
               </button>
             ))}
           </div>
+          <RadarBadge onClick={() => setFiltro("aguardando")} />
           <SyncWidget />
         </span>
       </div>

@@ -30,6 +30,7 @@ export default function ConfigPage() {
         <h1 className="mono text-[13px] uppercase tracking-wider text-fg-dim">Configurações</h1>
         <ConnectionCard />
         <SyncCard />
+        <RadarCard />
         <GroupsCard />
         <TeamCard />
         <TranscriptionCard />
@@ -501,6 +502,135 @@ function TranscriptionCard() {
   );
 }
 
+
+/* ------------------------- Radar de sem-resposta ------------------------- */
+
+function RadarCard() {
+  const [ativo, setAtivo] = useState(false);
+  const [dataCorte, setDataCorte] = useState("");
+  const [prazo, setPrazo] = useState("120");
+  const [cooldown, setCooldown] = useState("120");
+  const [ultima, setUltima] = useState<string | null>(null);
+  const [pendentes, setPendentes] = useState<number | null>(null);
+  const [salvo, setSalvo] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/radar", { cache: "no-store" });
+        const data = (await res.json()) as {
+          config?: {
+            ativo?: boolean;
+            dataCorte?: string | null;
+            prazoMinimoMin?: number;
+            digestCooldownMin?: number;
+          };
+          status?: { ultimaExecucao?: string | null; pendencias?: unknown[] } | null;
+        };
+        if (!alive) return;
+        setAtivo(Boolean(data.config?.ativo));
+        setDataCorte(data.config?.dataCorte ?? "");
+        if (data.config?.prazoMinimoMin) setPrazo(String(data.config.prazoMinimoMin));
+        if (data.config?.digestCooldownMin) setCooldown(String(data.config.digestCooldownMin));
+        setUltima(data.status?.ultimaExecucao ?? null);
+        setPendentes(data.status?.pendencias?.length ?? null);
+      } catch {
+        /* coletor fora do ar */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function salvar(proxAtivo?: boolean) {
+    const body: Record<string, unknown> = {
+      ativo: proxAtivo ?? ativo,
+      dataCorte: dataCorte || null,
+    };
+    const p = Number(prazo);
+    const c = Number(cooldown);
+    if (Number.isFinite(p) && p >= 1) body.prazoMinimoMin = p;
+    if (Number.isFinite(c) && c >= 1) body.digestCooldownMin = c;
+    await fetch("/api/radar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+    setSalvo(true);
+    setTimeout(() => setSalvo(false), 2000);
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Radar de sem-resposta" />
+      <p className="mb-3 text-sm text-fg-dim">
+        Avisa (WhatsApp no seu próprio chat + selo em Clientes) quando um cliente fica
+        sem resposta além do prazo. Chats com última atividade anterior à data de corte
+        ficam de fora.
+      </p>
+
+      <div className="mb-3 flex items-center gap-2">
+        <Toggle
+          size="sm"
+          checked={ativo}
+          onChange={(v) => {
+            setAtivo(v);
+            void salvar(v);
+          }}
+          aria-label="Ligar radar de sem-resposta"
+        />
+        <span className="text-sm text-fg-dim">{ativo ? "ligado" : "desligado"}</span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <label className="flex items-center gap-2 text-sm text-fg-dim" htmlFor="radar-corte">
+          considerar a partir de
+          <Input
+            id="radar-corte"
+            type="date"
+            value={dataCorte}
+            onChange={(e) => setDataCorte(e.target.value)}
+            className="w-40"
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-fg-dim" htmlFor="radar-prazo">
+          cobrar após
+          <Input
+            id="radar-prazo"
+            type="number"
+            min={1}
+            value={prazo}
+            onChange={(e) => setPrazo(e.target.value)}
+            className="w-20"
+          />
+          min
+        </label>
+        <label className="flex items-center gap-2 text-sm text-fg-dim" htmlFor="radar-cooldown">
+          silêncio entre avisos
+          <Input
+            id="radar-cooldown"
+            type="number"
+            min={1}
+            value={cooldown}
+            onChange={(e) => setCooldown(e.target.value)}
+            className="w-20"
+          />
+          min
+        </label>
+        <Button onClick={() => void salvar()}>{salvo ? "Salvo ✓" : "Salvar"}</Button>
+      </div>
+
+      {ultima && (
+        <p className="mono mt-2 text-[10px] text-fg-faint">
+          última varredura: {new Date(ultima).toLocaleString("pt-BR")}
+          {pendentes !== null && ` · ${pendentes} aguardando`}
+        </p>
+      )}
+    </Card>
+  );
+}
 
 /* ------------------------- Sincronização ------------------------- */
 
