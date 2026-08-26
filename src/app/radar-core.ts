@@ -88,7 +88,13 @@ function rotuloEspera(horas: number): string {
   return horas < 24 ? `${horas}h` : `${Math.floor(horas / 24)}d`;
 }
 
+/** Teto de nomes no digest — o resto vira "… e mais N" (detalhe fica no painel). */
+const DIGEST_MAX_NOMES = 8;
+
 export function formatarDigest(pendencias: Pendencia[]): string {
-  const itens = pendencias.map((p) => `${p.nome} (${rotuloEspera(p.horas)})`).join(' · ');
-  return `⏰ ${pendencias.length} aguardando resposta: ${itens}`;
+  const mostradas = pendencias.slice(0, DIGEST_MAX_NOMES);
+  const resto = pendencias.length - mostradas.length;
+  const itens = mostradas.map((p) => `${p.nome} (${rotuloEspera(p.horas)})`).join(' · ');
+  const sufixo = resto > 0 ? ` … e mais ${resto}` : '';
+  return `⏰ ${pendencias.length} aguardando resposta: ${itens}${sufixo}`;
 }

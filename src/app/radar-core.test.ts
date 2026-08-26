@@ -112,4 +112,18 @@ describe('digest', () => {
     ];
     expect(formatarDigest(p)).toBe('⏰ 2 aguardando resposta: Fulano (4h) · Acme (1d)');
   });
+
+  it('lista longa é cortada em 8 nomes + "e mais N"', () => {
+    const p = Array.from({ length: 12 }, (_, i) => ({
+      slug: `s${i}`,
+      nome: `Chat${i}`,
+      desdeIso: '',
+      horas: 5,
+    }));
+    const texto = formatarDigest(p);
+    expect(texto).toContain('12 aguardando resposta');
+    expect(texto).toContain('Chat7 (5h)');
+    expect(texto).not.toContain('Chat8');
+    expect(texto).toContain('… e mais 4');
+  });
 });
