@@ -67,7 +67,7 @@ const URL_RE = /(https?:\/\/[^\s<>]+)/g;
     `_itálico_` do WhatsApp come os `utm_medium` de dentro da URL). */
 export function formatInline(text: string, keyPrefix: string): React.ReactNode[] {
   // split com grupo de captura: índices ímpares são as URLs capturadas
-  return text.split(URL_RE).flatMap((part, i) => {
+  return text.split(URL_RE).flatMap((part, i): React.ReactNode[] => {
     const key = `${keyPrefix}-u${i}`;
     if (i % 2 === 1) {
       return [
