@@ -6,6 +6,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Signal Room — WhatsApp triage",
   description: "Central de triagem dos grupos de WhatsApp: capturar, transcrever, responder.",
+  appleWebApp: { capable: true, title: "Signal Room", statusBarStyle: "black-translucent" },
+  icons: { apple: "/apple-touch-icon.png" },
 };
 
 export default function RootLayout({
