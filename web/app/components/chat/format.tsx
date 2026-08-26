@@ -37,14 +37,57 @@ export function senderLabel(jid: string | null | undefined, contacts: Contacts):
   return contacts.names.get(num) ?? num;
 }
 
+/* Cor de nome por remetente (estilo Telegram em grupo): paleta muted estável
+   por número — o mesmo remetente tem sempre a mesma cor. */
+const SENDER_COLORS = [
+  "text-[#6cb2f5]",
+  "text-[#5ec9a0]",
+  "text-[#c592ff]",
+  "text-[#e5c07b]",
+  "text-[#ef8b9e]",
+  "text-[#63c7d8]",
+];
+
+export function senderColor(jid: string): string {
+  const num = numberFromJid(jid);
+  let h = 0;
+  for (let i = 0; i < num.length; i++) h = (h * 31 + num.charCodeAt(i)) >>> 0;
+  return SENDER_COLORS[h % SENDER_COLORS.length] ?? "text-info";
+}
+
 // Formatação estilo WhatsApp: *negrito* _itálico_ ~tachado~ `mono` (e ** __ ~~ ``` ).
 export const FMT =
   /(\*\*[^\n]+?\*\*|__[^\n]+?__|~~[^\n]+?~~|```[\s\S]+?```|\*[^*\n]+?\*|_[^_\n]+?_|~[^~\n]+?~|`[^`\n]+?`)/g;
 
 export const MONO_CLS = "mono rounded bg-bg/60 px-1 text-[0.92em]";
 
-/** Aplica formatação inline (negrito/itálico/tachado/mono) num trecho de texto. */
+const URL_RE = /(https?:\/\/[^\s<>]+)/g;
+
+/** Aplica formatação inline num trecho: URLs viram links ANTES (senão o
+    `_itálico_` do WhatsApp come os `utm_medium` de dentro da URL). */
 export function formatInline(text: string, keyPrefix: string): React.ReactNode[] {
+  // split com grupo de captura: índices ímpares são as URLs capturadas
+  return text.split(URL_RE).flatMap((part, i) => {
+    const key = `${keyPrefix}-u${i}`;
+    if (i % 2 === 1) {
+      return [
+        <a
+          key={key}
+          href={part}
+          target="_blank"
+          rel="noreferrer"
+          className="break-all text-info underline decoration-info/40 underline-offset-2 hover:decoration-info"
+        >
+          {part}
+        </a>,
+      ];
+    }
+    return formatWa(part, key);
+  });
+}
+
+/** Formatação WhatsApp pura: *negrito* _itálico_ ~tachado~ `mono`. */
+function formatWa(text: string, keyPrefix: string): React.ReactNode[] {
   return text.split(FMT).map((part, i) => {
     const key = `${keyPrefix}-${i}`;
     if (/^\*\*[\s\S]+\*\*$/.test(part)) return <strong key={key}>{part.slice(2, -2)}</strong>;

@@ -30,8 +30,8 @@
 
   /* Balões de conversa: superfícies SÓLIDAS sem borda (profundidade por cor),
      cauda assimétrica. O meu leva um tint escuro do accent; o deles, camada 2. */
-  --color-bubble-mine: color-mix(in oklab, var(--color-accent) 13%, #101112);
-  --color-bubble-their: #17181a;
+  --color-bubble-mine: color-mix(in oklab, var(--color-accent) 16%, #131416);
+  --color-bubble-their: #1c1e21;
 }
 
 :root {

@@ -11,6 +11,7 @@ import {
   mediaUrl,
   numberFromJid,
   renderMentions,
+  senderColor,
   senderLabel,
 } from "./format";
 
@@ -321,17 +322,18 @@ export function Bubble({
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"} ${fresh ? "msg-in" : ""}`}>
       <div
-        className={`group relative max-w-[640px] px-3.5 py-2 transition-colors ${
+        className={`group relative min-w-0 max-w-[min(640px,85%)] px-3.5 py-2 transition-colors ${
           mine
             ? "rounded-[14px] rounded-br-[4px] bg-bubble-mine hover:brightness-110"
             : "rounded-[14px] rounded-bl-[4px] bg-bubble-their hover:brightness-110"
         }`}
-        style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.35)" }}
       >
         <MessageActions m={m} />
         <div className="mb-1 flex items-baseline gap-2">
           {!mine && (
-            <span className="text-sm font-medium text-info">{m.senderName}</span>
+            <span className={`text-sm font-medium ${senderColor(m.sender)}`}>
+              {m.senderName}
+            </span>
           )}
           {!mine && contacts.team.has(numberFromJid(m.sender)) && (
             <span className="mono rounded border border-accent/30 px-1 text-[10px] font-medium uppercase tracking-wide text-accent">
@@ -362,10 +364,12 @@ export function Bubble({
         ) : (
           <>
         {m.quotedText && (
-          <div className="mb-1.5 line-clamp-4 rounded-md border border-line bg-bg/50 px-2 py-1 text-xs text-fg-dim">
+          <div className="mb-1.5 line-clamp-4 break-words rounded-r-md border-l-2 border-accent/60 bg-bg/40 py-1 pl-2.5 pr-2 text-xs text-fg-dim">
             {senderLabel(m.quotedSender, contacts) && (
-              <span className="font-medium text-info">
-                ↩ {senderLabel(m.quotedSender, contacts)}:{" "}
+              <span
+                className={`font-medium ${m.quotedSender ? senderColor(m.quotedSender) : "text-info"}`}
+              >
+                {senderLabel(m.quotedSender, contacts)}{" "}
               </span>
             )}
             {renderMentions(m.quotedText, contacts)}
@@ -378,7 +382,7 @@ export function Bubble({
           <PollCard poll={m.poll} />
         ) : (
           m.text && (
-            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-fg">
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-fg">
               {renderMentions(m.text, contacts)}
             </p>
           )

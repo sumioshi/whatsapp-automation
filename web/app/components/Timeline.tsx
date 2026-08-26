@@ -98,7 +98,7 @@ function SegmentedFilter({
     options.findIndex((o) => o.key === value),
   );
   return (
-    <div className="relative grid auto-cols-fr grid-flow-col rounded-control border border-line bg-surface-2 p-0.5">
+    <div className="relative inline-grid auto-cols-fr grid-flow-col rounded-control border border-line bg-surface-2 p-0.5">
       <span
         aria-hidden
         className="absolute inset-y-0.5 rounded-[6px] bg-elevated shadow-sm transition-transform duration-200"
