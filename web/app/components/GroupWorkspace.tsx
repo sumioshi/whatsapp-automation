@@ -15,11 +15,14 @@ export function GroupWorkspace({
   slug,
   groupName,
   messages,
+  total,
   contexto,
 }: {
   slug: string;
   groupName: string;
   messages: MessageView[];
+  /** Total real de mensagens do chat (a lista acima é só a janela final). */
+  total?: number;
   contexto?: ChatContexto;
 }) {
   const [panel, setPanel] = useState<Panel | null>(null);
@@ -56,6 +59,7 @@ export function GroupWorkspace({
           slug={slug}
           groupName={groupName}
           messages={messages}
+          total={total}
           draft={draft}
           onUseDraft={pushDraft}
         />

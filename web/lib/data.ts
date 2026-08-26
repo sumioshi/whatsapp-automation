@@ -651,10 +651,36 @@ export async function readGroupRecords(slug: string): Promise<MessageRecord[]> {
   return records ?? [];
 }
 
-export async function readGroupMessages(slug: string): Promise<MessageView[]> {
+/** Total de mensagens de um chat (parse cacheado por mtime — barato). */
+export async function countGroupMessages(slug: string): Promise<number> {
+  return (await readGroupRecords(slug)).length;
+}
+
+/**
+ * Janela de mensagens (estilo WhatsApp): sem opts devolve TUDO (uso interno/
+ * legado); com `limit` devolve as últimas N, e com `before` (id) as N
+ * anteriores àquela mensagem — pra paginação ao rolar pra cima. A janela é
+ * cortada ANTES do enriquecimento (transcrição abre um arquivo por mídia),
+ * então limitar também corta o custo de I/O, não só o payload.
+ */
+export async function readGroupMessages(
+  slug: string,
+  opts: { limit?: number; before?: string } = {},
+): Promise<MessageView[]> {
   const jsonlPath = safeDataPath(slug, 'messages.jsonl');
-  const records = await cachedByStat(jsonlPath, parseJsonl);
-  if (!records) return [];
+  const all = await cachedByStat(jsonlPath, parseJsonl);
+  if (!all) return [];
+  let records = all;
+  if (opts.limit || opts.before) {
+    let end = all.length;
+    if (opts.before) {
+      const idx = all.findIndex((r) => r.id === opts.before);
+      if (idx < 0) return []; // âncora sumiu (rotação/merge) → fim da paginação
+      end = idx;
+    }
+    const start = Math.max(0, end - (opts.limit ?? end));
+    records = all.slice(start, end);
+  }
   const [reactions, contacts] = await Promise.all([
     readReactions(slug),
     buildContacts(),
@@ -687,7 +713,16 @@ export async function readGroupMessages(slug: string): Promise<MessageView[]> {
     }),
   );
 
-  // Interleava as chamadas (itens de sistema) por timestamp com as mensagens.
-  if (calls.length === 0) return views;
-  return [...views, ...calls].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  // Interleava as chamadas (itens de sistema) por timestamp com as mensagens —
+  // restritas ao intervalo da janela, senão chamadas antigas vazam pra dentro dela.
+  let windowCalls = calls;
+  if ((opts.limit || opts.before) && calls.length > 0) {
+    const first = records[0]?.timestamp;
+    const last = opts.before ? records[records.length - 1]?.timestamp : undefined;
+    windowCalls = calls.filter(
+      (c) => (!first || c.timestamp >= first) && (!last || c.timestamp <= last),
+    );
+  }
+  if (windowCalls.length === 0) return views;
+  return [...views, ...windowCalls].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 }

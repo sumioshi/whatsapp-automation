@@ -128,18 +128,25 @@ export function Timeline({
   slug,
   groupName,
   messages: initial,
+  total,
   draft,
   onUseDraft,
 }: {
   slug: string;
   groupName: string;
   messages: MessageView[];
+  /** Total real do chat — a lista inicial é só a janela final (paginada). */
+  total?: number;
   /** Rascunho do copiloto pra injetar no composer (elevado pelo GroupWorkspace). */
   draft?: { text: string; nonce: number } | null;
   /** Cola um texto no composer (ponte draft→composer). Usado pelo card de sugestão. */
   onUseDraft?: (text: string) => void;
 }) {
   const [messages, setMessages] = useState<MessageView[]>(initial);
+  const [totalCount, setTotalCount] = useState(total ?? initial.length);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  // Há mais histórico acima? (some quando uma paginação volta vazia/incompleta)
+  const [hasMore, setHasMore] = useState((total ?? initial.length) > initial.length);
   const [teamIds, setTeamIds] = useState<Set<string>>(new Set());
   const [copilotOn, setCopilotOn] = useState(false);
   const [showJump, setShowJump] = useState(false);
@@ -177,6 +184,37 @@ export function Timeline({
   const jumpToBottom = useCallback(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, []);
+
+  // Pagina o histórico pra cima (estilo WhatsApp), preservando a posição do scroll.
+  const loadOlder = useCallback(async () => {
+    const first = messages[0];
+    if (!first || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const res = await fetch(
+        `/api/messages?slug=${encodeURIComponent(slug)}&before=${encodeURIComponent(first.id)}&limit=150`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) return;
+      const older = (await res.json()) as MessageView[];
+      if (older.length === 0) {
+        setHasMore(false);
+        return;
+      }
+      const el = scrollRef.current;
+      const prevHeight = el?.scrollHeight ?? 0;
+      setMessages((cur) => [...older, ...cur]);
+      if (older.length < 150) setHasMore(false);
+      // Reancora o scroll depois que o React pintar o bloco novo acima.
+      requestAnimationFrame(() => {
+        if (el) el.scrollTop += el.scrollHeight - prevHeight;
+      });
+    } catch {
+      /* rede/reinício — tenta de novo no próximo clique */
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [messages, slug, loadingOlder]);
   // Ids do carregamento inicial — só anima a entrada do que chegar DEPOIS (estado),
   // sem orquestrar a página inteira no primeiro load.
   const initialIds = useRef(new Set(initial.map((m) => m.id)));
@@ -267,7 +305,19 @@ export function Timeline({
       const body = await res.text();
       if (body === lastBodyRef.current) return; // nada mudou → não mexe no estado
       lastBodyRef.current = body;
-      setMessages(JSON.parse(body) as MessageView[]);
+      const tail = JSON.parse(body) as MessageView[];
+      // Merge: preserva o histórico paginado acima e troca só a cauda (o que
+      // veio agora, por id). Edições/reações fora da janela atualizam no F5.
+      setMessages((cur) => {
+        const ids = new Set(tail.map((m) => m.id));
+        const kept = cur.filter((m) => !ids.has(m.id));
+        const firstTailTs = tail[0]?.timestamp ?? "";
+        // Mantém só o que é ANTERIOR à janela (o resto é cauda velha → sai).
+        const older = kept.filter((m) => m.timestamp <= firstTailTs);
+        const next = [...older, ...tail];
+        setTotalCount((t) => Math.max(t, next.length));
+        return next;
+      });
     } catch {
       /* coletor/painel pode estar reiniciando */
     }
@@ -333,8 +383,8 @@ export function Timeline({
             slug={slug}
             fallback={
               <span className="mono flex items-center gap-1 text-[11px] text-fg-faint">
-                <NumberTicker value={messages.length} />
-                {messages.length === 1 ? "mensagem" : "mensagens"}
+                <NumberTicker value={totalCount} />
+                {totalCount === 1 ? "mensagem" : "mensagens"}
               </span>
             }
           />
@@ -353,6 +403,15 @@ export function Timeline({
           onScroll={onScroll}
           className="flex-1 space-y-2.5 overflow-y-auto px-4 py-6 md:px-10"
         >
+          {hasMore && mediaFilter === "all" && shown.length > 0 && (
+            <div className="flex justify-center pb-2">
+              <Button variant="ghost" size="sm" onClick={loadOlder} disabled={loadingOlder}>
+                {loadingOlder
+                  ? "Carregando…"
+                  : `Carregar anteriores (${Math.max(0, totalCount - messages.length)} acima)`}
+              </Button>
+            </div>
+          )}
           {shown.length === 0 ? (
             <p className="mono mt-12 text-center text-sm text-fg-faint">
               {mediaFilter === "all"
