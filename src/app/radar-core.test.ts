@@ -134,6 +134,7 @@ describe('nomes de pendência', () => {
   it('ehNomeLegivel: rejeita número cru/LID, aceita nome com letra', () => {
     expect(ehNomeLegivel('Carlos')).toBe(true);
     expect(ehNomeLegivel('393444670820')).toBe(false);
+    expect(ehNomeLegivel('desconhecido')).toBe(false); // placeholder de captura, não nome
     expect(ehNomeLegivel('19590016929798')).toBe(false);
     expect(ehNomeLegivel('')).toBe(false);
     expect(ehNomeLegivel('  ')).toBe(false);

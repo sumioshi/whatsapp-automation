@@ -88,9 +88,10 @@ function rotuloEspera(horas: number): string {
   return horas < 24 ? `${horas}h` : `${Math.floor(horas / 24)}d`;
 }
 
-/** Nome legível = tem pelo menos uma letra (número cru e LID não contam). */
+/** Nome legível = tem letra e não é o placeholder de captura ("desconhecido"). */
 export function ehNomeLegivel(s: string | null | undefined): boolean {
-  return Boolean(s && /\p{L}/u.test(s));
+  if (!s || !/\p{L}/u.test(s)) return false;
+  return s.trim().toLowerCase() !== 'desconhecido';
 }
 
 /** Formata dígitos como telefone: BR (55…) vira +55 DD XXXXX-XXXX; resto, +digitos. */
