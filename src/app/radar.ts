@@ -5,8 +5,10 @@ import { writeJsonAtomicNode } from '../storage/atomic.js';
 import {
   calcularPendencias,
   deveEnviarDigest,
+  ehNomeLegivel,
   type EntradaRadar,
   formatarDigest,
+  formatarFone,
   hashPendencias,
   type Pendencia,
   RADAR_DEFAULTS,
@@ -26,6 +28,8 @@ export interface RadarDeps {
   sendText(jid: string, text: string): Promise<void>;
   /** Última atividade conhecida do chat (unix SEGUNDOS, padrão do gateway). */
   lastActivityOf(slug: string): number | null;
+  /** Telefone real de um user-part (LID→fone) pelo sidecar de contatos. */
+  phoneOf(userPart: string): string | null;
 }
 
 export interface RadarResumo {
@@ -153,13 +157,27 @@ export class Radar {
       const lastActivityS = this.deps.lastActivityOf(slug);
       out.push({
         slug,
-        nome: ultima.nome,
+        nome: this.resolverNome(slug, ultima.nome),
         ultimaMsg: { fromMe: ultima.fromMe, timestampMs: ultima.timestampMs },
         lastActivityMs: lastActivityS !== null ? lastActivityS * 1000 : null,
         muted: Boolean(muted[slug]),
       });
     }
     return out;
+  }
+
+  /**
+   * Nome de exibição da pendência: nome legível do rabo → senão, pro DM,
+   * traduz LID→fone pelo sidecar e formata como telefone → senão o slug.
+   */
+  private resolverNome(slug: string, nomeDoRabo: string): string {
+    if (ehNomeLegivel(nomeDoRabo)) return nomeDoRabo;
+    const m = /^dm-(\d+)$/.exec(slug);
+    if (m?.[1]) {
+      const fone = this.deps.phoneOf(m[1]) ?? m[1];
+      return formatarFone(fone);
+    }
+    return slug;
   }
 
   private async lerMuted(): Promise<Record<string, boolean>> {
@@ -192,6 +210,10 @@ export class Radar {
         await fh.close();
       }
       const linhas = texto.split('\n').filter(Boolean);
+      // Última mensagem real define fromMe/timestamp; o NOME vem do último
+      // senderName legível de mensagem RECEBIDA no rabo (número cru não serve).
+      let ultima: { fromMe: boolean; timestampMs: number; grupo: string | null } | null = null;
+      let nomeCliente: string | null = null;
       for (let i = linhas.length - 1; i >= 0; i--) {
         try {
           const m = JSON.parse(linhas[i] ?? '') as {
@@ -204,16 +226,25 @@ export class Radar {
           if (m.type === 'call' || !m.timestamp) continue;
           const ts = Date.parse(m.timestamp);
           if (Number.isNaN(ts)) continue;
-          return {
+          ultima ??= {
             fromMe: Boolean(m.fromMe),
             timestampMs: ts,
-            nome: m.group || m.senderName || slug,
+            grupo: ehNomeLegivel(m.group) ? (m.group ?? null) : null,
           };
+          if (!nomeCliente && !m.fromMe && ehNomeLegivel(m.senderName)) {
+            nomeCliente = m.senderName ?? null;
+          }
+          if (ultima && (nomeCliente || ultima.grupo)) break;
         } catch {
           // linha cortada pelo recorte do tail — segue pra anterior
         }
       }
-      return null;
+      if (!ultima) return null;
+      return {
+        fromMe: ultima.fromMe,
+        timestampMs: ultima.timestampMs,
+        nome: ultima.grupo ?? nomeCliente ?? '',
+      };
     } catch {
       return null;
     }

@@ -81,6 +81,7 @@ async function main(): Promise<void> {
     selfJid: () => gateway.selfJid(),
     sendText: (jid, text) => gateway.sendText(jid, text),
     lastActivityOf: (slug) => gateway.lastActivityOf(slug),
+    phoneOf: (userPart) => gateway.phoneOfContact(userPart),
   });
   void radar.start();
 

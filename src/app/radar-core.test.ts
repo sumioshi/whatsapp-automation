@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   calcularPendencias,
   deveEnviarDigest,
+  ehNomeLegivel,
   type EntradaRadar,
   formatarDigest,
+  formatarFone,
   hashPendencias,
   RADAR_DEFAULTS,
 } from './radar-core.js';
@@ -125,5 +127,20 @@ describe('digest', () => {
     expect(texto).toContain('Chat7 (5h)');
     expect(texto).not.toContain('Chat8');
     expect(texto).toContain('… e mais 4');
+  });
+});
+
+describe('nomes de pendência', () => {
+  it('ehNomeLegivel: rejeita número cru/LID, aceita nome com letra', () => {
+    expect(ehNomeLegivel('Carlos')).toBe(true);
+    expect(ehNomeLegivel('393444670820')).toBe(false);
+    expect(ehNomeLegivel('19590016929798')).toBe(false);
+    expect(ehNomeLegivel('')).toBe(false);
+    expect(ehNomeLegivel('  ')).toBe(false);
+  });
+
+  it('formatarFone: BR vira +55 DD resto; outros DDI viram +digitos', () => {
+    expect(formatarFone('5544900000003')).toBe('+55 44 90000-0003');
+    expect(formatarFone('393444670820')).toBe('+393444670820');
   });
 });

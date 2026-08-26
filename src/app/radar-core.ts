@@ -88,6 +88,18 @@ function rotuloEspera(horas: number): string {
   return horas < 24 ? `${horas}h` : `${Math.floor(horas / 24)}d`;
 }
 
+/** Nome legível = tem pelo menos uma letra (número cru e LID não contam). */
+export function ehNomeLegivel(s: string | null | undefined): boolean {
+  return Boolean(s && /\p{L}/u.test(s));
+}
+
+/** Formata dígitos como telefone: BR (55…) vira +55 DD XXXXX-XXXX; resto, +digitos. */
+export function formatarFone(digits: string): string {
+  const m = /^55(\d{2})(\d{4,5})(\d{4})$/.exec(digits);
+  if (m) return `+55 ${m[1]} ${m[2]}-${m[3]}`;
+  return `+${digits}`;
+}
+
 /** Teto de nomes no digest — o resto vira "… e mais N" (detalhe fica no painel). */
 const DIGEST_MAX_NOMES = 8;
 
