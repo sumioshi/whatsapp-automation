@@ -139,8 +139,8 @@ describe("CORS", () => {
 
 describe("validação", () => {
   it("slugValido aceita slug real e recusa travessia", () => {
-    expect(api.slugValido("acme-projeto-185-ai")).toBe(true);
-    expect(api.slugValido("dm-5544900000004")).toBe(true);
+    expect(api.slugValido("acme-parceria")).toBe(true);
+    expect(api.slugValido("dm-000000000000")).toBe(true);
     expect(api.slugValido("../../etc/passwd")).toBe(false);
     expect(api.slugValido("com espaço")).toBe(false);
     expect(api.slugValido("")).toBe(false);
