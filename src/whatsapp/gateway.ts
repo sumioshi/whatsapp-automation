@@ -525,6 +525,13 @@ export class BaileysGateway implements WhatsAppGateway {
     // número de telefone. Sem PAIR_NUMBER, segue o fluxo normal de QR.
     if (this.pairNumber && !state.creds.registered) {
       setTimeout(() => {
+        // Rechecar: nestes 3s o usuário pode ter pareado pelo QR do painel. Pedir
+        // o código por cima de uma sessão já autenticada faz o servidor invalidá-la
+        // (o histórico chega a carregar e o envio falha logo depois).
+        if (sock.authState.creds.registered) {
+          logger.info('Sessão já pareada pelo QR — pedido de código de pareamento dispensado.');
+          return;
+        }
         sock
           .requestPairingCode(this.pairNumber as string)
           .then((code) =>
