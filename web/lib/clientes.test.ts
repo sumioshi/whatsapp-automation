@@ -67,7 +67,7 @@ describe('primeiraLinha', () => {
 describe('tipoDoSlug', () => {
   it('slug dm-* é dm, resto é grupo', () => {
     expect(tipoDoSlug('dm-5511999998888')).toBe('dm');
-    expect(tipoDoSlug('acme-x-projeto-185')).toBe('grupo');
+    expect(tipoDoSlug('acme-x-parceria')).toBe('grupo');
   });
 });
 
