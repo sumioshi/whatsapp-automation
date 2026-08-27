@@ -52,10 +52,11 @@ export async function proxy(req: NextRequest) {
 
 export const config = {
   // protege tudo, menos: assets estáticos do Next, favicon, o proxy da API de
-  // controle (auth própria por Bearer) e o próprio fluxo de login.
+  // controle e a API pública v1 (as duas têm auth própria por Bearer) e o
+  // próprio fluxo de login.
   // manifest e ícones ficam públicos: o fetch do manifest é SEM cookies
   // (padrão dos navegadores) e sem ele o "Instalar app" não aparece.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/control|api/login|login|manifest.webmanifest|icon-192.png|icon-512.png|apple-touch-icon.png).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/control|api/v1|api/login|login|manifest.webmanifest|icon-192.png|icon-512.png|apple-touch-icon.png).*)",
   ],
 };
