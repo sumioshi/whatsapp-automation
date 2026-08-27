@@ -30,3 +30,7 @@ groups.config.json
 .claude/whatsapp.json
 
 # Material interno (não open-source)
+
+# artefatos locais de ferramenta
+.playwright-mcp/
+light-chat.jpeg
