@@ -105,14 +105,42 @@ async function resolverMidia(
 }
 
 /**
+ * `instructions` do servidor: o cliente MCP carrega este texto no início da sessão,
+ * junto com os nomes das tools (antes mesmo dos schemas, quando o tool search está
+ * ligado). É o único lugar que garante que a regra chegue ao agente ANTES de ele
+ * decidir enviar. Teto de 2KB no Claude Code — o que passar disso é truncado.
+ */
+const INSTRUCTIONS = [
+  "Coletor de WhatsApp: ler histórico, acompanhar chats e responder por eles.",
+  "",
+  "ANTES DE ESCREVER QUALQUER MENSAGEM que vá pro WhatsApp (responder,",
+  "responder_midia, editar_mensagem), CARREGUE a skill de voz do operador (tool",
+  "Skill): `voz-do-operador`, ou a versão já preenchida que existir nesta máquina.",
+  "Ela define a grafia, o registro e a camada de venda do operador, medidos no texto",
+  "real dele. Escrever sem ela produz mensagem com cara de IA — que é exatamente o",
+  "que o operador não quer que o cliente receba. Se ainda estiver com placeholders,",
+  "ou não existir aqui, siga com cuidado normal e avise o operador.",
+  "",
+  "Depois dela, `comunicacao-cliente` (conduta com cliente) quando o destinatário",
+  "for cliente ou parceiro.",
+  "",
+  "MODO POR CHAT: cada chat tem um modo (estado_triagem / definir_modo). No modo",
+  "'confirmar' (o default) MOSTRE o texto e espere o OK do operador antes de chamar",
+  "as tools de envio. Convenção respeitada, não trava de código — não burle.",
+].join("\n");
+
+/**
  * MCP server local sobre os dados do coletor de WhatsApp.
  * Reaproveita as mesmas libs do painel (lib/data, lib/config, lib/transcribe).
  * Comunica via stdio — só roda quando o cliente (Claude) chama uma ferramenta.
  */
-const server = new McpServer({
-  name: "whatsapp-collector",
-  version: "0.1.0",
-});
+const server = new McpServer(
+  {
+    name: "whatsapp-collector",
+    version: "0.1.0",
+  },
+  { instructions: INSTRUCTIONS },
+);
 
 function text(value: unknown) {
   const body = typeof value === "string" ? value : JSON.stringify(value, null, 2);
@@ -547,9 +575,12 @@ server.registerTool(
     description:
       "Envia uma mensagem de texto no WhatsApp — para um GRUPO (slug/nome/jid) ou um CONTATO em DM " +
       "(jid '<numero>@s.whatsapp.net', de listar_contatos). " +
+      "VOZ: carregue a skill de voz do operador (`voz-do-operador` ou a preenchida desta máquina) " +
+      "ANTES de redigir — ela define grafia, registro e a camada " +
+      "de venda do operador, medidos no texto real dele. Depois `comunicacao-cliente` (conduta). " +
       "CONFIRMAÇÃO: cada chat tem um modo (definir_modo). No modo 'confirmar' (DEFAULT), você DEVE " +
-      "ter mostrado o texto e recebido OK do operador antes de chamar — passe pela skill humanizer + " +
-      "comunicacao-cliente. No modo 'autonomo', pode enviar direto. O retorno traz o `modo` do chat. " +
+      "ter mostrado o texto e recebido OK do operador antes de chamar. " +
+      "No modo 'autonomo', pode enviar direto. O retorno traz o `modo` do chat. " +
       "(Isto é convenção que você respeita, não trava de código — não burle o 'confirmar'.) " +
       "BALÕES: por default o texto é fatiado em até 3 balões (parágrafos em branco = quebras " +
       "explícitas suas). Use `um_balao: true` quando a mensagem deve chegar INTEIRA num balão só — " +
@@ -600,7 +631,7 @@ server.registerTool(
   {
     description:
       "Envia um arquivo para um grupo no WhatsApp: imagem com legenda, documento/PDF, áudio (nota de voz) ou vídeo. " +
-      "REGRA: só chame DEPOIS de confirmar com o usuário o destinatário e o arquivo. Se houver legenda (caption), o texto deve passar pelo humanizer e ser confirmado, igual ao 'responder'. " +
+      "REGRA: só chame DEPOIS de confirmar com o usuário o destinatário e o arquivo. Se houver legenda (caption), o texto deve passar pela skill de voz do operador e ser confirmado, igual ao 'responder'. " +
       "O 'path' pode ser absoluto (arquivo novo no disco) OU o mediaPath de uma mensagem já recebida (campo 'midia') para reenviar.",
     inputSchema: {
       grupo: z.string().describe("nome exato do grupo OU o jid"),
