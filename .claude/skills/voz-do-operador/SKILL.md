@@ -241,6 +241,16 @@ desculpa · prova concreta em vez de adjetivo · escassez só se for verdadeira.
 7. **É momento de vender?** Cliente com dor ou erro nosso = camada desligada.
 8. **Soa como qualquer atendente educado?** Então ainda não é a voz de ninguém.
 
+# Relação com outras skills
+
+Esta skill define **quem** escreve. Se houver uma skill de conduta com cliente, ela
+define **como se comporta** — use as duas.
+
+Skills de "remover cara de IA" genéricas (tipo `humanizer`) só quando o texto for
+**longo**: proposta, changelog, update em parágrafos. Elas operam em prosa e foram
+escritas para blog post e ensaio; num balão curto de conversa não têm onde agir, e a
+seção "O que é cara de IA" acima já cobre o que importa aqui.
+
 # Manutenção
 
 Guarde o corpus extraído FORA do versionamento (ele contém conversa privada). Refaça a
