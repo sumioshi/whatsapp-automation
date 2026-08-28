@@ -22,8 +22,11 @@ import { promisify } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { avisoDeTratamento, tratamentoErrado } from "@/lib/voz-guard";
+// Imports do painel entram por caminho RELATIVO, nunca pelo alias "@/": este
+// arquivo roda sob tsx (fora do Next), que não resolve os paths do tsconfig —
+// o alias passa no tsc e no next build e só quebra na hora de subir o MCP.
 import { compact } from "../lib/context";
+import { avisoDeTratamento, tratamentoErrado } from "../lib/voz-guard";
 import { type MessageView } from "../lib/data";
 import { ensureLocalMedia } from "../lib/cloud-media";
 import { extractDocumentText } from "../lib/documents";
