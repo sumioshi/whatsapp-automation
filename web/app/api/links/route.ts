@@ -34,6 +34,14 @@ interface PostBody {
   cliente?: string;
   tipo?: string;
   notas?: string;
+  /**
+   * Indexa o link sem tocar no repo do cliente. Necessário quando o painel roda
+   * em outra máquina (nuvem): o repo do operador não existe no filesystem do
+   * servidor, e exigir que exista impedia até de gravar o índice, que é local
+   * ao painel. Quem manda isto já escreveu `.claude/whatsapp.json` e o bloco do
+   * CLAUDE.md do seu lado.
+   */
+  indexOnly?: boolean;
 }
 
 const TIPOS: LinkTipo[] = ["grupo", "dm", "projeto"];
@@ -59,18 +67,22 @@ export async function POST(req: Request) {
   };
 
   try {
-    // Escreve o lado do repo primeiro: se o repoPath for inválido, falha ANTES
-    // de sujar o índice central.
-    await writeClientFiles(slug, entry);
+    // Sem indexOnly, escreve o lado do repo primeiro: se o repoPath for
+    // inválido, falha ANTES de sujar o índice central.
+    if (body.indexOnly !== true) await writeClientFiles(slug, entry);
     await writeLink(slug, entry);
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "falha ao gravar o link" },
-      { status: 400 },
-    );
+    const message = e instanceof Error ? e.message : "falha ao gravar o link";
+    // O caso comum desta falha é o painel estar em outra máquina que o repo.
+    // Dizer só "não existe" manda o cliente concluir que o painel está fora e
+    // desistir do índice; a saída é indexOnly, então ela vai junto do erro.
+    const dica = message.includes("não existe")
+      ? " — se o painel roda em outra máquina, escreva os arquivos do repo do seu lado e repita com \"indexOnly\": true"
+      : "";
+    return NextResponse.json({ error: `${message}${dica}` }, { status: 400 });
   }
 
-  return NextResponse.json({ links: await readLinks() });
+  return NextResponse.json({ links: await readLinks(), indexOnly: body.indexOnly === true });
 }
 
 export async function DELETE(req: Request) {

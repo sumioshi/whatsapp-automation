@@ -41,12 +41,20 @@ Caminho canônico — siga nesta ordem, não improvise:
      -d '{"slug":"<slug>","repoPath":"<pwd>","cliente":"<cliente>","tipo":"<tipo>","notas":"<notas>"}'
    ```
    Confira a resposta (deve voltar `links` com a entrada).
-   ⚠️ **Painel na nuvem:** ele valida o `repoPath` no filesystem **do container**, então caminhos
-   locais são rejeitados com `"repoPath não existe"`. Nesse caso, trate como painel indisponível
-   pro lado do repo: siga o passo 6 e avise que o índice central ficou pendente.
 
-6. **Fallback (painel fora ou POST rejeitado):** faça o lado do repo você mesmo, pra não
-   deixar o usuário na mão —
+   ⚠️ **Painel em outra máquina (nuvem):** o `repoPath` é validado no filesystem **do
+   servidor**, então um caminho local é rejeitado com `"repoPath não existe"`. Isso NÃO
+   quer dizer que o índice ficou indisponível — só que o servidor não alcança o seu repo.
+   Faça o lado do repo você mesmo (passo 6) e repita o POST com `"indexOnly": true`:
+   ```bash
+   curl -s [auth] -X POST $PANEL/api/links \
+     -H 'Content-Type: application/json' \
+     -d '{"slug":"<slug>","repoPath":"<pwd>","cliente":"<cliente>","tipo":"<tipo>","notas":"<notas>","indexOnly":true}'
+   ```
+   Assim o índice central fica completo e nada fica pendente.
+
+6. **Lado do repo (sempre que o painel não alcançar seu filesystem, e no fallback de
+   painel fora):** faça você mesmo —
    - Escreva `<pwd>/.claude/whatsapp.json` com `{ "grupo": "<slug>", "cliente": "<cliente>", "tipo": "<tipo>", "notas": "<notas>" }`.
    - No `<pwd>/CLAUDE.md` (crie se não existir), faça upsert do bloco entre os marcadores
      `<!-- wa-link:start -->` e `<!-- wa-link:end -->`, com uma linha tipo:

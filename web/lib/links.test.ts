@@ -110,3 +110,34 @@ describe('lado do repo do cliente', () => {
     ).rejects.toThrow(/não existe/);
   });
 });
+
+// ── indexar sem tocar no repo do cliente ─────────────────────────────────────
+// O painel roda na nuvem: o repo do operador não existe no filesystem do
+// container. Indexar o link não pode depender de escrever nesse repo.
+describe('writeClientFiles vs índice', () => {
+  it('recusa repoPath que não existe neste servidor', async () => {
+    const { writeClientFiles } = await import('./links');
+    await expect(
+      writeClientFiles('acme', {
+        repoPath: '/caminho/que/nao/existe/aqui',
+        cliente: 'Acme',
+        tipo: 'projeto',
+        notas: '',
+      }),
+    ).rejects.toThrow(/não existe/);
+  });
+
+  it('escreve os arquivos quando o repo existe de verdade', async () => {
+    const { writeClientFiles } = await import('./links');
+    const repo = await mkdtemp(join(tmpdir(), 'wac-repo-'));
+    await writeClientFiles('acme-chat', {
+      repoPath: repo,
+      cliente: 'Acme',
+      tipo: 'grupo',
+      notas: 'teste',
+    });
+    const cfg = JSON.parse(await readFile(join(repo, '.claude/whatsapp.json'), 'utf8'));
+    expect(cfg.grupo).toBe('acme-chat');
+    expect(await readFile(join(repo, 'CLAUDE.md'), 'utf8')).toContain('acme-chat');
+  });
+});
