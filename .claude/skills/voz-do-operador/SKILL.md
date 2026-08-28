@@ -88,6 +88,23 @@ O script conta cada par. O que importa não é "usa vc", é a proporção: quem 
 - `pq` {{N}} × `porque` {{N}}
 - {{outros pares relevantes}}
 
+## TRATAMENTO: meça antes de escrever qualquer mensagem
+
+Pessoa gramatical aparece em toda frase, então errá-la contamina tudo — e é o tipo
+de coisa que ninguém pensa em anotar sobre si mesmo.
+
+Conte no seu corpus e preencha:
+
+- `vc` / `você`: {{N}}   ·   `seu` / `sua`: {{N}}
+- `tu`: {{N}}   ·   `teu` / `tua`: {{N}}   ·   `ti`: {{N}}
+
+Se um dos lados for esmagador (é o caso comum), **escreva aqui o proibido de forma
+explícita**, com a contagem ao lado. E note: tratamento **não** é calibragem — não
+se espelha o pronome do interlocutor, ele é traço fixo de quem escreve.
+
+Este projeto traz uma trava de código para isso em `web/lib/voz-guard.ts`: o envio
+pelo MCP recusa mensagem com o pronome errado. Ajuste a lista para o seu caso.
+
 ## NENHUM MARCADOR É OBRIGATÓRIO — o teto de frequência
 
 A regra que mais protege a voz. Tudo aqui é **pool para rodiziar**, nunca checklist a
@@ -230,7 +247,8 @@ desculpa · prova concreta em vez de adjetivo · escassez só se for verdadeira.
 
 # Gate final
 
-1. **É atendimento?** Modo profissional.
+1. **Usei o pronome de tratamento certo?** Compare com a contagem acima.
+2. **É atendimento?** Modo profissional.
 2. **Escolhi a calibragem** pelo interlocutor e pelo peso do assunto, em vez de aplicar
    a média cega?
 3. **Repeti algum marcador da mensagem anterior deste chat?** Rodizie ou corte.

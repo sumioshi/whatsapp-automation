@@ -22,6 +22,7 @@ import { promisify } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { avisoDeTratamento, tratamentoErrado } from "@/lib/voz-guard";
 import { compact } from "../lib/context";
 import { type MessageView } from "../lib/data";
 import { ensureLocalMedia } from "../lib/cloud-media";
@@ -607,6 +608,10 @@ server.registerTool(
   },
   async ({ grupo, texto, um_balao }) => {
     try {
+      // Trava de tratamento: "tu" não é dele, e a automação já vazou isso em
+      // 30 chats. Recusar aqui é mais barato que corrigir depois no chat.
+      const pronomes = tratamentoErrado(texto);
+      if (pronomes.length) return fail(avisoDeTratamento(pronomes));
       const destino = await resolveDestino(grupo);
       const { jid, label } = destino;
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
@@ -645,6 +650,10 @@ server.registerTool(
     },
   },
   async ({ grupo, kind, path, caption, fileName, mimetype }) => {
+    if (caption) {
+      const pronomes = tratamentoErrado(caption);
+      if (pronomes.length) return fail(avisoDeTratamento(pronomes));
+    }
     try {
       const { jid, label } = await resolveDestino(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
@@ -677,6 +686,8 @@ server.registerTool(
     },
   },
   async ({ grupo, msgId, texto }) => {
+    const pronomes = tratamentoErrado(texto);
+    if (pronomes.length) return fail(avisoDeTratamento(pronomes));
     try {
       const { jid, label } = await resolveDestino(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
