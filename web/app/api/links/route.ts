@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { listGroups } from "@/lib/data";
 import {
+  brainDirDe,
+  githubValido,
   type LinkEntry,
   type LinkTipo,
   readLinks,
@@ -42,6 +44,7 @@ interface PostBody {
    * CLAUDE.md do seu lado.
    */
   indexOnly?: boolean;
+  github?: string;
 }
 
 const TIPOS: LinkTipo[] = ["grupo", "dm", "projeto"];
@@ -65,6 +68,15 @@ export async function POST(req: Request) {
     tipo: TIPOS.includes(body.tipo as LinkTipo) ? (body.tipo as LinkTipo) : "projeto",
     notas: body.notas?.trim() ?? "",
   };
+
+  const github = body.github?.trim();
+  if (github) {
+    if (!githubValido(github)) {
+      return NextResponse.json({ error: "github deve ser owner/repo" }, { status: 400 });
+    }
+    entry.github = github;
+  }
+  entry.brainDir = brainDirDe(repoPath);
 
   try {
     // Sem indexOnly, escreve o lado do repo primeiro: se o repoPath for

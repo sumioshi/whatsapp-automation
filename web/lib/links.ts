@@ -21,9 +21,29 @@ export interface LinkEntry {
   cliente: string;
   tipo: LinkTipo;
   notas: string;
+  /** Repositório no GitHub, `owner/repo` — onde o agente de triagem abre issues. */
+  github?: string;
+  /** Nome do diretório de memória do Claude Code pra este repo (ver brainDirDe). */
+  brainDir?: string;
 }
 
 export type LinksMap = Record<string, LinkEntry>;
+
+const GITHUB_RE = /^[\w.-]+\/[\w.-]+$/;
+
+/** `owner/repo`, sem URL nem caminho extra. */
+export function githubValido(s: string): boolean {
+  return GITHUB_RE.test(s);
+}
+
+/**
+ * O Claude Code guarda a memória de um projeto em `~/.claude/projects/<dir>/memory`,
+ * onde `<dir>` é o caminho absoluto com todo caractere fora de [A-Za-z0-9] trocado
+ * por hífen. Reproduzimos o encoding pra localizar a memória no brain.
+ */
+export function brainDirDe(repoPath: string): string {
+  return repoPath.replace(/[^A-Za-z0-9]/g, '-');
+}
 
 function isLinkEntry(v: unknown): v is LinkEntry {
   return (
@@ -41,12 +61,17 @@ export async function readLinks(): Promise<LinksMap> {
     const out: LinksMap = {};
     for (const [slug, entry] of Object.entries(parsed)) {
       if (isLinkEntry(entry)) {
-        out[slug] = {
+        const entry2: LinkEntry = {
           repoPath: entry.repoPath,
           cliente: entry.cliente,
           tipo: (['grupo', 'dm', 'projeto'].includes(entry.tipo) ? entry.tipo : 'projeto') as LinkTipo,
           notas: typeof entry.notas === 'string' ? entry.notas : '',
         };
+        if (typeof entry.github === 'string' && githubValido(entry.github)) entry2.github = entry.github;
+        if (typeof entry.brainDir === 'string' && /^[A-Za-z0-9-]+$/.test(entry.brainDir)) {
+          entry2.brainDir = entry.brainDir;
+        }
+        out[slug] = entry2;
       }
     }
     return out;

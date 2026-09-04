@@ -10,6 +10,11 @@ Caminho canônico — siga nesta ordem, não improvise:
 
 1. **Descubra o cwd absoluto** com `pwd`. Esse é o `repoPath`.
 
+   Descubra também o repositório no GitHub: `git remote get-url origin` → converta pra
+   `owner/repo` (aceita `git@github.com:owner/repo.git`, `git@github.com-alias:owner/repo.git`
+   e `https://github.com/owner/repo.git`). Se não houver remoto, `github` fica vazio e o
+   agente de triagem não roda pra este chat até existir.
+
 2. **Descubra o painel (híbrido: local → Railway).** Nunca hardcode URL nem credenciais — descubra
    em runtime, nesta ordem:
    - **Local:** `curl -s --max-time 3 http://localhost:3000/api/links`. Se responder JSON, use
@@ -38,7 +43,7 @@ Caminho canônico — siga nesta ordem, não improvise:
    ```bash
    curl -s [auth] -X POST $PANEL/api/links \
      -H 'Content-Type: application/json' \
-     -d '{"slug":"<slug>","repoPath":"<pwd>","cliente":"<cliente>","tipo":"<tipo>","notas":"<notas>"}'
+     -d '{"slug":"<slug>","repoPath":"<pwd>","cliente":"<cliente>","tipo":"<tipo>","notas":"<notas>","github":"<owner/repo>"}'
    ```
    Confira a resposta (deve voltar `links` com a entrada).
 
@@ -49,13 +54,13 @@ Caminho canônico — siga nesta ordem, não improvise:
    ```bash
    curl -s [auth] -X POST $PANEL/api/links \
      -H 'Content-Type: application/json' \
-     -d '{"slug":"<slug>","repoPath":"<pwd>","cliente":"<cliente>","tipo":"<tipo>","notas":"<notas>","indexOnly":true}'
+     -d '{"slug":"<slug>","repoPath":"<pwd>","cliente":"<cliente>","tipo":"<tipo>","notas":"<notas>","github":"<owner/repo>","indexOnly":true}'
    ```
    Assim o índice central fica completo e nada fica pendente.
 
 6. **Lado do repo (sempre que o painel não alcançar seu filesystem, e no fallback de
    painel fora):** faça você mesmo —
-   - Escreva `<pwd>/.claude/whatsapp.json` com `{ "grupo": "<slug>", "cliente": "<cliente>", "tipo": "<tipo>", "notas": "<notas>" }`.
+   - Escreva `<pwd>/.claude/whatsapp.json` com `{ "grupo": "<slug>", "cliente": "<cliente>", "tipo": "<tipo>", "notas": "<notas>", "github": "<owner/repo>" }`.
    - No `<pwd>/CLAUDE.md` (crie se não existir), faça upsert do bloco entre os marcadores
      `<!-- wa-link:start -->` e `<!-- wa-link:end -->`, com uma linha tipo:
      "WhatsApp deste projeto: `<slug>` (<cliente>). Consulte o histórico via MCP `whatsapp-collector`

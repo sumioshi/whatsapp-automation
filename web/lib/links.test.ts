@@ -141,3 +141,42 @@ describe('writeClientFiles vs índice', () => {
     expect(await readFile(join(repo, 'CLAUDE.md'), 'utf8')).toContain('acme-chat');
   });
 });
+
+// ── vínculo com repositório GitHub ───────────────────────────────────────────
+// O agente de triagem que roda no GitHub precisa saber owner/repo (pra abrir
+// issues) e brainDir (pra achar a memória do Claude Code do projeto).
+describe('githubValido', () => {
+  it('aceita owner/repo com ponto, hífen e underscore', () => {
+    expect(mod.githubValido('minha-org/meu-app')).toBe(true);
+    expect(mod.githubValido('org/repo.name_x')).toBe(true);
+  });
+  it('recusa url, barra a mais e vazio', () => {
+    expect(mod.githubValido('https://github.com/o/r')).toBe(false);
+    expect(mod.githubValido('o/r/x')).toBe(false);
+    expect(mod.githubValido('')).toBe(false);
+  });
+});
+
+describe('brainDirDe', () => {
+  it('troca tudo que não é letra, dígito ou hífen por hífen (encoding do Claude Code)', () => {
+    expect(mod.brainDirDe('/Users/x/projetos/projeto-145')).toBe('-Users-x-projetos-projeto-145');
+    expect(mod.brainDirDe('/a/b.c')).toBe('-a-b-c');
+  });
+});
+
+describe('writeLink / readLinks com github', () => {
+  it('preserva github e brainDir na leitura e ignora github inválido', async () => {
+    await mod.writeLink('g1', {
+      repoPath: '/Users/x/p/g1', cliente: 'G1', tipo: 'grupo', notas: '',
+      github: 'org/g1', brainDir: '-Users-x-p-g1',
+    });
+    await mod.writeLink('g2', {
+      repoPath: '/Users/x/p/g2', cliente: 'G2', tipo: 'grupo', notas: '',
+      github: 'nao-e-um-repo',
+    });
+    const links = await mod.readLinks();
+    expect(links.g1?.github).toBe('org/g1');
+    expect(links.g1?.brainDir).toBe('-Users-x-p-g1');
+    expect(links.g2?.github).toBeUndefined();
+  });
+});
