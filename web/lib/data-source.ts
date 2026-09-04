@@ -12,6 +12,8 @@ import { readTriage, setAlert, setAutonomo, setMuted, setNote, setResolved, setT
 import { readAgentSeen, setAgentSeenMany } from './agent-seen';
 import type { Contrato } from './contratos';
 import { readContratos, setContrato } from './contratos';
+import type { EntradaFeature, Feature } from './features';
+import { listarFeatures, registrarFeature } from './features';
 import { CONTROL_URL } from './paths';
 
 /**
@@ -237,4 +239,23 @@ export async function dsSetContrato(slug: string, patch: Partial<Contrato>): Pro
     return ((await res.json()) as { contrato: Contrato }).contrato;
   }
   return setContrato(slug, patch);
+}
+
+export async function dsFeatures(filtro: { slug?: string; desde?: string } = {}): Promise<Feature[]> {
+  if (mcpRemote()) {
+    const q = new URLSearchParams();
+    if (filtro.slug) q.set('slug', filtro.slug);
+    if (filtro.desde) q.set('desde', filtro.desde);
+    return cloudJson(`/api/features?${q.toString()}`);
+  }
+  return listarFeatures(filtro);
+}
+// cloudPost usa Basic Auth do painel; /api/v1/features exige Bearer. Por isso o
+// remoto chama a rota do PAINEL (/api/features, POST abaixo), não a v1.
+export async function dsRegistrarFeature(entrada: EntradaFeature): Promise<{ feature: Feature; duplicada: boolean }> {
+  if (mcpRemote()) {
+    const res = await cloudPost('/api/features', entrada);
+    return (await res.json()) as { feature: Feature; duplicada: boolean };
+  }
+  return registrarFeature(entrada);
 }

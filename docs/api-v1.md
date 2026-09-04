@@ -158,3 +158,10 @@ Rotas usadas pelo workflow `triagem.yml` (ver `docs/superpowers/specs/2026-09-04
 | `POST /api/v1/agente/despacho` `{passada, itens}` | write | grava a fila de decisões da passada; o coletor envia ao operador e executa `ok N`. **Idempotente por `passada`**: um POST repetido (retry do workflow) não sobrescreve o arquivo já gravado — devolve `duplicado: true` e mantém `enviadoEm`/`executadoEm` que o operador já tiver marcado. |
 
 Item de despacho: `{ slug, cliente, tipo: issue|pergunta|bug|info, titulo, url?, texto?, issue?: {repo, numero}, acao?: nenhuma|label|enviar, label? }`.
+
+## Entregas por cliente
+
+| Rota | Escopo | Uso |
+|---|---|---|
+| `GET /api/v1/features?slug=&desde=` | read | entregas registradas (manuais via MCP ou automáticas por PR mergeado). |
+| `POST /api/v1/features` `{slug, nome, ref?, origem?, por?}` | write | registra uma entrega; mesma `ref` já gravada devolve `duplicada: true` sem gravar. |
