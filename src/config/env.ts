@@ -14,6 +14,9 @@ const EnvSchema = z.object({
   /** Número com DDI (só dígitos, ex: 5511999999999) para pareamento headless por
    * código (servidor sem tela, tipo a nuvem). Vazio = fluxo por QR no terminal. */
   PAIR_NUMBER: z.string().trim().optional(),
+  /** Token do GitHub (fine-grained, issues:write nos repos dos clientes) usado pelo
+   * Despacho pra aplicar label e fechar issue quando o operador responde `ok N`/`não N`. */
+  AGENTE_GITHUB_TOKEN: z.string().trim().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

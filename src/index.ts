@@ -20,10 +20,13 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Collector } from './app/collector.js';
+import { Despacho } from './app/despacho.js';
+import { githubIssues } from './app/github-issues.js';
 import { env } from './config/env.js';
 import { GroupConfig } from './config/groups.js';
 import { startControlServer } from './control/server.js';
 import type { GroupInfo } from './core/message.js';
+import { enviarHumano } from './humano/enviar.js';
 import { logger } from './logger.js';
 import { FileStore } from './storage/fileStore.js';
 import { setGroupSlugOverrides } from './storage/paths.js';
@@ -85,6 +88,25 @@ async function main(): Promise<void> {
   });
   void radar.start();
 
+  // Despacho: fila de decisões do operador (digest no self-chat + comandos ok/não).
+  const despacho = new Despacho({
+    dataDir: env.DATA_DIR,
+    connected: () => conectado,
+    selfJid: () => gateway.selfJid(),
+    sendText: (jid, text) => gateway.sendText(jid, text),
+    sendHumano: async (jid, texto, slug) => {
+      await enviarHumano(gateway, env.DATA_DIR, jid, texto, { slug });
+    },
+    jidDoSlug: (slug) => {
+      const dm = /^dm-(\d+)$/.exec(slug);
+      if (dm?.[1]) return `${dm[1]}@s.whatsapp.net`;
+      for (const [jid, s] of groupConfig.slugMap()) if (s === slug) return jid;
+      return null;
+    },
+    github: env.AGENTE_GITHUB_TOKEN ? githubIssues(env.AGENTE_GITHUB_TOKEN) : null,
+  });
+  void despacho.start();
+
   // Quando a lista de grupos chega, mescla no arquivo e orienta o usuário.
   gateway.onGroups(async (groups) => {
     await groupConfig.sync(groups);
@@ -107,6 +129,7 @@ async function main(): Promise<void> {
   // Cada mensagem nova é entregue ao collector (fire-and-forget seguro).
   gateway.onMessage((msg) => {
     void collector.handle(msg);
+    void despacho.onMensagem(msg);
   });
 
   // Reações (emoji) também.
@@ -147,7 +170,7 @@ async function main(): Promise<void> {
 
   watchGroupsConfig(env.GROUPS_CONFIG, groupConfig, status);
   startControlServer(gateway, env.CONTROL_PORT, [env.DATA_DIR, tmpdir()], reconciler, radar);
-  registerShutdown(gateway);
+  registerShutdown(gateway, despacho);
 
   logger.info('🚀 Coletor iniciando...');
   await gateway.start();
@@ -200,12 +223,13 @@ function watchGroupsConfig(path: string, groupConfig: GroupConfig, status: Statu
 }
 
 /** Encerramento limpo em SIGINT/SIGTERM. */
-function registerShutdown(gateway: BaileysGateway): void {
+function registerShutdown(gateway: BaileysGateway, despacho: Despacho): void {
   let closing = false;
   const shutdown = async (signal: string): Promise<void> => {
     if (closing) return;
     closing = true;
     logger.info({ signal }, '🛑 Encerrando...');
+    despacho.stop();
     await gateway.stop();
     process.exit(0);
   };
