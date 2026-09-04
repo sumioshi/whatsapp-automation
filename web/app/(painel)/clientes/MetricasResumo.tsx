@@ -85,6 +85,7 @@ export function MetricasResumo() {
             </button>
           ))}
         </div>
+        <a href="/dashboard" className="mono text-xs text-fg-dim hover:text-fg">ver dashboard →</a>
       </div>
 
       {aberto && dados && (

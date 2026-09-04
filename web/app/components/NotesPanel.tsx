@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ContratoForm } from "./ContratoForm";
 import { SectionLabel, Textarea } from "./ui";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -76,6 +77,7 @@ export function NotesPanel({ slug }: { slug: string }) {
         placeholder="Notas do cliente: stack, contato, prazos, contexto…"
         aria-label="Notas do cliente"
       />
+      <ContratoForm slug={slug} />
     </section>
   );
 }

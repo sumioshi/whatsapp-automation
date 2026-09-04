@@ -37,6 +37,18 @@ const NAV: Array<{ href: string; rotulo: string; icone: React.ReactNode }> = [
     ),
   },
   {
+    href: "/dashboard",
+    rotulo: "Dashboard",
+    icone: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <line x1="4" y1="20" x2="20" y2="20" />
+        <rect x="6" y="12" width="3.5" height="8" rx="0.5" />
+        <rect x="12" y="7" width="3.5" height="13" rx="0.5" />
+        <rect x="17" y="4" width="3.5" height="16" rx="0.5" />
+      </svg>
+    ),
+  },
+  {
     href: "/novo?modo=contato",
     rotulo: "Contatos",
     icone: (

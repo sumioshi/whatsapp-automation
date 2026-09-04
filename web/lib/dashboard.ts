@@ -1,4 +1,4 @@
-import { CONTRATO_PADRAO, type Contrato } from './contratos';
+import type { Contrato } from './contratos';
 import type { Feature } from './features';
 import type { EntradaMetrica } from './metricas';
 
@@ -6,6 +6,15 @@ import type { EntradaMetrica } from './metricas';
  * Cruza atividade (30 d), contrato e entregas por cliente e aponta os sinais que
  * pedem decisão do operador. Puro: relógio e dados vêm do chamador.
  */
+
+/**
+ * Cópia local do padrão de contrato (igual a CONTRATO_PADRAO de `./contratos`).
+ * Importa só o TIPO de `./contratos` no topo do arquivo, nunca valor: este módulo
+ * é consumido também por componente client (DashboardView), e `./contratos` carrega
+ * `node:fs/promises` — importar um valor de lá quebraria o bundle do navegador.
+ */
+const CONTRATO_PADRAO_LOCAL: Contrato = { estado: 'sem', inicio: null, fim: null, valorMensal: null, nota: '' };
+
 export type Sinal =
   | 'encerrado-ativo'
   | 'sem-contrato-ativo'
@@ -79,7 +88,7 @@ export function montarDashboard(
       msgs30d++;
       if (!m.fromMe) msgsCliente30d++;
     }
-    const contrato = contratos[e.slug] ?? CONTRATO_PADRAO;
+    const contrato = contratos[e.slug] ?? CONTRATO_PADRAO_LOCAL;
     const fs = porSlug.get(e.slug) ?? [];
     const recentes = fs.filter((f) => Date.parse(f.em) >= inicio && Date.parse(f.em) <= agoraMs);
     const ultima = fs.reduce<string | null>((max, f) => (max === null || f.em > max ? f.em : max), null);
