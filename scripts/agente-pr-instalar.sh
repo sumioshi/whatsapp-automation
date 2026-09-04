@@ -40,6 +40,13 @@ jobs:
 # aborta — o `trap` local apaga o clone temporário na saída (sucesso ou erro) sem
 # derrubar o restante do lote, e o `for` principal segue pro próximo repositório.
 instalar_em() (
+  # `set -eu` explícito aqui dentro: quando o chamador precisa desarmar o -e pra
+  # capturar o código de saída (POSIX ignora -e num comando que é a própria
+  # condição de um if/while/&&/||), o subshell herdaria +e do ambiente externo
+  # se não reafirmasse a sua própria regra — sem isso, um git que falha no meio
+  # da instalação não aborta o subshell, some o erro e o repositório é contado
+  # como sucesso.
+  set -eu
   REPO="$1"
   TMP=$(mktemp -d)
   trap 'rm -rf "$TMP"' EXIT
@@ -104,7 +111,16 @@ fi
 
 ok=0; erro=0
 for REPO in "$@"; do
-  if instalar_em "$REPO"; then
+  # `instalar_em` não pode ser a condição direta de um if/&&/||: POSIX ignora o
+  # -e do subshell em qualquer comando usado como condição (recursivamente, pra
+  # tudo dentro dele) — um git que falhasse no meio não abortaria a instalação,
+  # e o repositório seria contado como sucesso. Por isso: desarma o -e só em
+  # volta da chamada simples, captura o código de saída, rearma o -e depois.
+  set +e
+  instalar_em "$REPO"
+  rc=$?
+  set -e
+  if [ "$rc" -eq 0 ]; then
     ok=$((ok + 1))
   else
     echo "$REPO: ERRO" >&2
