@@ -185,6 +185,8 @@ export class BaileysGateway implements WhatsAppGateway {
   private stopping = false;
   /** Tentativas de reconexão seguidas (reset ao abrir) — alimenta o backoff. */
   private reconnectAttempts = 0;
+  /** Código de pareamento já pedido neste socket (o QR gira, o pedido não repete). */
+  private pairCodeRequested = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** Mapa LID↔telefone↔nome persistido em `<DATA_DIR>/.contacts.json`. */
   private readonly contacts: ContactStore;
@@ -519,30 +521,9 @@ export class BaileysGateway implements WhatsAppGateway {
     });
     this.sock = sock;
 
-    // Pareamento headless por código (servidor sem tela, ex.: nuvem): se PAIR_NUMBER
-    // estiver setado e a sessão ainda não registrada, pede o código de 8 dígitos e
-    // loga. O usuário digita em WhatsApp › Aparelhos conectados › Conectar com
-    // número de telefone. Sem PAIR_NUMBER, segue o fluxo normal de QR.
-    if (this.pairNumber && !state.creds.registered) {
-      setTimeout(() => {
-        // Rechecar: nestes 3s o usuário pode ter pareado pelo QR do painel. Pedir
-        // o código por cima de uma sessão já autenticada faz o servidor invalidá-la
-        // (o histórico chega a carregar e o envio falha logo depois).
-        if (sock.authState.creds.registered) {
-          logger.info('Sessão já pareada pelo QR — pedido de código de pareamento dispensado.');
-          return;
-        }
-        sock
-          .requestPairingCode(this.pairNumber as string)
-          .then((code) =>
-            logger.info(
-              { code },
-              '🔗 Código de pareamento — WhatsApp › Aparelhos conectados › Conectar com número de telefone',
-            ),
-          )
-          .catch((err) => logger.error({ err }, 'Falha ao gerar código de pareamento (use o QR).'));
-      }, 3000);
-    }
+    // Pareamento headless por código: o pedido é feito no primeiro QR que chega
+    // (ver onConnectionUpdate). Novo socket = pedido liberado de novo.
+    this.pairCodeRequested = false;
 
     sock.ev.on('creds.update', saveCreds);
     sock.ev.on('connection.update', (update) => this.onConnectionUpdate(update));
@@ -945,6 +926,7 @@ export class BaileysGateway implements WhatsAppGateway {
     if (qr) {
       logger.info('📲 Escaneie o QR code abaixo (WhatsApp › Aparelhos conectados):');
       qrcode.generate(qr, { small: true });
+      this.requestPairCodeOnce();
     }
     if (connection === 'open') {
       logger.info('✅ Conectado ao WhatsApp.');
@@ -964,6 +946,29 @@ export class BaileysGateway implements WhatsAppGateway {
         qr: qr ?? null,
       } satisfies GatewayStatus);
     }
+  }
+
+  /**
+   * Pareamento headless por código (servidor sem tela, ex.: nuvem). Só dispara
+   * quando o servidor emitiu um QR — ou seja, quando NÃO há sessão autenticada.
+   * Pedir o código por cima de uma sessão já pareada (pelo QR do painel, ou na
+   * reconexão logo após o pareamento) faz o servidor invalidá-la: o histórico
+   * chega a carregar e em seguida a sessão cai com loggedOut. Um flag de
+   * `creds.registered` não serve de guarda aqui — ele não reflete o pareamento
+   * por QR. Sem PAIR_NUMBER, o fluxo é só QR.
+   */
+  private requestPairCodeOnce(): void {
+    if (!this.pairNumber || this.pairCodeRequested || !this.sock) return;
+    this.pairCodeRequested = true;
+    this.sock
+      .requestPairingCode(this.pairNumber)
+      .then((code) =>
+        logger.info(
+          { code },
+          '🔗 Código de pareamento — WhatsApp › Aparelhos conectados › Conectar com número de telefone',
+        ),
+      )
+      .catch((err) => logger.error({ err }, 'Falha ao gerar código de pareamento (use o QR).'));
   }
 
   /** Trata a queda de conexão. Retorna true quando a sessão foi invalidada. */
