@@ -7,8 +7,8 @@ import type { GroupEntry } from './config';
 import { readGroupsConfig } from './config';
 import type { GroupSummary, MessageView } from './data';
 import { listGroups, readGroupMessages } from './data';
-import type { TriageState } from './triage';
-import { readTriage, setAlert, setAutonomo, setMuted, setNote, setResolved, setTypos, setEtiquetas } from './triage';
+import type { AgenteExecutor, AgenteModo, TriageState } from './triage';
+import { readTriage, setAlert, setAutonomo, setMuted, setNote, setResolved, setTypos, setEtiquetas, setAgente, setExecutor } from './triage';
 import { readAgentSeen, setAgentSeenMany } from './agent-seen';
 import { CONTROL_URL } from './paths';
 
@@ -95,6 +95,14 @@ export async function dsSetAutonomo(slug: string, value: boolean): Promise<void>
 export async function dsSetTypos(slug: string, value: boolean): Promise<void> {
   if (mcpRemote()) { await cloudPost('/api/triage', { action: 'typos', slug, value }); return; }
   return setTypos(slug, value);
+}
+export async function dsSetAgente(slug: string, value: AgenteModo): Promise<void> {
+  if (mcpRemote()) { await cloudPost('/api/triage', { action: 'agente', slug, value }); return; }
+  return setAgente(slug, value);
+}
+export async function dsSetExecutor(slug: string, value: AgenteExecutor): Promise<void> {
+  if (mcpRemote()) { await cloudPost('/api/triage', { action: 'executor', slug, value }); return; }
+  return setExecutor(slug, value);
 }
 export async function dsSetEtiquetas(slug: string, etiquetas: string[]): Promise<void> {
   if (mcpRemote()) { await cloudPost('/api/triage', { action: 'etiquetas', slug, value: etiquetas }); return; }

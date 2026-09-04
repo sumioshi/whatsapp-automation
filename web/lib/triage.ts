@@ -4,6 +4,11 @@ import { writeJsonAtomic } from './json-store';
 import { DATA_DIR } from './paths';
 import { slugify } from './slug';
 
+/** Modo do agente de triagem por chat: ausente = 'off' (não lê). */
+export type AgenteModo = 'off' | 'issue' | 'pr';
+/** Quem executa a issue quando o operador aprova: ausente = 'claude'. */
+export type AgenteExecutor = 'claude' | 'copilot';
+
 /** Estado de triagem do painel (slug = grupo). Arquivo do painel; o coletor não toca. */
 const TRIAGE_FILE = join(DATA_DIR, '.triage.json');
 
@@ -18,10 +23,12 @@ export interface TriageState {
   typos: Record<string, true>; // slug -> typo proposital ligado no envio (opt-in por chat; default ausente = OFF)
   memorySources: Record<string, string[]>; // slug -> lista de dirs absolutos de memória vinculados
   etiquetas: Record<string, string[]>; // slug -> etiquetas do chat (empresa/contrato/pessoal)
+  agente: Record<string, AgenteModo>; // slug -> modo do agente de triagem (ausente = off)
+  executor: Record<string, AgenteExecutor>; // slug -> executor da issue (ausente = claude)
 }
 
 function emptyState(): TriageState {
-  return { resolved: {}, muted: {}, notes: {}, lastSeen: {}, copilot: {}, alertar: {}, autonomo: {}, typos: {}, memorySources: {}, etiquetas: {} };
+  return { resolved: {}, muted: {}, notes: {}, lastSeen: {}, copilot: {}, alertar: {}, autonomo: {}, typos: {}, memorySources: {}, etiquetas: {}, agente: {}, executor: {} };
 }
 
 /** Normaliza um objeto cru em Record<string, T>, descartando entradas do tipo errado. */
@@ -38,6 +45,8 @@ function pick<T>(raw: unknown, ok: (v: unknown) => v is T): Record<string, T> {
 const isString = (v: unknown): v is string => typeof v === 'string';
 const isBool = (v: unknown): v is boolean => typeof v === 'boolean';
 const isTrue = (v: unknown): v is true => v === true;
+const isAgenteModo = (v: unknown): v is AgenteModo => v === 'issue' || v === 'pr';
+const isExecutor = (v: unknown): v is AgenteExecutor => v === 'copilot';
 const isStringArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((x) => typeof x === 'string');
 
@@ -67,6 +76,8 @@ export async function readTriage(): Promise<TriageState> {
       typos: pick(parsed.typos, isTrue),
       memorySources: pickArrays(parsed.memorySources),
       etiquetas: pickArrays(parsed.etiquetas),
+      agente: pick(parsed.agente, isAgenteModo),
+      executor: pick(parsed.executor, isExecutor),
     };
   } catch {
     return emptyState();
@@ -165,5 +176,23 @@ export async function setEtiquetas(slug: string, etiquetas: string[]): Promise<v
   const limpas = [...new Set(etiquetas.map((e) => e.trim()).filter(Boolean))];
   if (limpas.length > 0) state.etiquetas[slug] = limpas;
   else delete state.etiquetas[slug];
+  await writeJsonAtomic(TRIAGE_FILE, state);
+}
+
+/** Define o modo do agente de triagem do chat. 'off' (default) remove a chave. */
+export async function setAgente(slug: string, modo: AgenteModo): Promise<void> {
+  const key = slugify(slug);
+  const state = await readTriage();
+  if (modo === 'off') delete state.agente[key];
+  else state.agente[key] = modo;
+  await writeJsonAtomic(TRIAGE_FILE, state);
+}
+
+/** Define quem executa as issues aprovadas do chat. 'claude' (default) remove a chave. */
+export async function setExecutor(slug: string, executor: AgenteExecutor): Promise<void> {
+  const key = slugify(slug);
+  const state = await readTriage();
+  if (executor === 'claude') delete state.executor[key];
+  else state.executor[key] = executor;
   await writeJsonAtomic(TRIAGE_FILE, state);
 }

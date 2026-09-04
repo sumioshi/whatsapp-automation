@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readTriage, setAlert, setAutonomo, setCopilot, setLastSeen, setMuted, setNote, setResolved, setTypos, setEtiquetas } from "@/lib/triage";
+import { readTriage, setAlert, setAutonomo, setCopilot, setLastSeen, setMuted, setNote, setResolved, setTypos, setEtiquetas, setAgente, setExecutor } from "@/lib/triage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export async function GET() {
 }
 
 interface TriagePost {
-  action?: "resolved" | "muted" | "note" | "lastSeen" | "copilot" | "alertar" | "autonomo" | "typos" | "etiquetas";
+  action?: "resolved" | "muted" | "note" | "lastSeen" | "copilot" | "alertar" | "autonomo" | "typos" | "etiquetas" | "agente" | "executor";
   slug?: string;
   value?: string | boolean;
 }
@@ -81,6 +81,18 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "value deve ser string[]" }, { status: 400 });
       }
       await setEtiquetas(slug, value);
+      break;
+    case "agente":
+      if (value !== "off" && value !== "issue" && value !== "pr") {
+        return NextResponse.json({ error: 'value deve ser "off", "issue" ou "pr"' }, { status: 400 });
+      }
+      await setAgente(slug, value);
+      break;
+    case "executor":
+      if (value !== "claude" && value !== "copilot") {
+        return NextResponse.json({ error: 'value deve ser "claude" ou "copilot"' }, { status: 400 });
+      }
+      await setExecutor(slug, value);
       break;
     default:
       return NextResponse.json({ error: "action inválida" }, { status: 400 });

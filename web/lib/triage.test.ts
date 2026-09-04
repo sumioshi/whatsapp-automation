@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -93,5 +93,39 @@ describe('setAlert / readTriage.alertar', () => {
     expect(state.alertar.ok).toBe(true);
     expect(state.alertar.lixo).toBeUndefined();
     expect(state.alertar.numero).toBeUndefined();
+  });
+});
+
+describe('setAgente / setExecutor', () => {
+  it('default ausente: agente e executor vazios', async () => {
+    const t = await mod.readTriage();
+    expect(t.agente).toEqual({});
+    expect(t.executor).toEqual({});
+  });
+
+  it('issue e pr persistem; off remove a chave', async () => {
+    await mod.setAgente('grupo-x', 'issue');
+    expect((await mod.readTriage()).agente).toEqual({ 'grupo-x': 'issue' });
+    await mod.setAgente('grupo-x', 'pr');
+    expect((await mod.readTriage()).agente).toEqual({ 'grupo-x': 'pr' });
+    await mod.setAgente('grupo-x', 'off');
+    expect((await mod.readTriage()).agente).toEqual({});
+  });
+
+  it('executor copilot persiste; claude (default) remove a chave', async () => {
+    await mod.setExecutor('grupo-x', 'copilot');
+    expect((await mod.readTriage()).executor).toEqual({ 'grupo-x': 'copilot' });
+    await mod.setExecutor('grupo-x', 'claude');
+    expect((await mod.readTriage()).executor).toEqual({});
+  });
+
+  it('valor desconhecido gravado à mão é ignorado na leitura', async () => {
+    const raw = JSON.parse(await readFile(TRIAGE(), 'utf8')) as Record<string, unknown>;
+    raw.agente = { 'grupo-y': 'banana' };
+    raw.executor = { 'grupo-y': 'gemini' };
+    await writeFile(TRIAGE(), JSON.stringify(raw));
+    const t = await mod.readTriage();
+    expect(t.agente).toEqual({});
+    expect(t.executor).toEqual({});
   });
 });

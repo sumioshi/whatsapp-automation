@@ -56,7 +56,9 @@ import {
   dsEditMessage,
   dsReact,
   dsSetTypos,
-  dsSetEtiquetas } from "../lib/data-source";
+  dsSetEtiquetas,
+  dsSetAgente,
+  dsSetExecutor } from "../lib/data-source";
 import { numberFromJid, roleOf, sendableDmJid } from "../lib/contacts";
 
 // O MCP server é lançado pelo Claude Code (não pelo `npm run dev`), então não herda o
@@ -898,25 +900,46 @@ server.registerTool(
       "Define se um chat está em modo AUTÔNOMO (a IA envia sem confirmar) ou CONFIRMAR (default: a IA " +
       "mostra o texto e espera OK do operador antes de enviar). Persiste por chat — você liga uma vez e " +
       "vale até desligar, sem depender de re-combinar a cada msg. O `responder` lê esse modo. É " +
-      "convenção respeitada pela IA, não trava de código.",
+      "convenção respeitada pela IA, não trava de código. Também liga o agente de triagem do chat " +
+      "(agente: off/issue/pr) e escolhe o executor (claude/copilot).",
     inputSchema: {
       grupo: z.string().describe("slug do grupo ou DM (de listar_grupos; DM = dm-<id>)"),
-      autonomo: z.boolean().describe("true = IA envia direto; false = volta pro padrão 'confirmar antes'"),
+      autonomo: z
+        .boolean()
+        .optional()
+        .describe("true = IA envia direto; false = volta pro padrão 'confirmar antes'; ausente = não mexe"),
       typos: z
         .boolean()
         .optional()
         .describe(
           "liga/desliga typo proposital (raro, ~3%) com correção via edição — humanização; default OFF",
         ),
+      agente: z
+        .enum(["off", "issue", "pr"])
+        .optional()
+        .describe(
+          "agente de triagem do chat: off (não lê), issue (cria issue e espera seu ok), pr (issue já sai marcada pro executor)",
+        ),
+      executor: z
+        .enum(["claude", "copilot"])
+        .optional()
+        .describe("quem executa a issue aprovada; default claude"),
     },
   },
-  async ({ grupo, autonomo, typos }) => {
+  async ({ grupo, autonomo, typos, agente, executor }) => {
     try {
-      await dsSetAutonomo(grupo, autonomo);
+      if (autonomo !== undefined) await dsSetAutonomo(grupo, autonomo);
       if (typos !== undefined) await dsSetTypos(grupo, typos);
+      if (agente !== undefined) await dsSetAgente(grupo, agente);
+      if (executor !== undefined) await dsSetExecutor(grupo, executor);
+      const partes: string[] = [];
+      if (autonomo !== undefined) partes.push(`modo ${autonomo ? "AUTÔNOMO" : "CONFIRMAR"}`);
+      if (agente !== undefined) partes.push(`agente ${agente}`);
+      if (executor !== undefined) partes.push(`executor ${executor}`);
+      if (typos !== undefined) partes.push(`typos ${typos ? "on" : "off"}`);
       return ok(
-        { grupo, modo: autonomo ? "autonomo" : "confirmar", typos },
-        `"${grupo}" agora em modo ${autonomo ? "AUTÔNOMO (envia direto)" : "CONFIRMAR (mostra antes)"}.`,
+        { grupo, modo: autonomo === undefined ? undefined : autonomo ? "autonomo" : "confirmar", typos, agente, executor },
+        partes.length ? `"${grupo}": ${partes.join(", ")}.` : `"${grupo}": nada alterado.`,
       );
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao definir modo");
@@ -1016,7 +1039,7 @@ server.registerTool(
   "estado_triagem",
   {
     description:
-      "Retorna o estado de triagem inteiro (resolved/muted/notes/lastSeen/copilot/alertar/autonomo/etiquetas) pra " +
+      "Retorna o estado de triagem inteiro (resolved/muted/notes/lastSeen/copilot/alertar/autonomo/etiquetas/agente/executor) pra " +
       "IA saber o que já foi tratado, quais chats acompanha (copilot), quais alertam, e o modo de envio " +
       "de cada um (autonomo: true = envia direto; ausente = confirmar antes).",
     inputSchema: {},
