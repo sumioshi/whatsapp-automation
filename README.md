@@ -124,7 +124,7 @@ privado (`~/brain`, remoto `minha-org/brain`). Os workflows de triagem baixam es
 repositório ao lado do repo do cliente pra ler o mesmo contexto que o operador tem no Mac.
 Uma via: o Mac escreve, a nuvem lê. Log em `~/Library/Logs/brain-sync.log`.
 
-### Despacho: triagem dos grupos por agente + fila de decisões
+## Despacho: triagem dos grupos por agente + fila de decisões
 
 Duas vezes por dia o workflow `.github/workflows/triagem.yml` (repo `whatsapp-automation`)
 consulta `GET /api/v1/agente/fila`, e pra cada chat com agente ligado e mensagem nova roda o

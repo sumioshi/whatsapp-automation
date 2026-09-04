@@ -134,8 +134,6 @@ jobs:
       - name: Claude faz a triagem
         id: claude
         uses: anthropics/claude-code-action@v1
-        env:
-          GH_TOKEN: ${{ secrets.AGENTE_GITHUB_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.AGENTE_GITHUB_TOKEN }}
@@ -144,7 +142,7 @@ jobs:
             --mcp-config /tmp/mcp.json
             --max-turns 60
             --model ${{ vars.TRIAGEM_MODEL || 'claude-sonnet-5' }}
-            --allowedTools "mcp__whatsapp-collector__ler_mensagens,mcp__whatsapp-collector__buscar,mcp__whatsapp-collector__listar_contatos,mcp__whatsapp-collector__transcrever,mcp__whatsapp-collector__ver_imagem,mcp__whatsapp-collector__ver_video,mcp__whatsapp-collector__ler_documento,mcp__github__create_issue,mcp__github__search_issues,mcp__github__list_issues,mcp__github__get_issue,mcp__github__add_issue_comment,mcp__github__update_issue,Read,Grep,Glob,Write(despacho/**),Bash(git log:*),Bash(git blame:*),Bash(gh issue:*),Bash(gh search:*)"
+            --allowedTools "mcp__whatsapp-collector__ler_mensagens,mcp__whatsapp-collector__buscar,mcp__whatsapp-collector__listar_contatos,mcp__whatsapp-collector__transcrever,mcp__whatsapp-collector__ver_imagem,mcp__whatsapp-collector__ver_video,mcp__whatsapp-collector__ler_documento,mcp__github__create_issue,mcp__github__search_issues,mcp__github__list_issues,mcp__github__get_issue,mcp__github__add_issue_comment,mcp__github__update_issue,Read,Grep,Glob,Write(despacho/**),Bash(git log:*),Bash(git blame:*)"
 
       - name: Artefato do despacho
         if: always()
