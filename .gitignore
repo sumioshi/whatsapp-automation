@@ -34,3 +34,4 @@ groups.config.json
 # artefatos locais de ferramenta
 .playwright-mcp/
 light-chat.jpeg
+.superpowers/
