@@ -195,6 +195,10 @@ jobs:
           ls -la despacho || true
           node .wac/scripts/agente/juntar-despacho.mjs despacho > /tmp/despacho.json
           jq '.itens | length' /tmp/despacho.json | xargs -I{} echo "{} item(ns) de despacho"
+          if [ "$(jq '.itens | length' /tmp/despacho.json)" = "0" ]; then
+            echo "sem itens de despacho nesta passada — nada a enviar"
+            exit 0
+          fi
           curl -sS --fail --max-time 60 -X POST -H "Authorization: Bearer $WAC_API_TOKEN" \
             -H "Content-Type: application/json" -H "Idempotency-Key: despacho-$PASSADA" \
             -d @/tmp/despacho.json "$WAC_URL/api/v1/agente/despacho"
