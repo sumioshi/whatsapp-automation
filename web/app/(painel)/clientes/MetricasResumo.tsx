@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Metricas } from "@/lib/metricas";
 
@@ -85,7 +86,7 @@ export function MetricasResumo() {
             </button>
           ))}
         </div>
-        <a href="/dashboard" className="mono text-xs text-fg-dim hover:text-fg">ver dashboard →</a>
+        <Link href="/dashboard" className="mono text-xs text-fg-dim hover:text-fg">ver dashboard →</Link>
       </div>
 
       {aberto && dados && (

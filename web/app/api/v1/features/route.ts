@@ -13,7 +13,11 @@ export const GET = rota("read", async ({ req }) => {
   );
 });
 
-/** Registra uma entrega. Idempotente por `ref`: repetir a mesma URL devolve `duplicada: true`. */
+/**
+ * Registra uma entrega. Idempotente por `ref` dentro do mesmo chat: repetir a
+ * mesma URL no mesmo `slug` devolve `duplicada: true`. `em` (ISO) define o
+ * instante da entrega; sem ele vale agora.
+ */
 export const POST = rota("write", async ({ req }) => {
   const corpo = await corpoJson<EntradaFeature>(req);
   if (corpo.origem !== undefined && corpo.origem !== "mcp" && corpo.origem !== "pr") {

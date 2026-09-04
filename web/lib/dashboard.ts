@@ -63,6 +63,11 @@ function ymd(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+/** Contrato cuja data de fim já passou (comparação de string YYYY-MM-DD, sem fuso). */
+function encerradoPorFim(contrato: Contrato, hoje: string): boolean {
+  return contrato.fim !== null && contrato.fim < hoje;
+}
+
 export function montarDashboard(
   entradas: EntradaMetrica[],
   contratos: Record<string, Contrato>,
@@ -93,7 +98,11 @@ export function montarDashboard(
     const recentes = fs.filter((f) => Date.parse(f.em) >= inicio && Date.parse(f.em) <= agoraMs);
     const ultima = fs.reduce<string | null>((max, f) => (max === null || f.em > max ? f.em : max), null);
     const ativo = msgsCliente30d >= ATIVO_MIN_MSGS;
-    const encerrado = contrato.estado === 'encerrado' || (contrato.fim !== null && contrato.fim < hoje);
+    // Data de fim vencida só encerra um contrato que existia: em 'sem' e 'pausado'
+    // a data é resquício, e o sinal certo é o do próprio estado — juntar os dois
+    // mandaria o operador cobrar renovação de contrato que nunca esteve valendo.
+    const encerrado =
+      contrato.estado === 'encerrado' || (contrato.estado === 'ativo' && encerradoPorFim(contrato, hoje));
     const sinais: Sinal[] = [];
     if (encerrado && ativo) sinais.push('encerrado-ativo');
     if (contrato.estado === 'sem' && ativo) sinais.push('sem-contrato-ativo');
@@ -122,8 +131,10 @@ export function montarDashboard(
     linhas,
     totais: {
       clientes: linhas.length,
-      ativos: linhas.filter((l) => l.contrato.estado === 'ativo').length,
-      encerrados: linhas.filter((l) => l.contrato.estado === 'encerrado').length,
+      // "ativo" no total é a mesma leitura dos sinais: estado ativo E ainda dentro
+      // do prazo. Contrato ativo com fim vencido conta como encerrado nos dois lugares.
+      ativos: linhas.filter((l) => l.contrato.estado === 'ativo' && !encerradoPorFim(l.contrato, hoje)).length,
+      encerrados: linhas.filter((l) => l.contrato.estado === 'encerrado' || (l.contrato.estado === 'ativo' && encerradoPorFim(l.contrato, hoje))).length,
       features30d: linhas.reduce((s, l) => s + l.features30d, 0),
       comSinal: linhas.filter((l) => l.sinais.length > 0).length,
     },

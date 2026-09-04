@@ -5,7 +5,9 @@ import { slugify } from './slug';
 
 /**
  * Entregas por cliente: cada funcionalidade concluída vira uma linha append-only.
- * A referência (URL do PR) deduplica, para o registro automático poder repetir.
+ * A referência (URL do PR) deduplica DENTRO do chat, para o registro automático
+ * poder repetir sem gravar duas vezes. É por chat porque a `ref` é texto livre
+ * no MCP: "issue 12" em dois clientes são entregas diferentes.
  */
 export interface Feature {
   id: string;
@@ -58,7 +60,7 @@ export async function listarFeatures(filtro: { slug?: string; desde?: string } =
   return (await lerTodas()).filter((f) => (!key || f.slug === key) && (!filtro.desde || f.em >= filtro.desde));
 }
 
-/** Registra uma entrega. Mesmo `ref` (não nulo) já gravado → devolve a existente com `duplicada: true`. */
+/** Registra uma entrega. Mesma `ref` (não nula) já gravada NO MESMO chat → devolve a existente com `duplicada: true`. */
 export async function registrarFeature(entrada: EntradaFeature): Promise<{ feature: Feature; duplicada: boolean }> {
   // slugify tem fallback para "sem-nome" (útil pra nome de grupo ausente), então
   // a checagem de vazio precisa vir ANTES dele — senão slug="" nunca é rejeitado.
@@ -69,7 +71,7 @@ export async function registrarFeature(entrada: EntradaFeature): Promise<{ featu
   const ref = entrada.ref ? String(entrada.ref).trim() || null : null;
   const todas = await lerTodas();
   if (ref) {
-    const existente = todas.find((f) => f.ref === ref);
+    const existente = todas.find((f) => f.ref === ref && f.slug === slug);
     if (existente) return { feature: existente, duplicada: true };
   }
   const agora = entrada.em ? new Date(entrada.em) : new Date();

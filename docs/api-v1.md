@@ -164,4 +164,4 @@ Item de despacho: `{ slug, cliente, tipo: issue|pergunta|bug|info, titulo, url?,
 | Rota | Escopo | Uso |
 |---|---|---|
 | `GET /api/v1/features?slug=&desde=` | read | entregas registradas (manuais via MCP ou automáticas por PR mergeado). |
-| `POST /api/v1/features` `{slug, nome, ref?, origem?, por?}` | write | registra uma entrega; mesma `ref` já gravada devolve `duplicada: true` sem gravar. |
+| `POST /api/v1/features` `{slug, nome, ref?, origem?, por?, em?}` | write | registra uma entrega; mesma `ref` já gravada **no mesmo chat** devolve `duplicada: true` sem gravar (a mesma `ref` em outro chat é outra entrega). `em` é o instante ISO da entrega — o padrão é agora, e o workflow manda o `merged_at` do PR. |

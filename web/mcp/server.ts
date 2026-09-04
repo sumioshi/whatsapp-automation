@@ -1073,8 +1073,9 @@ server.registerTool(
   {
     description:
       "Registra uma funcionalidade ENTREGUE pra um cliente (chame ao concluir uma entrega). Alimenta o contador " +
-      "de entregas por cliente do dashboard. Se passar `ref` (URL do PR/issue) e ela já estiver registrada, não " +
-      "duplica. PRs mergeados que fecham issues da triagem entram sozinhos; use esta tool pro que não passou por PR.",
+      "de entregas por cliente do dashboard. Se passar `ref` (URL do PR/issue) e ela já estiver registrada NESTE " +
+      "chat, não duplica (a mesma ref em outro cliente é outra entrega). PRs mergeados que fecham issues da " +
+      "triagem entram sozinhos; use esta tool pro que não passou por PR.",
     inputSchema: {
       grupo: z.string().describe("slug do grupo ou DM do cliente"),
       nome: z.string().describe("nome curto da funcionalidade, em pt-BR"),
@@ -1101,7 +1102,8 @@ server.registerTool(
       "Visão de negócio por cliente: atividade 30 d, contrato, entregas 30 d/total, mensagens e valor por entrega, " +
       "e SINAIS (encerrado-ativo, sem-contrato-ativo, pausado-ativo, renovacao-30d, sem-entrega-30d) com uma frase " +
       "explicando cada um. Use pra responder 'quem está ativo demais pro contrato', 'quem renova este mês', " +
-      "'quantas entregas o cliente X recebeu'. `so_sinais: true` devolve só as linhas com sinal.",
+      "'quantas entregas o cliente X recebeu'. `so_sinais: true` devolve só as linhas com sinal. Contratos e " +
+      "entregas refletem na hora; atividade de mensagens pode ter até 60 s de atraso.",
     inputSchema: {
       so_sinais: z.boolean().optional().describe("true = só clientes com algum sinal"),
     },
@@ -1126,7 +1128,8 @@ server.registerTool(
     description:
       "Retorna o estado de triagem inteiro (resolved/muted/notes/lastSeen/copilot/alertar/autonomo/etiquetas/agente/executor) pra " +
       "IA saber o que já foi tratado, quais chats acompanha (copilot), quais alertam, e o modo de envio " +
-      "de cada um (autonomo: true = envia direto; ausente = confirmar antes), contratos ficam na tool dashboard/definir_contrato.",
+      "de cada um (autonomo: true = envia direto; ausente = confirmar antes). Contrato de cliente não vem aqui: " +
+      "ele fica nas tools dashboard e definir_contrato.",
     inputSchema: {},
   },
   async () => {

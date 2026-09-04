@@ -155,6 +155,10 @@ que fecha uma issue `whatsapp`). Sinais: contrato encerrado com cliente ativo, c
 pausado ativo, renovação em até 30 dias, ativo sem entrega em 30 dias. A tool MCP `dashboard` devolve o
 mesmo modelo pra IA responder "quem está ativo demais pro contrato" sem abrir a tela.
 
+A tabela lista os grupos monitorados; DMs entram no dashboard quando têm contrato ou entrega registrada.
+Uma entrega com `ref` (URL do PR/issue) não duplica dentro do mesmo chat — a mesma `ref` em outro cliente
+é outra entrega.
+
 ## O que sai (`data/<grupo>/`)
 
 ```

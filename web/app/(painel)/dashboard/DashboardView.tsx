@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { Dashboard, LinhaDashboard, Sinal } from "@/lib/dashboard";
 import { explicarSinal } from "@/lib/dashboard";
+import { dataCurta, instanteCurto, instanteLongo } from "@/lib/formatar-data";
 
 type Coluna =
   | "nome"
@@ -19,7 +20,7 @@ type Ordem = "asc" | "desc";
 const COLUNAS: Array<{ id: Coluna; rotulo: string }> = [
   { id: "nome", rotulo: "Nome" },
   { id: "contrato", rotulo: "Contrato" },
-  { id: "msgs30d", rotulo: "Msgs 30d" },
+  { id: "msgs30d", rotulo: "Msgs 30d (cliente / total)" },
   { id: "features30d", rotulo: "Entregas 30d / total" },
   { id: "msgsPorFeature30d", rotulo: "Msgs / entrega" },
   { id: "valorPorFeature", rotulo: "Valor / entrega" },
@@ -38,19 +39,6 @@ const numero = new Intl.NumberFormat("pt-BR");
 const umaCasa = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
-function dataCurta(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-}
-
-function dataHora(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
 /** Valor comparável por coluna — chave numérica quando faz sentido, string caso contrário. */
 function chaveOrdenacao(l: LinhaDashboard, col: Coluna): number | string {
   switch (col) {
@@ -59,7 +47,9 @@ function chaveOrdenacao(l: LinhaDashboard, col: Coluna): number | string {
     case "contrato":
       return `${ROTULO_ESTADO[l.contrato.estado]} ${l.contrato.fim ?? ""}`;
     case "msgs30d":
-      return l.msgs30d;
+      // A coluna mostra "cliente / total" e é a metade do cliente que o modelo
+      // usa nos sinais e no desempate — ordenar por ela mantém tela e regra juntas.
+      return l.msgsCliente30d;
     case "features30d":
       return l.features30d;
     case "msgsPorFeature30d":
@@ -128,7 +118,7 @@ export function DashboardView({ dados }: { dados: Dashboard }) {
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-bg">
       <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-line bg-surface px-5 py-3">
         <h1 className="font-medium text-fg">Dashboard</h1>
-        <span className="mono text-[11px] text-fg-faint">gerado em {dataHora(dados.geradoEm)}</span>
+        <span className="mono text-[11px] text-fg-faint">gerado em {instanteLongo(dados.geradoEm)}</span>
       </header>
 
       <div className="space-y-6 px-5 py-5">
@@ -190,11 +180,15 @@ export function DashboardView({ dados }: { dados: Dashboard }) {
                   {COLUNAS.map((c) => {
                     const ativa = c.id === coluna;
                     return (
-                      <th key={c.id} scope="col" className="px-3 py-2">
+                      <th
+                        key={c.id}
+                        scope="col"
+                        className="px-3 py-2"
+                        aria-sort={ativa ? (ordem === "asc" ? "ascending" : "descending") : "none"}
+                      >
                         <button
                           type="button"
                           onClick={() => ordenarPor(c.id)}
-                          aria-sort={ativa ? (ordem === "asc" ? "ascending" : "descending") : "none"}
                           className={`mono flex items-center gap-1 text-[11px] uppercase tracking-wider transition-colors ${ativa ? "text-fg" : "text-fg-faint hover:text-fg-dim"}`}
                         >
                           {c.rotulo}
@@ -236,7 +230,7 @@ export function DashboardView({ dados }: { dados: Dashboard }) {
                       <td className="mono px-3 py-2 text-right text-fg-dim">
                         {l.valorPorFeature !== null ? moeda.format(l.valorPorFeature) : "—"}
                       </td>
-                      <td className="mono px-3 py-2 text-right text-fg-dim">{dataCurta(l.ultimaFeatureEm)}</td>
+                      <td className="mono px-3 py-2 text-right text-fg-dim">{instanteCurto(l.ultimaFeatureEm)}</td>
                     </tr>
                   ))
                 )}

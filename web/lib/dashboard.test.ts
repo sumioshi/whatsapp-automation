@@ -44,6 +44,18 @@ describe('montarDashboard — sinais', () => {
     expect(por.r).toEqual(['renovacao-30d']);
     expect(por.t).toEqual([]);
   });
+  it('fim vencido em sem/pausado dispara só o sinal do próprio estado', () => {
+    // A data de fim é resquício num contrato que não está valendo: não pode
+    // somar encerrado-ativo ao sinal do estado.
+    const d = montarDashboard(
+      [chat('p', 9), chat('s', 9)],
+      { p: contrato({ estado: 'pausado', fim: ymd(-3) }), s: contrato({ estado: 'sem', fim: ymd(-3) }) },
+      [], agora,
+    );
+    const por = Object.fromEntries(d.linhas.map((l) => [l.slug, l.sinais]));
+    expect(por.p).toEqual(['pausado-ativo']);
+    expect(por.s).toEqual(['sem-contrato-ativo']);
+  });
   it('sem-entrega-30d: ativo, falando e sem entrega em 30d; com entrega recente não', () => {
     const d = montarDashboard(
       [chat('a', 8), chat('b', 8)],
@@ -73,15 +85,24 @@ describe('montarDashboard — custos, totais e ordem', () => {
     expect(d.totais).toEqual({ clientes: 2, ativos: 2, encerrados: 0, features30d: 2, comSinal: 1 });
   });
   it('ordena: mais sinais primeiro, depois mais msgs de cliente', () => {
-    // x e y empatam em 1 sinal (encerrado-ativo / renovacao-30d); o desempate
-    // "mais msgs de cliente" exige que x tenha mais msgsCliente30d que y para
-    // x vir primeiro — por isso 9/6 (não 6/9): ver task-3-report.md.
+    // x e y empatam em 1 sinal (encerrado-ativo / renovacao-30d). O critério
+    // seguinte é msgsCliente30d, estritamente maior primeiro — por isso x tem 9
+    // e y tem 6: invertendo os números, a ordem esperada também inverteria.
     const d = montarDashboard(
       [chat('x', 9), chat('y', 6), chat('z', 20)],
       { x: contrato({ estado: 'encerrado' }), y: contrato({ estado: 'ativo', fim: ymd(5) }), z: contrato({ estado: 'ativo' }) },
       [feat('z', 2), feat('y', 2)], agora,
     );
     expect(d.linhas.map((l) => l.slug)).toEqual(['x', 'y', 'z']);
+  });
+  it('estado ativo com fim vencido conta como encerrado nos totais', () => {
+    const d = montarDashboard(
+      [chat('a', 8), chat('b', 1)],
+      { a: contrato({ estado: 'ativo', fim: ymd(-2) }), b: contrato({ estado: 'ativo' }) },
+      [], agora,
+    );
+    expect(d.totais).toMatchObject({ clientes: 2, ativos: 1, encerrados: 1 });
+    expect(d.linhas.find((l) => l.slug === 'a')?.sinais).toEqual(['encerrado-ativo']);
   });
   it('explicarSinal tem frase pra cada sinal', () => {
     for (const s of ['encerrado-ativo', 'sem-contrato-ativo', 'pausado-ativo', 'renovacao-30d', 'sem-entrega-30d'] as const) {

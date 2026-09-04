@@ -21,6 +21,18 @@ describe('registrarFeature / listarFeatures', () => {
     expect(r.feature.id).toMatch(/^\d{13}-[a-z0-9]{6}$/);
     expect(Number.isNaN(Date.parse(r.feature.em))).toBe(false);
   });
+  it('mesma ref em chats diferentes são entregas distintas', async () => {
+    // `ref` é texto livre no MCP: "issue 12" em dois clientes não é a mesma entrega.
+    const a = await mod.registrarFeature({ slug: 'cliente-x', nome: 'Login', ref: 'issue 12' });
+    const b = await mod.registrarFeature({ slug: 'cliente-y', nome: 'Relatório', ref: 'issue 12' });
+    expect(a.duplicada).toBe(false);
+    expect(b.duplicada).toBe(false);
+    expect(b.feature.nome).toBe('Relatório');
+    // Repetir no MESMO chat continua deduplicando.
+    const c = await mod.registrarFeature({ slug: 'cliente-y', nome: 'outro nome', ref: 'issue 12' });
+    expect(c.duplicada).toBe(true);
+    expect(c.feature.nome).toBe('Relatório');
+  });
   it('mesmo ref não duplica; ref null nunca deduplica', async () => {
     const dup = await mod.registrarFeature({ slug: 'cliente-a', nome: 'outro nome', ref: 'https://github.com/o/r/pull/1', origem: 'pr' });
     expect(dup.duplicada).toBe(true);
