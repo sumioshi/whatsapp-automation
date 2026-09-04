@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { type FilaEntrada, selecionarFila } from "@/lib/agente-fila";
+import { type FilaEntrada, JANELA_INICIAL_MS, selecionarFila } from "@/lib/agente-fila";
 import { preflight, respostaOk, rota } from "@/lib/api-v1";
 import { readGroupRecords } from "@/lib/data";
 import { readLinks } from "@/lib/links";
@@ -23,7 +23,22 @@ export const GET = rota("read", async ({ req }) => {
     if (forcar && slug !== forcar) continue;
     const agente = forcar ? (triagem.agente[slug] ?? "issue") : (triagem.agente[slug] ?? "off");
     if (agente === "off" || !link.github) continue;
+    const seenDoSlug = forcar ? null : (seen[slug] ?? null);
+    const desde = seenDoSlug ?? new Date(Date.now() - JANELA_INICIAL_MS).toISOString();
     const registros = await readGroupRecords(slug);
+    // registros é o histórico inteiro do chat (pode ser milhares de mensagens),
+    // mas selecionarFila só usa o que é mais novo que `desde` — mapear tudo
+    // a cada chamada desperdiça trabalho a cada poll do workflow. Como o
+    // arquivo é append-only (ordem cronológica), basta andar de trás pra
+    // frente até achar algo <= desde e parar; o resto (mais antigo) não
+    // entraria na fila de qualquer forma.
+    const cauda: Array<{ timestamp: string; fromMe: boolean }> = [];
+    for (let i = registros.length - 1; i >= 0; i--) {
+      const r = registros[i];
+      if (!r || r.timestamp <= desde) break;
+      cauda.push({ timestamp: r.timestamp, fromMe: Boolean(r.fromMe) });
+    }
+    cauda.reverse();
     entradas.push({
       slug,
       cliente: link.cliente || slug,
@@ -31,8 +46,8 @@ export const GET = rota("read", async ({ req }) => {
       brainDir: link.brainDir,
       agente,
       executor: triagem.executor[slug] ?? "claude",
-      seen: forcar ? null : (seen[slug] ?? null),
-      mensagens: registros.map((r) => ({ timestamp: r.timestamp, fromMe: Boolean(r.fromMe) })),
+      seen: seenDoSlug,
+      mensagens: cauda,
     });
   }
   return respostaOk(selecionarFila(entradas, Date.now()));
