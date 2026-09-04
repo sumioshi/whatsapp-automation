@@ -146,6 +146,15 @@ o Claude implementa só o que a issue pede, roda os testes do repositório e abr
 Instalar num cliente: `scripts/agente-pr-instalar.sh owner/repo` (abre um PR com o chamador de 15 linhas).
 Secret necessário em cada repositório: `printf '%s' "$TOKEN" | scripts/agente-secrets.sh CLAUDE_CODE_OAUTH_TOKEN`.
 
+## Dashboard: contrato, entregas e sinais
+
+`/dashboard` cruza a atividade dos últimos 30 dias com o **contrato** de cada cliente (estado, início, fim,
+valor mensal — editável no painel lateral do chat ou via tool MCP `definir_contrato`) e com as **entregas**
+registradas (`registrar_feature` via MCP, ou automático: o workflow `features.yml` registra todo PR mergeado
+que fecha uma issue `whatsapp`). Sinais: contrato encerrado com cliente ativo, cliente ativo sem contrato,
+pausado ativo, renovação em até 30 dias, ativo sem entrega em 30 dias. A tool MCP `dashboard` devolve o
+mesmo modelo pra IA responder "quem está ativo demais pro contrato" sem abrir a tela.
+
 ## O que sai (`data/<grupo>/`)
 
 ```

@@ -71,6 +71,12 @@ por chat liga em `/links` ou via `definir_modo({ grupo, agente: "issue" })`. Det
 `docs/superpowers/specs/2026-09-04-despacho-agente-github-design.md`. A label `claude` numa issue
 dispara o executor de PR (`minha-org/agentes`), que abre um PR draft no repositório do cliente.
 
+## Entregas e contrato
+
+Ao concluir uma funcionalidade pra um cliente, chame `registrar_feature(grupo, nome, ref)` — é o que alimenta
+o contador de entregas do dashboard. Estado comercial do chat: `definir_contrato`. Pra saber quem está ativo
+demais pro contrato ou perto de renovar: tool `dashboard` (ou a tela `/dashboard`).
+
 ## Mídia na nuvem (`midia_pendente`) — NÃO é erro
 
 Tem dois coletores: o do Mac (local) e o da nuvem (Railway, histórico 24/7). A nuvem é a fonte
