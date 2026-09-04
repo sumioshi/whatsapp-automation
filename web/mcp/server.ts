@@ -58,8 +58,12 @@ import {
   dsSetTypos,
   dsSetEtiquetas,
   dsSetAgente,
-  dsSetExecutor } from "../lib/data-source";
+  dsSetExecutor,
+  dsSetContrato,
+  dsRegistrarFeature,
+  dsDashboard } from "../lib/data-source";
 import { numberFromJid, roleOf, sendableDmJid } from "../lib/contacts";
+import { explicarSinal } from "../lib/dashboard";
 
 // O MCP server é lançado pelo Claude Code (não pelo `npm run dev`), então não herda o
 // .env. Carregamos o .env da raiz aqui pra ter o WAC_CLOUD_* (mídia sob demanda da
@@ -135,6 +139,9 @@ const INSTRUCTIONS = [
   "MODO POR CHAT: cada chat tem um modo (estado_triagem / definir_modo). No modo",
   "'confirmar' (o default) MOSTRE o texto e espere o OK do operador antes de chamar",
   "as tools de envio. Convenção respeitada, não trava de código — não burle.",
+  "",
+  "REGISTRE ENTREGAS: ao concluir uma funcionalidade pra cliente, chame",
+  "registrar_feature(grupo, nome, ref).",
 ].join("\n");
 
 /**
@@ -1036,12 +1043,90 @@ server.registerTool(
 );
 
 server.registerTool(
+  "definir_contrato",
+  {
+    description:
+      "Define o estado comercial de um chat: estado (ativo/encerrado/pausado/sem), início e fim (YYYY-MM-DD), " +
+      "valor mensal e nota. Só os campos passados mudam. O dashboard cruza isso com a atividade pra apontar " +
+      "cliente ativo demais pro contrato, renovação próxima e custo por entrega. Pra ler, use a tool dashboard.",
+    inputSchema: {
+      grupo: z.string().describe("slug do grupo ou DM"),
+      estado: z.enum(["ativo", "encerrado", "pausado", "sem"]).optional(),
+      inicio: z.string().nullable().optional().describe("YYYY-MM-DD ou null"),
+      fim: z.string().nullable().optional().describe("YYYY-MM-DD ou null"),
+      valorMensal: z.number().nullable().optional().describe("reais por mês, ou null"),
+      nota: z.string().optional(),
+    },
+  },
+  async ({ grupo, ...patch }) => {
+    try {
+      const contrato = await dsSetContrato(grupo, patch);
+      return ok({ grupo, contrato }, `Contrato de "${grupo}": ${contrato.estado}${contrato.fim ? ` até ${contrato.fim}` : ""}.`);
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "falha ao definir contrato");
+    }
+  },
+);
+
+server.registerTool(
+  "registrar_feature",
+  {
+    description:
+      "Registra uma funcionalidade ENTREGUE pra um cliente (chame ao concluir uma entrega). Alimenta o contador " +
+      "de entregas por cliente do dashboard. Se passar `ref` (URL do PR/issue) e ela já estiver registrada, não " +
+      "duplica. PRs mergeados que fecham issues da triagem entram sozinhos; use esta tool pro que não passou por PR.",
+    inputSchema: {
+      grupo: z.string().describe("slug do grupo ou DM do cliente"),
+      nome: z.string().describe("nome curto da funcionalidade, em pt-BR"),
+      ref: z.string().optional().describe("URL do PR, issue ou commit (opcional; deduplica)"),
+    },
+  },
+  async ({ grupo, nome, ref }) => {
+    try {
+      const r = await dsRegistrarFeature({ slug: grupo, nome, ref: ref ?? null, origem: "mcp", por: "mcp" });
+      return ok(
+        { grupo, feature: r.feature, duplicada: r.duplicada },
+        r.duplicada ? `Já registrada: "${r.feature.nome}" (${r.feature.em}).` : `Entrega registrada pra "${grupo}": ${nome}.`,
+      );
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "falha ao registrar entrega");
+    }
+  },
+);
+
+server.registerTool(
+  "dashboard",
+  {
+    description:
+      "Visão de negócio por cliente: atividade 30 d, contrato, entregas 30 d/total, mensagens e valor por entrega, " +
+      "e SINAIS (encerrado-ativo, sem-contrato-ativo, pausado-ativo, renovacao-30d, sem-entrega-30d) com uma frase " +
+      "explicando cada um. Use pra responder 'quem está ativo demais pro contrato', 'quem renova este mês', " +
+      "'quantas entregas o cliente X recebeu'. `so_sinais: true` devolve só as linhas com sinal.",
+    inputSchema: {
+      so_sinais: z.boolean().optional().describe("true = só clientes com algum sinal"),
+    },
+  },
+  async ({ so_sinais }) => {
+    try {
+      const d = await dsDashboard();
+      const linhas = (so_sinais ? d.linhas.filter((l) => l.sinais.length > 0) : d.linhas).map((l) => ({
+        ...l,
+        sinais_explicados: l.sinais.map((s) => `${s}: ${explicarSinal(s)}`),
+      }));
+      return text({ geradoEm: d.geradoEm, totais: d.totais, linhas });
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "falha ao montar dashboard");
+    }
+  },
+);
+
+server.registerTool(
   "estado_triagem",
   {
     description:
       "Retorna o estado de triagem inteiro (resolved/muted/notes/lastSeen/copilot/alertar/autonomo/etiquetas/agente/executor) pra " +
       "IA saber o que já foi tratado, quais chats acompanha (copilot), quais alertam, e o modo de envio " +
-      "de cada um (autonomo: true = envia direto; ausente = confirmar antes).",
+      "de cada um (autonomo: true = envia direto; ausente = confirmar antes), contratos ficam na tool dashboard/definir_contrato.",
     inputSchema: {},
   },
   async () => {
