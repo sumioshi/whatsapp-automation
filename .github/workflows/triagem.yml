@@ -1,0 +1,200 @@
+name: Triagem dos grupos
+
+on:
+  schedule:
+    # 06:00 e 13:00 em Brasília (UTC-3)
+    - cron: "0 9,16 * * *"
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: "Forçar um chat (slug). Ignora o checkpoint desse chat."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: triagem
+  cancel-in-progress: false
+
+jobs:
+  fila:
+    name: Passo zero (sem IA)
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.fila.outputs.matrix }}
+      vazio: ${{ steps.fila.outputs.vazio }}
+      passada: ${{ steps.fila.outputs.passada }}
+    steps:
+      - id: fila
+        env:
+          WAC_URL: ${{ secrets.WAC_CLOUD_URL }}
+          WAC_API_TOKEN: ${{ secrets.WAC_API_TOKEN }}
+          SLUG: ${{ inputs.slug }}
+        run: |
+          set -euo pipefail
+          url="$WAC_URL/api/v1/agente/fila"
+          if [ -n "$SLUG" ]; then url="$url?slug=$SLUG"; fi
+          body=$(curl -sS --fail --max-time 120 -H "Authorization: Bearer $WAC_API_TOKEN" "$url")
+          itens=$(printf '%s' "$body" | jq -c '.data')
+          n=$(printf '%s' "$itens" | jq 'length')
+          {
+            echo "matrix={\"include\":$itens}"
+            if [ "$n" = "0" ]; then echo "vazio=true"; else echo "vazio=false"; fi
+            echo "passada=$(TZ=America/Sao_Paulo date +%Y-%m-%dT%H%M)"
+          } >> "$GITHUB_OUTPUT"
+          echo "$n chat(s) com novidade"
+          printf '%s' "$itens" | jq -r '.[] | "- \(.slug) → \(.github) (\(.novas) novas)"'
+
+  triagem:
+    name: Triagem ${{ matrix.slug }}
+    needs: fila
+    if: needs.fila.outputs.vazio == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix: ${{ fromJSON(needs.fila.outputs.matrix) }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Repositório do cliente
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ matrix.github }}
+          token: ${{ secrets.AGENTE_GITHUB_TOKEN }}
+          fetch-depth: 50
+
+      - name: whatsapp-automation (MCP e prompt)
+        uses: actions/checkout@v6
+        with:
+          repository: sumioshi/whatsapp-automation
+          token: ${{ secrets.AGENTE_GITHUB_TOKEN }}
+          path: .wac
+
+      - name: brain (memória do operador)
+        uses: actions/checkout@v6
+        continue-on-error: true
+        with:
+          repository: minha-org/brain
+          token: ${{ secrets.AGENTE_GITHUB_TOKEN }}
+          path: .brain
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: .wac/web/package-lock.json
+
+      - name: Dependências do MCP e ffmpeg
+        run: |
+          set -euo pipefail
+          npm ci --prefix .wac/web --no-audit --no-fund
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg > /dev/null
+          ffmpeg -version | head -1
+
+      - name: Configuração do MCP whatsapp-collector (modo remoto)
+        env:
+          WAC_CLOUD_URL: ${{ secrets.WAC_CLOUD_URL }}
+          WAC_CLOUD_USER: ${{ secrets.WAC_CLOUD_USER }}
+          WAC_CLOUD_PASS: ${{ secrets.WAC_CLOUD_PASS }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/wac-data despacho
+          jq -n \
+            --arg tsx "$GITHUB_WORKSPACE/.wac/web/node_modules/.bin/tsx" \
+            --arg server "$GITHUB_WORKSPACE/.wac/web/mcp/server.ts" \
+            --arg url "$WAC_CLOUD_URL" --arg user "$WAC_CLOUD_USER" --arg pass "$WAC_CLOUD_PASS" \
+            --arg openrouter "$OPENROUTER_API_KEY" \
+            '{mcpServers: {"whatsapp-collector": {command: "node", args: [$tsx, $server],
+              env: {WAC_MCP_REMOTE: "1", WAC_CLOUD_URL: $url, WAC_CLOUD_USER: $user, WAC_CLOUD_PASS: $pass,
+                    WAC_DATA_DIR: "/tmp/wac-data", OPENROUTER_API_KEY: $openrouter, TRANSCRIBE_BACKEND: "openrouter"}}}}' \
+            > /tmp/mcp.json
+          echo "mcp.json escrito ($(wc -c < /tmp/mcp.json) bytes)"
+
+      - name: Prompt
+        id: prompt
+        env:
+          ITEM: ${{ toJSON(matrix) }}
+          PASSADA: ${{ needs.fila.outputs.passada }}
+        run: |
+          set -euo pipefail
+          node .wac/scripts/agente/montar-prompt.mjs .wac/.github/agente/triagem.prompt.md > /tmp/prompt.md
+          {
+            echo "text<<__PROMPT__"
+            cat /tmp/prompt.md
+            echo "__PROMPT__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Claude faz a triagem
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.AGENTE_GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.AGENTE_GITHUB_TOKEN }}
+          prompt: ${{ steps.prompt.outputs.text }}
+          claude_args: >-
+            --mcp-config /tmp/mcp.json
+            --max-turns 60
+            --model ${{ vars.TRIAGEM_MODEL || 'claude-sonnet-5' }}
+            --allowedTools "mcp__whatsapp-collector__ler_mensagens,mcp__whatsapp-collector__buscar,mcp__whatsapp-collector__listar_contatos,mcp__whatsapp-collector__transcrever,mcp__whatsapp-collector__ver_imagem,mcp__whatsapp-collector__ver_video,mcp__whatsapp-collector__ler_documento,mcp__github__create_issue,mcp__github__search_issues,mcp__github__list_issues,mcp__github__get_issue,mcp__github__add_issue_comment,mcp__github__update_issue,Read,Grep,Glob,Write(despacho/**),Bash(git log:*),Bash(git blame:*),Bash(gh issue:*),Bash(gh search:*)"
+
+      - name: Artefato do despacho
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: despacho-${{ matrix.slug }}
+          path: despacho/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Checkpoint
+        if: steps.claude.outcome == 'success'
+        env:
+          WAC_URL: ${{ secrets.WAC_CLOUD_URL }}
+          WAC_API_TOKEN: ${{ secrets.WAC_API_TOKEN }}
+          SLUG: ${{ matrix.slug }}
+          ATE: ${{ matrix.ate }}
+        run: |
+          set -euo pipefail
+          jq -n --arg slug "$SLUG" --arg ate "$ATE" '{slug: $slug, ate: $ate}' \
+            | curl -sS --fail --max-time 60 -X POST -H "Authorization: Bearer $WAC_API_TOKEN" \
+                -H "Content-Type: application/json" -d @- "$WAC_URL/api/v1/agente/checkpoint"
+
+  despacho:
+    name: Fila de decisões
+    needs: [fila, triagem]
+    if: always() && needs.fila.outputs.vazio == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/agente
+          path: .wac
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: despacho-*
+          path: despacho
+          merge-multiple: true
+
+      - name: Junta e envia ao painel
+        env:
+          WAC_URL: ${{ secrets.WAC_CLOUD_URL }}
+          WAC_API_TOKEN: ${{ secrets.WAC_API_TOKEN }}
+          PASSADA: ${{ needs.fila.outputs.passada }}
+        run: |
+          set -euo pipefail
+          ls -la despacho || true
+          node .wac/scripts/agente/juntar-despacho.mjs despacho > /tmp/despacho.json
+          jq '.itens | length' /tmp/despacho.json | xargs -I{} echo "{} item(ns) de despacho"
+          curl -sS --fail --max-time 60 -X POST -H "Authorization: Bearer $WAC_API_TOKEN" \
+            -H "Content-Type: application/json" -H "Idempotency-Key: despacho-$PASSADA" \
+            -d @/tmp/despacho.json "$WAC_URL/api/v1/agente/despacho"
