@@ -7,10 +7,7 @@ import { join, resolve, sep } from 'node:path';
 import { env } from '../config/env.js';
 import type { OutboundMedia } from '../core/message.js';
 import type { WhatsAppGateway } from '../core/ports.js';
-import { quebrarEmBaloes } from '../humano/baloes.js';
-import { foraDoExpediente } from '../humano/expediente.js';
-import { loadPerfilEnvio } from '../humano/perfil.js';
-import { planoDeEntrega } from '../humano/plano.js';
+import { enviarHumano } from '../humano/enviar.js';
 import { logger } from '../logger.js';
 import { slugify } from '../storage/paths.js';
 import { assertPublicHttpUrl } from './safe-url.js';
@@ -301,7 +298,12 @@ export function startControlServer(
           try {
             const media: OutboundMedia =
               kind === 'document'
-                ? { kind: 'document', path: tmpPath, fileName: fileName ?? 'documento.pdf', caption }
+                ? {
+                    kind: 'document',
+                    path: tmpPath,
+                    fileName: fileName ?? 'documento.pdf',
+                    caption,
+                  }
                 : { kind: 'image', path: tmpPath, caption };
             await gateway.sendMedia(jid, media);
             logger.info({ kind }, '📎🔗 Mídia (via URL) enviada via API de controle.');
@@ -323,16 +325,13 @@ export function startControlServer(
             return;
           }
           if (humano) {
-            const perfil = await loadPerfilEnvio(slug, env.DATA_DIR);
-            // umBalao: entrega humanizada (visto/pausa/digitando) mas SEM fatiar o texto.
-            const baloes = umBalao ? [text.trim()] : quebrarEmBaloes(text, perfil);
-            const plano = planoDeEntrega(baloes, perfil, {
+            const r = await enviarHumano(gateway, env.DATA_DIR, jid, text, {
+              slug,
               typos: typos === true,
-              foraDoExpediente: await foraDoExpediente(env.DATA_DIR),
+              umBalao: umBalao === true,
             });
-            const r = await gateway.entregarHumano(jid, plano);
-            logger.info({ jid, baloes: r.total }, '📤🧍 Entrega humanizada concluída.');
-            json(200, { ok: true, baloes: r.total });
+            logger.info({ jid, baloes: r.baloes }, '📤🧍 Entrega humanizada concluída.');
+            json(200, { ok: true, baloes: r.baloes });
             return;
           }
           await gateway.sendText(jid, text, Array.isArray(mentions) ? mentions : undefined);
