@@ -68,7 +68,8 @@ código — então NÃO burle o `confirmar`. Pra saber o modo de um chat sem env
 Itens numerados chegam no self-chat do operador depois de cada passada da triagem. Ele responde
 `ok N` / `não N` / `edita N: texto` / `ok todos` ali mesmo; o coletor executa. O agente de triagem
 por chat liga em `/links` ou via `definir_modo({ grupo, agente: "issue" })`. Detalhes na spec
-`docs/superpowers/specs/2026-09-04-despacho-agente-github-design.md`.
+`docs/superpowers/specs/2026-09-04-despacho-agente-github-design.md`. A label `claude` numa issue
+dispara o executor de PR (`minha-org/agentes`), que abre um PR draft no repositório do cliente.
 
 ## Mídia na nuvem (`midia_pendente`) — NÃO é erro
 

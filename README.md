@@ -138,6 +138,14 @@ Segredos do workflow: `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`), `AGENTE_
 `WAC_API_TOKEN` (`node scripts/api-token.mjs criar …` na nuvem), `WAC_CLOUD_*`, `OPENROUTER_API_KEY`.
 No coletor, `AGENTE_GITHUB_TOKEN` habilita o `ok N` aplicar label e o `não N` fechar issue.
 
+### Etapa 2: executor de PR
+
+Issue com a label `claude` (aplicada pelo `ok N` do despacho, ou pela triagem em modo `pr`) dispara,
+no repositório do cliente, o workflow reutilizável `minha-org/agentes/.github/workflows/agente-pr.yml`:
+o Claude implementa só o que a issue pede, roda os testes do repositório e abre um PR draft com `Closes #n`.
+Instalar num cliente: `scripts/agente-pr-instalar.sh owner/repo` (abre um PR com o chamador de 15 linhas).
+Secret necessário em cada repositório: `printf '%s' "$TOKEN" | scripts/agente-secrets.sh CLAUDE_CODE_OAUTH_TOKEN`.
+
 ## O que sai (`data/<grupo>/`)
 
 ```
