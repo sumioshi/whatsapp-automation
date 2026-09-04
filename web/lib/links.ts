@@ -45,6 +45,20 @@ export function brainDirDe(repoPath: string): string {
   return repoPath.replace(/[^A-Za-z0-9]/g, '-');
 }
 
+/**
+ * Combina o corpo parcial de um POST em `/api/links` com a entrada já existente,
+ * sem apagar campo nenhum por omissão: `github` ausente do corpo mantém o
+ * github atual (apagá-lo desliga o agente de triagem do chat), e `brainDir`
+ * só é recalculado quando o `repoPath` muda ou ainda não existe brainDir.
+ */
+export function mesclarLink(existente: LinkEntry | undefined, novo: LinkEntry, githubInformado: boolean): LinkEntry {
+  const mesclado: LinkEntry = { ...novo };
+  if (!githubInformado && existente?.github) mesclado.github = existente.github;
+  const repoPathMudou = existente?.repoPath !== novo.repoPath;
+  mesclado.brainDir = repoPathMudou || !existente?.brainDir ? brainDirDe(novo.repoPath) : existente.brainDir;
+  return mesclado;
+}
+
 function isLinkEntry(v: unknown): v is LinkEntry {
   return (
     !!v &&

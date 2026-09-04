@@ -147,7 +147,7 @@ describe('writeClientFiles vs índice', () => {
 // issues) e brainDir (pra achar a memória do Claude Code do projeto).
 describe('githubValido', () => {
   it('aceita owner/repo com ponto, hífen e underscore', () => {
-    expect(mod.githubValido('minha-org/meu-app')).toBe(true);
+    expect(mod.githubValido('Org-Exemplo/app-exemplo')).toBe(true);
     expect(mod.githubValido('org/repo.name_x')).toBe(true);
   });
   it('recusa url, barra a mais e vazio', () => {
@@ -178,5 +178,51 @@ describe('writeLink / readLinks com github', () => {
     expect(links.g1?.github).toBe('org/g1');
     expect(links.g1?.brainDir).toBe('-Users-x-p-g1');
     expect(links.g2?.github).toBeUndefined();
+  });
+});
+
+// ── mesclarLink: POST não pode apagar github/brainDir por omissão ──────────
+// A rota /api/links recebe um corpo parcial a cada edição (ex: só trocar as
+// notas). Sem essa regra, reenviar o form sem o campo github apagaria o
+// vínculo com o repositório — e junto o agente de triagem, que depende dele.
+describe('mesclarLink', () => {
+  it('novo sem github mantém o github antigo', () => {
+    const existente = { repoPath: '/r', cliente: 'C', tipo: 'grupo' as const, notas: '', github: 'org/repo' };
+    const novo = { repoPath: '/r', cliente: 'C', tipo: 'grupo' as const, notas: 'nota nova' };
+    const resultado = mod.mesclarLink(existente, novo, false);
+    expect(resultado.github).toBe('org/repo');
+    expect(resultado.notas).toBe('nota nova');
+  });
+
+  it('github informado substitui o antigo', () => {
+    const existente = { repoPath: '/r', cliente: 'C', tipo: 'grupo' as const, notas: '', github: 'org/repo-velho' };
+    const novo = { repoPath: '/r', cliente: 'C', tipo: 'grupo' as const, notas: '', github: 'org/repo-novo' };
+    const resultado = mod.mesclarLink(existente, novo, true);
+    expect(resultado.github).toBe('org/repo-novo');
+  });
+
+  it('repoPath igual mantém o brainDir existente (não recomputa)', () => {
+    const existente = {
+      repoPath: '/r', cliente: 'C', tipo: 'grupo' as const, notas: '', brainDir: '-brain-manual',
+    };
+    const novo = { repoPath: '/r', cliente: 'C', tipo: 'grupo' as const, notas: '' };
+    const resultado = mod.mesclarLink(existente, novo, false);
+    expect(resultado.brainDir).toBe('-brain-manual');
+  });
+
+  it('repoPath diferente recomputa o brainDir', () => {
+    const existente = {
+      repoPath: '/velho', cliente: 'C', tipo: 'grupo' as const, notas: '', brainDir: '-velho',
+    };
+    const novo = { repoPath: '/novo/caminho', cliente: 'C', tipo: 'grupo' as const, notas: '' };
+    const resultado = mod.mesclarLink(existente, novo, false);
+    expect(resultado.brainDir).toBe(mod.brainDirDe('/novo/caminho'));
+  });
+
+  it('sem existente calcula o brainDir a partir do repoPath do novo', () => {
+    const novo = { repoPath: '/a/b', cliente: 'C', tipo: 'grupo' as const, notas: '' };
+    const resultado = mod.mesclarLink(undefined, novo, false);
+    expect(resultado.brainDir).toBe(mod.brainDirDe('/a/b'));
+    expect(resultado.github).toBeUndefined();
   });
 });

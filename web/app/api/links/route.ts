@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { listGroups } from "@/lib/data";
 import {
-  brainDirDe,
   githubValido,
   type LinkEntry,
   type LinkTipo,
+  mesclarLink,
   readLinks,
   removeLink,
   writeClientFiles,
@@ -62,21 +62,26 @@ export async function POST(req: Request) {
   if (!slug) return NextResponse.json({ error: "slug ausente" }, { status: 400 });
   if (!repoPath) return NextResponse.json({ error: "repoPath ausente" }, { status: 400 });
 
-  const entry: LinkEntry = {
+  const novo: LinkEntry = {
     repoPath,
     cliente: body.cliente?.trim() ?? "",
     tipo: TIPOS.includes(body.tipo as LinkTipo) ? (body.tipo as LinkTipo) : "projeto",
     notas: body.notas?.trim() ?? "",
   };
 
+  const githubInformado = body.github !== undefined;
   const github = body.github?.trim();
-  if (github) {
+  if (githubInformado && github) {
     if (!githubValido(github)) {
       return NextResponse.json({ error: "github deve ser owner/repo" }, { status: 400 });
     }
-    entry.github = github;
+    novo.github = github;
   }
-  entry.brainDir = brainDirDe(repoPath);
+
+  // Corpo parcial: um POST que só troca as notas, por exemplo, não pode apagar
+  // o github/brainDir já indexados — mesclarLink preserva o que não veio.
+  const existente = (await readLinks())[slug];
+  const entry = mesclarLink(existente, novo, githubInformado);
 
   try {
     // Sem indexOnly, escreve o lado do repo primeiro: se o repoPath for
