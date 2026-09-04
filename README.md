@@ -116,6 +116,14 @@ Cada pessoa aponta pro seu container — **os dois modos coexistem** (você pode
 
 `npm run expediente` sobe um agendador que troca o recado/"sobre" do perfil conforme seu horário de trabalho. Configure em `data/expediente.json` (veja `docs/expediente.json.example` para um exemplo): defina os dias operacionais, as faixas horárias `["HH:MM","HH:MM"]`, o fuso horário e os textos `recado_dentro` (mensagem durante expediente) e `recado_fora` (mensagem fora do expediente). Fora do expediente o recado muda para o aviso de indisponível; dentro, volta ao normal. A troca acontece **só na transição** de cada faixa horária, não reescreve continuamente. Ative com `"ativo": true` no arquivo de configuração.
 
+## Brain (memória espelhada)
+
+`scripts/brain-sync-install.sh` instala no launchd um espelho, a cada 5 minutos, da memória
+do Claude Code (`~/.claude/projects/*/memory/`) e das skills globais num repositório git
+privado (`~/brain`, remoto `minha-org/brain`). Os workflows de triagem baixam esse
+repositório ao lado do repo do cliente pra ler o mesmo contexto que o operador tem no Mac.
+Uma via: o Mac escreve, a nuvem lê. Log em `~/Library/Logs/brain-sync.log`.
+
 ## O que sai (`data/<grupo>/`)
 
 ```
