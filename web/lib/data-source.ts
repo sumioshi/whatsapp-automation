@@ -10,6 +10,8 @@ import { listGroups, readGroupMessages } from './data';
 import type { AgenteExecutor, AgenteModo, TriageState } from './triage';
 import { readTriage, setAlert, setAutonomo, setMuted, setNote, setResolved, setTypos, setEtiquetas, setAgente, setExecutor } from './triage';
 import { readAgentSeen, setAgentSeenMany } from './agent-seen';
+import type { Contrato } from './contratos';
+import { readContratos, setContrato } from './contratos';
 import { CONTROL_URL } from './paths';
 
 /**
@@ -223,4 +225,16 @@ export async function dsEditarPerfil(args: PerfilArgs): Promise<void> {
   if (args.name) await fwd('/profile/name', { name: args.name });
   if (args.status) await fwd('/profile/status', { status: args.status });
   if (args.picturePath) await fwd('/profile/picture', { path: args.picturePath });
+}
+
+export async function dsContratos(): Promise<Record<string, Contrato>> {
+  if (mcpRemote()) return cloudJson('/api/contratos');
+  return readContratos();
+}
+export async function dsSetContrato(slug: string, patch: Partial<Contrato>): Promise<Contrato> {
+  if (mcpRemote()) {
+    const res = await cloudPost('/api/contratos', { slug, patch });
+    return ((await res.json()) as { contrato: Contrato }).contrato;
+  }
+  return setContrato(slug, patch);
 }
