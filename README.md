@@ -124,6 +124,20 @@ privado (`~/brain`, remoto `minha-org/brain`). Os workflows de triagem baixam es
 repositório ao lado do repo do cliente pra ler o mesmo contexto que o operador tem no Mac.
 Uma via: o Mac escreve, a nuvem lê. Log em `~/Library/Logs/brain-sync.log`.
 
+### Despacho: triagem dos grupos por agente + fila de decisões
+
+Duas vezes por dia o workflow `.github/workflows/triagem.yml` (repo `whatsapp-automation`)
+consulta `GET /api/v1/agente/fila`, e pra cada chat com agente ligado e mensagem nova roda o
+Claude com o repo do cliente, o MCP `whatsapp-collector` em modo remoto e o brain ao lado.
+Ele cria issues organizadas no repo do cliente e devolve itens de decisão; o coletor manda a
+fila pro self-chat do operador, que responde `ok N`, `não N`, `edita N: texto` ou `ok todos`.
+
+Ligar por chat: tela `/links` (seletor `agente: off | issue | pr`) ou `definir_modo({ grupo, agente })`
+no MCP. `issue` cria a issue e espera o `ok`; `pr` já sai marcada pro executor (etapa 2).
+Segredos do workflow: `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`), `AGENTE_GITHUB_TOKEN`,
+`WAC_API_TOKEN` (`node scripts/api-token.mjs criar …` na nuvem), `WAC_CLOUD_*`, `OPENROUTER_API_KEY`.
+No coletor, `AGENTE_GITHUB_TOKEN` habilita o `ok N` aplicar label e o `não N` fechar issue.
+
 ## O que sai (`data/<grupo>/`)
 
 ```

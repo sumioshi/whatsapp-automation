@@ -63,6 +63,13 @@ Cada chat tem um modo, persistido (tool `definir_modo`, lido pelo `responder`):
 O retorno do `responder` traz o `modo` do chat. É **convenção que a IA respeita**, não trava de
 código — então NÃO burle o `confirmar`. Pra saber o modo de um chat sem enviar, use `estado_triagem`.
 
+## Despacho (fila de decisões)
+
+Itens numerados chegam no self-chat do operador depois de cada passada da triagem. Ele responde
+`ok N` / `não N` / `edita N: texto` / `ok todos` ali mesmo; o coletor executa. O agente de triagem
+por chat liga em `/links` ou via `definir_modo({ grupo, agente: "issue" })`. Detalhes na spec
+`docs/superpowers/specs/2026-09-04-despacho-agente-github-design.md`.
+
 ## Mídia na nuvem (`midia_pendente`) — NÃO é erro
 
 Tem dois coletores: o do Mac (local) e o da nuvem (Railway, histórico 24/7). A nuvem é a fonte
