@@ -15,6 +15,12 @@ const MAX_ITENS = 60;
 /**
  * Recebe os itens de decisão de uma passada da triagem e grava a fila. O envio
  * pro operador e a execução dos comandos ficam com o coletor (Despacho).
+ *
+ * Idempotente por `passada`: um retry do workflow (ou o painel reiniciado no
+ * meio) reenvia a mesma passada — gravarDespacho detecta o arquivo existente
+ * e devolve ele sem sobrescrever, então `enviadoEm`/`executadoEm` já
+ * marcados pelo operador não são resetados. `duplicado: true` sinaliza isso
+ * pro chamador (o workflow só loga; não é erro).
  */
 export const POST = rota("write", async ({ req }) => {
   const corpo = await corpoJson<Corpo>(req);
@@ -33,7 +39,12 @@ export const POST = rota("write", async ({ req }) => {
     throw new ErroApi("invalid_request", e instanceof Error ? e.message : "item inválido");
   }
   const arquivo = await gravarDespacho(passada, itens);
-  return respostaOk({ passada, arquivo: `despacho/${passada}.json`, itens: arquivo.itens.length });
+  return respostaOk({
+    passada,
+    arquivo: `despacho/${passada}.json`,
+    itens: arquivo.itens.length,
+    duplicado: arquivo.jaExistia === true,
+  });
 });
 
 export const OPTIONS = (req: Request): NextResponse => preflight(req);

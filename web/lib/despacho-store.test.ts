@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -58,5 +58,43 @@ describe('gravarDespacho / listarDespachos', () => {
   });
   it('recusa passada inválida', async () => {
     await expect(mod.gravarDespacho('x', [], agora)).rejects.toThrow(/passada/);
+  });
+});
+
+// ── idempotência: re-POST da mesma passada não pode resetar progresso ──────
+// O workflow do GitHub pode re-rodar (retry, painel reiniciado no meio) e
+// mandar a mesma passada de novo. Sobrescrever o arquivo resetaria enviadoEm
+// e todo executadoEm já marcado — reabrindo pro operador itens que ele já
+// decidiu, e podendo reenviar uma pergunta pro cliente pela segunda vez.
+describe('gravarDespacho é idempotente por passada', () => {
+  it('segunda gravação com itens diferentes não sobrescreve o arquivo existente', async () => {
+    const passada = '2026-09-04T0700';
+    const arquivo = join(tmp, 'data', 'despacho', `${passada}.json`);
+
+    const primeira = await mod.gravarDespacho(passada, [
+      { slug: 'g', cliente: 'G', tipo: 'issue', titulo: 'Original' },
+    ], agora);
+    expect(primeira.jaExistia).toBeFalsy();
+    const nOriginal = primeira.itens[0]?.n;
+
+    // Simula progresso do operador: marca o item como executado e o envio como feito.
+    const emDisco = JSON.parse(await readFile(arquivo, 'utf8'));
+    emDisco.enviadoEm = '2026-09-04T09:15:00.000Z';
+    emDisco.itens[0].executadoEm = '2026-09-04T09:20:00.000Z';
+    emDisco.itens[0].resultado = 'ok';
+    await writeFile(arquivo, JSON.stringify(emDisco));
+
+    const segunda = await mod.gravarDespacho(passada, [
+      { slug: 'h', cliente: 'H', tipo: 'bug', titulo: 'Diferente' },
+    ], agora);
+
+    expect(segunda.jaExistia).toBe(true);
+    expect(segunda.itens.map((i) => i.n)).toEqual([nOriginal]);
+    expect(segunda.itens[0]?.titulo).toBe('Original');
+    expect(segunda.enviadoEm).toBe('2026-09-04T09:15:00.000Z');
+    expect(segunda.itens[0]?.executadoEm).toBe('2026-09-04T09:20:00.000Z');
+
+    const emDiscoDepois = JSON.parse(await readFile(arquivo, 'utf8'));
+    expect(emDiscoDepois).toEqual(emDisco);
   });
 });

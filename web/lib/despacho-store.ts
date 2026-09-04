@@ -44,6 +44,8 @@ export interface ArquivoDespacho {
   criadoEm: string;
   enviadoEm: string | null;
   itens: ItemDespacho[];
+  /** true quando gravarDespacho devolveu o arquivo já existente em vez de gravar. */
+  jaExistia?: boolean;
 }
 
 const DIR = () => join(DATA_DIR, 'despacho');
@@ -117,13 +119,24 @@ export async function listarDespachos(): Promise<ArquivoDespacho[]> {
   return out;
 }
 
-/** Grava a passada com numeração global (continua do maior `n` já existente). */
+/**
+ * Grava a passada com numeração global (continua do maior `n` já existente).
+ * Idempotente por `passada`: se `despacho/<passada>.json` já existe e é
+ * válido, devolve ele sem tocar no disco — um workflow que re-roda (retry,
+ * painel reiniciado no meio) manda a mesma passada de novo, e sobrescrever
+ * resetaria `enviadoEm`/`executadoEm`, reabrindo pro operador decisão que
+ * ele já tomou e podendo reenviar uma pergunta pro cliente duas vezes.
+ */
 export async function gravarDespacho(
   passada: string,
   itens: ItemDespachoEntrada[],
   agora: Date = new Date(),
 ): Promise<ArquivoDespacho> {
   if (!passadaValida(passada)) throw new Error('passada deve ter o formato YYYY-MM-DDTHHmm');
+  const arquivoPath = join(DIR(), `${passada}.json`);
+  const existente = parseArquivo(await readFile(arquivoPath, 'utf8').catch(() => ''));
+  if (existente) return { ...existente, jaExistia: true };
+
   const existentes = await listarDespachos();
   let n = existentes.reduce((max, d) => Math.max(max, ...d.itens.map((i) => i.n)), 0);
   const arquivo: ArquivoDespacho = {
@@ -137,6 +150,6 @@ export async function gravarDespacho(
     }),
   };
   await mkdir(DIR(), { recursive: true });
-  await writeJsonAtomic(join(DIR(), `${passada}.json`), arquivo);
+  await writeJsonAtomic(arquivoPath, arquivo);
   return arquivo;
 }
