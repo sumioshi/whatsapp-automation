@@ -14,6 +14,7 @@ import type { Contrato } from './contratos';
 import { readContratos, setContrato } from './contratos';
 import type { EntradaFeature, Feature } from './features';
 import { listarFeatures, registrarFeature } from './features';
+import type { Dashboard } from './dashboard';
 import { CONTROL_URL } from './paths';
 
 /**
@@ -258,4 +259,10 @@ export async function dsRegistrarFeature(entrada: EntradaFeature): Promise<{ fea
     return (await res.json()) as { feature: Feature; duplicada: boolean };
   }
   return registrarFeature(entrada);
+}
+
+export async function dsDashboard(): Promise<Dashboard> {
+  if (mcpRemote()) return cloudJson('/api/dashboard');
+  const { montarDashboardAtual } = await import('./dashboard-atual');
+  return montarDashboardAtual();
 }
