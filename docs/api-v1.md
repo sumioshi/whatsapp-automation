@@ -146,3 +146,15 @@ for (const m of msgs) {
   if (m.mediaPath) console.log(`  mídia: ${base}/media/${m.mediaPath}`);
 }
 ```
+
+## Agente de triagem
+
+Rotas usadas pelo workflow `triagem.yml` (ver `docs/superpowers/specs/2026-09-04-despacho-agente-github-design.md`).
+
+| Rota | Escopo | Uso |
+|---|---|---|
+| `GET /api/v1/agente/fila?slug=` | read | chats com agente ligado, repositório vinculado e mensagem nova de terceiro desde o checkpoint. `slug` força um chat. |
+| `POST /api/v1/agente/checkpoint` `{slug, ate}` | write | avança o checkpoint (nunca recua). |
+| `POST /api/v1/agente/despacho` `{passada, itens}` | write | grava a fila de decisões da passada; o coletor envia ao operador e executa `ok N`. |
+
+Item de despacho: `{ slug, cliente, tipo: issue|pergunta|bug|info, titulo, url?, texto?, issue?: {repo, numero}, acao?: nenhuma|label|enviar, label? }`.

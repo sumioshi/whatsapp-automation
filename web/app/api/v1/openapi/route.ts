@@ -107,6 +107,9 @@ export const GET = rota("read", async ({ req }) => {
       "/contacts": { get: { summary: "Contatos conhecidos", responses: { 200: { description: "ok" } } } },
       "/media/{path}": { get: { summary: "Arquivo de mídia", responses: { 200: { description: "binário" } } } },
       "/radar": { get: { summary: "Quem está sem resposta", responses: { 200: { description: "ok" } } } },
+      "/agente/fila": { get: { summary: "Chats com mensagem nova pra triagem (passo zero do workflow)", parameters: [{ name: "slug", in: "query", required: false, schema: { type: "string" } }], responses: { 200: { description: "lista de {slug, cliente, github, brainDir, agente, executor, novas, desde, ate}" } } } },
+      "/agente/checkpoint": { post: { summary: "Avança o checkpoint da triagem de um chat", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["slug", "ate"], properties: { slug: { type: "string" }, ate: { type: "string", format: "date-time" } } } } } }, responses: { 200: { description: "{slug, ate, avancou}" } } } },
+      "/agente/despacho": { post: { summary: "Grava a fila de decisões de uma passada", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["passada", "itens"], properties: { passada: { type: "string", example: "2026-09-04T0610" }, itens: { type: "array" } } } } } }, responses: { 200: { description: "{passada, arquivo, itens}" } } } },
     },
   });
 });
