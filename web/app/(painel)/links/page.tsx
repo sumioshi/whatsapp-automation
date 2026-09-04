@@ -16,11 +16,13 @@ interface ChatOpt {
 interface Data {
   links: LinksMap;
   chats: ChatOpt[];
+  agente: Record<string, "off" | "issue" | "pr">;
+  executor: Record<string, "claude" | "copilot">;
 }
 
 const TIPOS: LinkTipo[] = ["projeto", "grupo", "dm"];
 
-const EMPTY = { slug: "", repoPath: "", cliente: "", tipo: "projeto" as LinkTipo, notas: "" };
+const EMPTY = { slug: "", repoPath: "", cliente: "", tipo: "projeto" as LinkTipo, notas: "", github: "" };
 
 export default function LinksPage() {
   const [data, setData] = useState<Data | null>(null);
@@ -29,12 +31,17 @@ export default function LinksPage() {
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    const res = await fetch("/api/links", { cache: "no-store" });
-    setData((await res.json()) as Data);
+    const [resLinks, resTriage] = await Promise.all([
+      fetch("/api/links", { cache: "no-store" }),
+      fetch("/api/triage", { cache: "no-store" }),
+    ]);
+    const links = (await resLinks.json()) as Omit<Data, "agente" | "executor">;
+    const triage = (await resTriage.json()) as { agente?: Data["agente"]; executor?: Data["executor"] };
+    setData({ ...links, agente: triage.agente ?? {}, executor: triage.executor ?? {} });
   }
 
   useEffect(() => {
-    load().catch(() => setData({ links: {}, chats: [] }));
+    load().catch(() => setData({ links: {}, chats: [], agente: {}, executor: {} }));
   }, []);
 
   const chatName = useMemo(() => {
@@ -61,6 +68,7 @@ export default function LinksPage() {
       cliente: entry.cliente,
       tipo: entry.tipo,
       notas: entry.notas,
+      github: entry.github ?? "",
     });
     setError(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -93,6 +101,15 @@ export default function LinksPage() {
 
   async function remove(slug: string) {
     await fetch(`/api/links?slug=${encodeURIComponent(slug)}`, { method: "DELETE" });
+    await load();
+  }
+
+  async function definir(slug: string, action: "agente" | "executor", value: string) {
+    await fetch("/api/triage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, slug, value }),
+    });
     await load();
   }
 
@@ -131,6 +148,14 @@ export default function LinksPage() {
               value={form.repoPath}
               onChange={(e) => setForm((f) => ({ ...f, repoPath: e.target.value }))}
               placeholder="/Users/…/cliente-x"
+            />
+          </Field>
+
+          <Field label="Repositório no GitHub" hint="owner/repo — onde o agente de triagem abre issues">
+            <Input
+              value={form.github}
+              onChange={(e) => setForm((f) => ({ ...f, github: e.target.value }))}
+              placeholder="org/repo"
             />
           </Field>
 
@@ -195,9 +220,32 @@ export default function LinksPage() {
                     <span className="truncate text-fg">{chatName.get(slug) ?? slug}</span>
                     <Badge variant={entry.tipo === "dm" ? "info" : "neutral"}>{entry.tipo}</Badge>
                   </div>
-                  <div className="mono truncate text-[11px] text-fg-dim">{entry.repoPath}</div>
+                  <div className="mono truncate text-[11px] text-fg-dim">
+                    {entry.repoPath}{entry.github ? ` · ${entry.github}` : ""}
+                  </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  <select
+                    aria-label="Modo do agente"
+                    value={data?.agente[slug] ?? "off"}
+                    onChange={(e) => definir(slug, "agente", e.target.value)}
+                    disabled={!entry.github}
+                    title={entry.github ? "off: não lê · issue: cria issue e espera seu ok · pr: já marca pro executor" : "Informe o repositório no GitHub pra ligar o agente"}
+                    className="mono rounded-[6px] border border-line bg-transparent px-1.5 py-0.5 text-xs text-fg"
+                  >
+                    <option value="off">agente: off</option>
+                    <option value="issue">agente: issue</option>
+                    <option value="pr">agente: pr</option>
+                  </select>
+                  <select
+                    aria-label="Executor"
+                    value={data?.executor[slug] ?? "claude"}
+                    onChange={(e) => definir(slug, "executor", e.target.value)}
+                    className="mono rounded-[6px] border border-line bg-transparent px-1.5 py-0.5 text-xs text-fg"
+                  >
+                    <option value="claude">claude</option>
+                    <option value="copilot">copilot</option>
+                  </select>
                   <button
                     type="button"
                     onClick={() => editLink(slug, entry)}

@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { preflight, respostaOk, rota } from "@/lib/api-v1";
 import { readGroupsConfig } from "@/lib/config";
 import { listGroups } from "@/lib/data";
+import { readLinks } from "@/lib/links";
 import { slugify } from "@/lib/slug";
+import { readTriage } from "@/lib/triage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +26,7 @@ export const GET = rota("read", async ({ req }) => {
   const grupos = await listGroups();
   const config = await readGroupsConfig().catch(() => []);
   const jidPorSlug = new Map(config.map((g) => [g.slug ?? slugify(g.name), g.id]));
+  const [links, triagem] = await Promise.all([readLinks(), readTriage()]);
 
   const filtrados = busca
     ? grupos.filter((g) => g.name.toLowerCase().includes(busca) || g.slug.includes(busca))
@@ -43,6 +46,11 @@ export const GET = rota("read", async ({ req }) => {
       pinned: g.pinned ?? false,
       muted: g.muted ?? false,
       archived: g.archived ?? false,
+      github: links[g.slug]?.github ?? null,
+      agent: {
+        mode: triagem.agente[g.slug] ?? "off",
+        executor: triagem.executor[g.slug] ?? "claude",
+      },
     })),
     {
       page: {
