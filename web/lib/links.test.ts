@@ -159,7 +159,7 @@ describe('githubValido', () => {
 
 describe('brainDirDe', () => {
   it('troca tudo que não é letra, dígito ou hífen por hífen (encoding do Claude Code)', () => {
-    expect(mod.brainDirDe('/Users/x/projetos/projeto-145')).toBe('-Users-x-projetos-projeto-145');
+    expect(mod.brainDirDe('/Users/x/projetos/cliente_x')).toBe('-Users-x-projetos-cliente-x');
     expect(mod.brainDirDe('/a/b.c')).toBe('-a-b-c');
   });
 });
