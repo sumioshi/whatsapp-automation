@@ -1,0 +1,47 @@
+name: Entregas por PR mergeado
+
+on:
+  schedule:
+    # 07:00 em Brasília
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  registrar:
+    name: Registra PRs mergeados que fecham issues da triagem
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/agente
+      - env:
+          WAC_URL: ${{ secrets.WAC_CLOUD_URL }}
+          WAC_API_TOKEN: ${{ secrets.WAC_API_TOKEN }}
+          GH_TOKEN: ${{ secrets.AGENTE_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          desde=$(date -u -d '48 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          chats=$(curl -sS --fail --max-time 120 -H "Authorization: Bearer $WAC_API_TOKEN" "$WAC_URL/api/v1/chats?limit=500" \
+            | jq -c '[.data[] | select(.github != null) | {slug, github}]')
+          total=0; lidos=0; falhas=0
+          for par in $(printf '%s' "$chats" | jq -r '.[] | "\(.slug)|\(.github)"'); do
+            slug=${par%%|*}; repo=${par#*|}
+            if ! entregas=$(node scripts/agente/features-de-prs.mjs "$slug" "$repo" "$desde" 2>/tmp/erro.txt); then
+              echo "::warning::$repo: $(head -c 200 /tmp/erro.txt)"; falhas=$((falhas+1)); continue
+            fi
+            lidos=$((lidos+1))
+            n=$(printf '%s' "$entregas" | jq 'length')
+            [ "$n" = "0" ] && continue
+            printf '%s' "$entregas" | jq -c '.[]' | while IFS= read -r item; do
+              curl -sS --fail --max-time 60 -X POST -H "Authorization: Bearer $WAC_API_TOKEN" \
+                -H "Content-Type: application/json" -d "$item" "$WAC_URL/api/v1/features" >/dev/null
+              echo "$slug: $(printf '%s' "$item" | jq -r .nome)"
+            done
+            total=$((total+n))
+          done
+          echo "$lidos repositórios lidos, $falhas com falha, $total entregas enviadas"
+          if [ "$lidos" = "0" ]; then echo "::error::nenhum repositório pôde ser lido"; exit 1; fi
