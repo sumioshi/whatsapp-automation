@@ -25,8 +25,14 @@ jobs:
         run: |
           set -euo pipefail
           desde=$(date -u -d '48 hours ago' +%Y-%m-%dT%H:%M:%SZ)
-          chats=$(curl -sS --fail --max-time 120 -H "Authorization: Bearer $WAC_API_TOKEN" "$WAC_URL/api/v1/chats?limit=500" \
-            | jq -c '[.data[] | select(.github != null) | {slug, github}]')
+          if ! chats=$(curl -sS --fail --max-time 120 -H "Authorization: Bearer $WAC_API_TOKEN" "$WAC_URL/api/v1/chats?limit=500" \
+            | jq -c '[.data[] | select(.github != null) | {slug, github}]'); then
+            echo "::error::não consegui listar os chats em $WAC_URL"; exit 1
+          fi
+          vinculados=$(printf '%s' "$chats" | jq 'length')
+          if [ "$vinculados" = "0" ]; then
+            echo "::notice::nenhum chat com repositório vinculado; nada a fazer"; exit 0
+          fi
           total=0; lidos=0; falhas=0; falhasPost=0
           for par in $(printf '%s' "$chats" | jq -r '.[] | "\(.slug)|\(.github)"'); do
             slug=${par%%|*}; repo=${par#*|}
@@ -51,4 +57,6 @@ jobs:
           ITENS
           done
           echo "$lidos repositórios lidos, $falhas com falha, $total entregas enviadas, $falhasPost POSTs com falha"
+          # Chegar aqui com lidos=0 significa que HAVIA repositórios vinculados e
+          # todos falharam (o caso "nenhum vinculado" já saiu com notice lá em cima).
           if [ "$lidos" = "0" ]; then echo "::error::nenhum repositório pôde ser lido"; exit 1; fi
