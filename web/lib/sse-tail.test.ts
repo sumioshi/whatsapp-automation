@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitJsonlBuffer } from './sse-tail';
+import { formatCursor, parseCursor, splitJsonlBuffer, tailJsonl } from './sse-tail';
 
 const buf = (s: string) => Buffer.from(s, 'utf8');
 
@@ -36,5 +36,52 @@ describe('splitJsonlBuffer', () => {
     const r = splitJsonlBuffer(buf('{"parc'), Buffer.alloc(0));
     expect(r.lines).toEqual([]);
     expect(r.carry.toString()).toBe('{"parc');
+  });
+});
+
+
+describe('tailJsonl', () => {
+  it('devolve o offset absoluto do fim de cada linha', () => {
+    const r = tailJsonl(Buffer.alloc(0), buf('{"a":1}\n{"b":2}\n'), 100);
+    expect(r.lines).toEqual([
+      { line: '{"a":1}', end: 108 },
+      { line: '{"b":2}', end: 116 },
+    ]);
+    expect(r.consumed).toBe(16);
+  });
+
+  it('linha parcial fica no carry e o offset da próxima considera o carry', () => {
+    const r1 = tailJsonl(Buffer.alloc(0), buf('{"a":1}\n{"b":'), 0);
+    expect(r1.lines.map((l) => l.end)).toEqual([8]);
+    expect(r1.consumed).toBe(8);
+    const r2 = tailJsonl(r1.carry, buf('2}\n'), 8);
+    expect(r2.lines).toEqual([{ line: '{"b":2}', end: 16 }]);
+  });
+
+  it('multibyte cortado entre chunks conta bytes, não caracteres', () => {
+    const full = buf('{"t":"você"}\n');
+    const r1 = tailJsonl(Buffer.alloc(0), full.subarray(0, 9), 0);
+    const r2 = tailJsonl(r1.carry, full.subarray(9), 0);
+    expect(r2.lines).toEqual([{ line: '{"t":"você"}', end: full.length }]);
+  });
+});
+
+describe('cursor', () => {
+  it('ida e volta', () => {
+    const m = new Map([
+      ['a', 12],
+      ['dm-55', 30],
+    ]);
+    expect(formatCursor(m)).toBe('a=12;dm-55=30');
+    expect(parseCursor('a=12;dm-55=30')).toEqual(m);
+  });
+
+  it('ignora pedaços inválidos e valores negativos/não numéricos', () => {
+    expect(parseCursor('a=12;lixo;b=-1;c=x;=5')).toEqual(new Map([['a', 12]]));
+  });
+
+  it('vazio/nulo vira mapa vazio', () => {
+    expect(parseCursor(null).size).toBe(0);
+    expect(parseCursor('').size).toBe(0);
   });
 });
