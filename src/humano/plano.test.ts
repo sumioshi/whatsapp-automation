@@ -1,24 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { PERFIL_DEFAULT } from './baloes';
-import { injetarTypo, planoDeEntrega, TETO_MS } from './plano';
+import { garantirJanela, injetarTypo, type Passo, planoDeEntrega, TETO_MS } from './plano';
 
 /** RNG determinístico simples (LCG) pra teste. */
 function seeded(seed: number): () => number {
   let s = seed;
-  return () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296);
+  return () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296;
 }
 
 describe('planoDeEntrega', () => {
   it('estrutura: visto → pausa de leitura → [digitando → enviar] por balão, com pausa entre balões', () => {
-    const plano = planoDeEntrega(['oi', 'tudo certo por aqui'], PERFIL_DEFAULT, { rng: seeded(42) });
+    const plano = planoDeEntrega(['oi', 'tudo certo por aqui'], PERFIL_DEFAULT, {
+      rng: seeded(42),
+    });
     const tipos = plano.map((p) => p.tipo);
     expect(tipos[0]).toBe('visto');
     expect(tipos[1]).toBe('pausa');
     expect(tipos).toContain('digitando');
-    expect(plano.filter((p) => p.tipo === 'enviar').map((p) => (p as { texto: string }).texto)).toEqual([
-      'oi',
-      'tudo certo por aqui',
-    ]);
+    expect(
+      plano.filter((p) => p.tipo === 'enviar').map((p) => (p as { texto: string }).texto),
+    ).toEqual(['oi', 'tudo certo por aqui']);
     // entre os dois envios existe uma pausa (humano não emenda balões em 0ms)
     const idx1 = tipos.indexOf('enviar');
     const idx2 = tipos.lastIndexOf('enviar');
@@ -26,7 +27,9 @@ describe('planoDeEntrega', () => {
   });
 
   it('digitando é proporcional ao tamanho do balão (40-80ms/char)', () => {
-    const [curto] = planoDeEntrega(['oi'], PERFIL_DEFAULT, { rng: seeded(1) }).filter((p) => p.tipo === 'digitando');
+    const [curto] = planoDeEntrega(['oi'], PERFIL_DEFAULT, { rng: seeded(1) }).filter(
+      (p) => p.tipo === 'digitando',
+    );
     const [longo] = planoDeEntrega(['a'.repeat(200)], PERFIL_DEFAULT, { rng: seeded(1) }).filter(
       (p) => p.tipo === 'digitando',
     );
@@ -35,22 +38,34 @@ describe('planoDeEntrega', () => {
   });
 
   it('respeita o TETO_MS mesmo com 3 balões gigantes', () => {
-    const plano = planoDeEntrega(['a'.repeat(500), 'b'.repeat(500), 'c'.repeat(500)], PERFIL_DEFAULT, {
-      rng: seeded(7),
-      foraDoExpediente: true,
-    });
+    const plano = planoDeEntrega(
+      ['a'.repeat(500), 'b'.repeat(500), 'c'.repeat(500)],
+      PERFIL_DEFAULT,
+      {
+        rng: seeded(7),
+        foraDoExpediente: true,
+      },
+    );
     const total = plano.reduce((acc, p) => acc + ('ms' in p ? p.ms : 0), 0);
     expect(total).toBeLessThanOrEqual(TETO_MS);
   });
 
   it('typos: com opt-in e rng favorável, um enviar ganha typoAntes; sem opt-in, nunca', () => {
     const rngSempre = () => 0.001; // qualquer limiar passa
-    const com = planoDeEntrega(['mensagem grande o suficiente pra typo'], PERFIL_DEFAULT, { typos: true, rng: rngSempre });
+    const com = planoDeEntrega(['mensagem grande o suficiente pra typo'], PERFIL_DEFAULT, {
+      typos: true,
+      rng: rngSempre,
+    });
     const enviar = com.find((p) => p.tipo === 'enviar') as { texto: string; typoAntes?: string };
     expect(enviar.typoAntes).toBeDefined();
     expect(enviar.typoAntes).not.toBe(enviar.texto);
-    const sem = planoDeEntrega(['mensagem grande o suficiente pra typo'], PERFIL_DEFAULT, { typos: false, rng: rngSempre });
-    expect((sem.find((p) => p.tipo === 'enviar') as { typoAntes?: string }).typoAntes).toBeUndefined();
+    const sem = planoDeEntrega(['mensagem grande o suficiente pra typo'], PERFIL_DEFAULT, {
+      typos: false,
+      rng: rngSempre,
+    });
+    expect(
+      (sem.find((p) => p.tipo === 'enviar') as { typoAntes?: string }).typoAntes,
+    ).toBeUndefined();
   });
 
   it('typoDelayMs: com typos ligado e rng favorável, o passo enviar ganha typoDelayMs numérico 2000-5000', () => {
@@ -59,7 +74,10 @@ describe('planoDeEntrega', () => {
       typos: true,
       rng: rngSempre,
     });
-    const enviar = plano.find((p) => p.tipo === 'enviar') as { typoAntes?: string; typoDelayMs?: number };
+    const enviar = plano.find((p) => p.tipo === 'enviar') as {
+      typoAntes?: string;
+      typoDelayMs?: number;
+    };
     expect(enviar.typoAntes).toBeDefined();
     expect(typeof enviar.typoDelayMs).toBe('number');
     expect(enviar.typoDelayMs).toBeGreaterThanOrEqual(2000);
@@ -76,7 +94,10 @@ describe('planoDeEntrega', () => {
       typos: true,
       foraDoExpediente: true,
     });
-    const enviarSteps = plano.filter((p) => p.tipo === 'enviar') as { typoAntes?: string; typoDelayMs?: number }[];
+    const enviarSteps = plano.filter((p) => p.tipo === 'enviar') as {
+      typoAntes?: string;
+      typoDelayMs?: number;
+    }[];
     expect(enviarSteps.every((p) => p.typoAntes)).toBe(true); // premissa: todos ganharam typo
     const totalComTypoDelay = plano.reduce(
       (acc, p) => acc + ('ms' in p ? p.ms : 0) + (p.tipo === 'enviar' ? (p.typoDelayMs ?? 0) : 0),
@@ -116,5 +137,48 @@ describe('injetarTypo', () => {
 
   it('sem palavra elegível devolve null', () => {
     expect(injetarTypo('ok', seeded(3))).toBeNull();
+  });
+});
+
+describe('garantirJanela', () => {
+  it('plano curto ganha digitando até somar a janela antes do 1º balão', () => {
+    const plano: Passo[] = [
+      { tipo: 'visto' },
+      { tipo: 'pausa', ms: 1000 },
+      { tipo: 'digitando', ms: 500 },
+      { tipo: 'enviar', texto: 'oi' },
+    ];
+    const out = garantirJanela(plano, 5000);
+    const antes = out.slice(
+      0,
+      out.findIndex((p) => p.tipo === 'enviar'),
+    );
+    const soma = antes.reduce((s, p) => s + ('ms' in p ? p.ms : 0), 0);
+    expect(soma).toBe(5000);
+    expect(out.filter((p) => p.tipo === 'enviar')).toHaveLength(1);
+    // a extensão vai no digitando (o operador vê "digitando…" e tem tempo de cancelar)
+    expect((out[2] as { ms: number }).ms).toBe(4000);
+  });
+
+  it('plano que já cumpre a janela não muda', () => {
+    const plano: Passo[] = [
+      { tipo: 'visto' },
+      { tipo: 'pausa', ms: 4000 },
+      { tipo: 'digitando', ms: 2000 },
+      { tipo: 'enviar', texto: 'oi' },
+    ];
+    expect(garantirJanela(plano, 5000)).toEqual(plano);
+  });
+
+  it('sem digitando antes do envio, insere um', () => {
+    const plano: Passo[] = [{ tipo: 'visto' }, { tipo: 'enviar', texto: 'oi' }];
+    const out = garantirJanela(plano, 5000);
+    expect(out.map((p) => p.tipo)).toEqual(['visto', 'digitando', 'enviar']);
+    expect((out[1] as { ms: number }).ms).toBe(5000);
+  });
+
+  it('sem envio não muda', () => {
+    const plano: Passo[] = [{ tipo: 'visto' }, { tipo: 'pausa', ms: 100 }];
+    expect(garantirJanela(plano, 5000)).toEqual(plano);
   });
 });

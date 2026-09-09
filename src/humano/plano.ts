@@ -40,8 +40,12 @@ export function planoDeEntrega(
   const validos = baloes.map((b) => b.trim()).filter(Boolean);
   validos.forEach((texto, i) => {
     if (i > 0) passos.push({ tipo: 'pausa', ms: pausaEntreBaloes(rng) });
-    passos.push({ tipo: 'digitando', ms: Math.max(PISO_DIGITANDO_MS, Math.round(texto.length * (40 + rng() * 40))) });
-    const typoAntes = ctx.typos && rng() < TYPO_CHANCE ? (injetarTypo(texto, rng) ?? undefined) : undefined;
+    passos.push({
+      tipo: 'digitando',
+      ms: Math.max(PISO_DIGITANDO_MS, Math.round(texto.length * (40 + rng() * 40))),
+    });
+    const typoAntes =
+      ctx.typos && rng() < TYPO_CHANCE ? (injetarTypo(texto, rng) ?? undefined) : undefined;
     // typoDelayMs é sorteado AQUI (no plano, com o rng semeável) — é o tempo entre
     // o envio com typo e o edit que corrige, hoje fora do teto porque o executor
     // sorteava na hora com Math.random(). Sorteando no plano, capar() consegue
@@ -126,4 +130,28 @@ export function injetarTypo(texto: string, rng: () => number): string | null {
   const out = [...palavras];
   out[i] = trocada;
   return out.join(' ');
+}
+
+/**
+ * Garante uma janela mínima (visto/pausa/digitando) antes do PRIMEIRO balão sair —
+ * é o tempo que o operador tem pra cancelar um envio do agente (Esc / "cancela").
+ * A extensão vai no `digitando` (ele vê "digitando…" no chat), inserindo um se não
+ * houver. Plano sem envio não muda.
+ */
+export function garantirJanela(plano: Passo[], minMs: number): Passo[] {
+  const idxEnvio = plano.findIndex((p) => p.tipo === 'enviar');
+  if (idxEnvio === -1) return plano;
+  const antes = plano.slice(0, idxEnvio);
+  const soma = antes.reduce((s, p) => s + ('ms' in p ? p.ms : 0), 0);
+  if (soma >= minMs) return plano;
+  const falta = minMs - soma;
+  const idxDigitando = antes.map((p) => p.tipo).lastIndexOf('digitando');
+  const out = plano.slice();
+  if (idxDigitando === -1) {
+    out.splice(idxEnvio, 0, { tipo: 'digitando', ms: falta });
+  } else {
+    const d = plano[idxDigitando] as { tipo: 'digitando'; ms: number };
+    out[idxDigitando] = { tipo: 'digitando', ms: d.ms + falta };
+  }
+  return out;
 }

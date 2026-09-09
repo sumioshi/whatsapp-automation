@@ -76,12 +76,15 @@ export interface WhatsAppGateway {
   editText(jid: string, msgId: string, texto: string): Promise<void>;
   /**
    * Entrega humanizada: toca a partitura (visto → pausas → digitando → balões).
-   * Presença/visto são best-effort; falha de um balão aborta o resto.
+   * Presença/visto são best-effort; falha de um balão aborta o resto. O `signal`
+   * cancela entre passos (nunca corta um envio já disparado): `cancelado: true`
+   * e `enviados` diz quantos balões saíram antes.
    */
   entregarHumano(
     jid: string,
     plano: import('../humano/plano.js').Passo[],
-  ): Promise<{ enviados: number; total: number }>;
+    signal?: AbortSignal,
+  ): Promise<{ enviados: number; total: number; cancelado: boolean }>;
   /**
    * URL (alta-res) da foto de perfil de um grupo, ou null se não tiver/erro.
    * Encapsula a chamada ao Baileys; o download em si é feito pela aplicação.

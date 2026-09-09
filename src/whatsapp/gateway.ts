@@ -59,6 +59,7 @@ import type {
 } from '../core/message.js';
 import type { WhatsAppGateway } from '../core/ports.js';
 import type { Passo } from '../humano/plano.js';
+import { dormir as dormirAbortavel } from '../humano/tempo.js';
 import { baileysLogger, logger } from '../logger.js';
 import { ChatStateStore } from '../storage/chatStateStore.js';
 import { ContactStore } from '../storage/contactStore.js';
@@ -376,12 +377,17 @@ export class BaileysGateway implements WhatsAppGateway {
     });
   }
 
-  async entregarHumano(jid: string, plano: Passo[]): Promise<{ enviados: number; total: number }> {
+  async entregarHumano(
+    jid: string,
+    plano: Passo[],
+    signal?: AbortSignal,
+  ): Promise<{ enviados: number; total: number; cancelado: boolean }> {
     if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
     const sock = this.sock;
     const total = plano.filter((p) => p.tipo === 'enviar').length;
     let enviados = 0;
-    const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    let cancelado = false;
+    const dormir = (ms: number) => dormirAbortavel(ms, signal);
     const bestEffort = async (fn: () => Promise<unknown>) => {
       try {
         await fn();
@@ -392,6 +398,12 @@ export class BaileysGateway implements WhatsAppGateway {
 
     try {
       for (const passo of plano) {
+        // Checado entre passos e de novo logo antes de cada envio: cancelar é
+        // sempre "não mandar o próximo", nunca cortar um sendMessage já disparado.
+        if (signal?.aborted) {
+          cancelado = true;
+          break;
+        }
         switch (passo.tipo) {
           case 'visto': {
             const key = this.lastIncomingKey.get(jid);
@@ -407,12 +419,17 @@ export class BaileysGateway implements WhatsAppGateway {
             await dormir(passo.ms);
             break;
           case 'enviar': {
+            if (signal?.aborted) {
+              cancelado = true;
+              break;
+            }
             try {
               const primeiro = passo.typoAntes ?? passo.texto;
               const sent = await sock.sendMessage(jid, { text: primeiro });
               this.echoSent(jid, sent);
               enviados += 1;
               if (passo.typoAntes && sent?.key?.id) {
+                // O typo já saiu: a correção vai mesmo se cancelarem no meio da espera.
                 await dormir(passo.typoDelayMs ?? 3000);
                 await bestEffort(() => this.editText(jid, sent.key.id as string, passo.texto));
               }
@@ -425,11 +442,12 @@ export class BaileysGateway implements WhatsAppGateway {
             break;
           }
         }
+        if (cancelado) break;
       }
     } finally {
       await bestEffort(() => sock.sendPresenceUpdate('paused', jid));
     }
-    return { enviados, total };
+    return { enviados, total, cancelado };
   }
 
   /**
