@@ -5,8 +5,8 @@ import { writeJsonAtomicNode } from '../storage/atomic.js';
 import {
   calcularPendencias,
   deveEnviarDigest,
-  ehNomeLegivel,
   type EntradaRadar,
+  ehNomeLegivel,
   formatarDigest,
   formatarFone,
   hashPendencias,
@@ -14,6 +14,13 @@ import {
   RADAR_DEFAULTS,
   type RadarConfig,
 } from './radar-core.js';
+import {
+  deveVerificarUpstream,
+  formatarUpstream,
+  novidadesUpstream,
+  type UpstreamEstado,
+  type UpstreamSnapshot,
+} from './upstream-core.js';
 
 /**
  * Radar de sem-resposta: a cada tick varre os chats, calcula pendências
@@ -30,6 +37,11 @@ export interface RadarDeps {
   lastActivityOf(slug: string): number | null;
   /** Telefone real de um user-part (LID→fone) pelo sidecar de contatos. */
   phoneOf(userPart: string): string | null;
+  /** Vigia de upstream do Baileys; ausente = desligado. */
+  upstream?: {
+    versaoInstalada: string;
+    buscar(): Promise<UpstreamSnapshot>;
+  };
 }
 
 export interface RadarResumo {
@@ -44,7 +56,18 @@ interface StatusFile {
   config: RadarConfig;
   pendencias: Pendencia[];
   digest: { enviadoEm: string | null; hash: string | null };
+  upstream: UpstreamStatus;
 }
+
+interface UpstreamStatus extends UpstreamEstado {
+  verificadoEm: string | null;
+}
+
+const UPSTREAM_ZERO: UpstreamStatus = {
+  ultimoSha: null,
+  ultimaVersaoNpm: null,
+  verificadoEm: null,
+};
 
 /** Bytes do fim do jsonl que bastam pra achar a última mensagem real. */
 const TAIL_BYTES = 16 * 1024;
@@ -55,6 +78,7 @@ export class Radar {
     enviadoEm: null,
     hash: null,
   };
+  private upstream: UpstreamStatus = { ...UPSTREAM_ZERO };
 
   constructor(private readonly deps: RadarDeps) {}
 
@@ -70,6 +94,13 @@ export class Radar {
       const raw = JSON.parse(await readFile(this.statusPath(), 'utf8')) as Partial<StatusFile>;
       if (raw.digest) {
         this.digest = { enviadoEm: raw.digest.enviadoEm ?? null, hash: raw.digest.hash ?? null };
+      }
+      if (raw.upstream) {
+        this.upstream = {
+          ultimoSha: raw.upstream.ultimoSha ?? null,
+          ultimaVersaoNpm: raw.upstream.ultimaVersaoNpm ?? null,
+          verificadoEm: raw.upstream.verificadoEm ?? null,
+        };
       }
     } catch {
       // primeiro boot — sem estado anterior
@@ -126,17 +157,66 @@ export class Radar {
       }
     }
 
+    await this.vigiarUpstream(cfg, agora);
+
     const status: StatusFile = {
       ultimaExecucao: new Date(agora).toISOString(),
       proximaExecucao: new Date(agora + Math.max(1, cfg.intervaloMin) * 60_000).toISOString(),
       config: cfg,
       pendencias,
       digest: this.digest,
+      upstream: this.upstream,
     };
     await writeJsonAtomicNode(this.statusPath(), status);
     logger.info({ motivo, pendencias: pendencias.length, digestEnviado }, 'radar: tick');
     await this.agendar();
     return { executadoEm: status.ultimaExecucao ?? '', pendencias, digestEnviado };
+  }
+
+  /**
+   * Vigia de upstream: uma vez por `upstreamIntervaloH` busca a master do
+   * Baileys e o npm; novidade vira aviso no self-chat. Primeira checagem só
+   * marca o ponto de partida. Falha de rede não avança nada (tenta no próximo
+   * tick) e nunca derruba o tick das pendências.
+   */
+  private async vigiarUpstream(cfg: RadarConfig, agora: number): Promise<void> {
+    const dep = this.deps.upstream;
+    if (!dep || !cfg.upstreamAtivo) return;
+    const verificadoEmMs = this.upstream.verificadoEm
+      ? Date.parse(this.upstream.verificadoEm)
+      : null;
+    if (!deveVerificarUpstream(verificadoEmMs, agora, cfg.upstreamIntervaloH)) return;
+    let snap: UpstreamSnapshot;
+    try {
+      snap = await dep.buscar();
+    } catch (err) {
+      logger.warn({ err }, 'radar: upstream do Baileys indisponível — tenta no próximo tick');
+      return;
+    }
+    const novidades = novidadesUpstream(snap, this.upstream, dep.versaoInstalada);
+    const texto = formatarUpstream(novidades, dep.versaoInstalada);
+    if (texto) {
+      const jid = this.deps.connected() ? this.deps.selfJid() : null;
+      if (!jid) {
+        logger.warn('radar: upstream com novidade mas sessão fechada — tenta no próximo tick');
+        return;
+      }
+      try {
+        await this.deps.sendText(jid, texto);
+      } catch (err) {
+        logger.warn({ err }, 'radar: aviso de upstream não enviado — tenta no próximo tick');
+        return;
+      }
+    }
+    this.upstream = {
+      ultimoSha: snap.commits[0]?.sha ?? this.upstream.ultimoSha,
+      ultimaVersaoNpm: snap.versaoNpm ?? this.upstream.ultimaVersaoNpm,
+      verificadoEm: new Date(agora).toISOString(),
+    };
+    logger.info(
+      { commitsNovos: novidades.commitsNovos.length, versaoNova: novidades.versaoNova },
+      'radar: upstream do Baileys verificado',
+    );
   }
 
   /** Varre os diretórios de chat (grupos e DMs) e monta as entradas do core. */
@@ -182,9 +262,9 @@ export class Radar {
 
   private async lerMuted(): Promise<Record<string, boolean>> {
     try {
-      const raw = JSON.parse(
-        await readFile(join(this.deps.dataDir, '.triage.json'), 'utf8'),
-      ) as { muted?: Record<string, boolean> };
+      const raw = JSON.parse(await readFile(join(this.deps.dataDir, '.triage.json'), 'utf8')) as {
+        muted?: Record<string, boolean>;
+      };
       return raw.muted ?? {};
     } catch {
       return {};

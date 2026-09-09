@@ -10,6 +10,9 @@ export interface RadarConfig {
   prazoMinimoMin: number;
   intervaloMin: number;
   digestCooldownMin: number;
+  /** Vigia de upstream do Baileys (commits na master + versão no npm) → self-chat. */
+  upstreamAtivo: boolean;
+  upstreamIntervaloH: number;
 }
 
 export const RADAR_DEFAULTS: RadarConfig = {
@@ -18,6 +21,8 @@ export const RADAR_DEFAULTS: RadarConfig = {
   prazoMinimoMin: 120,
   intervaloMin: 15,
   digestCooldownMin: 120,
+  upstreamAtivo: true,
+  upstreamIntervaloH: 24,
 };
 
 export interface EntradaRadar {

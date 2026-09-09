@@ -22,6 +22,9 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { Collector } from './app/collector.js';
 import { Despacho } from './app/despacho.js';
 import { githubIssues } from './app/github-issues.js';
+import { Radar } from './app/radar.js';
+import { Reconciler } from './app/reconciler.js';
+import { buscarUpstream, versaoBaileysInstalada } from './app/upstream-fetch.js';
 import { env } from './config/env.js';
 import { GroupConfig } from './config/groups.js';
 import { startControlServer } from './control/server.js';
@@ -32,8 +35,6 @@ import { FileStore } from './storage/fileStore.js';
 import { setGroupSlugOverrides } from './storage/paths.js';
 import { PresenceStore } from './storage/presenceStore.js';
 import { StatusStore } from './storage/statusStore.js';
-import { Radar } from './app/radar.js';
-import { Reconciler } from './app/reconciler.js';
 import { BaileysGateway } from './whatsapp/gateway.js';
 
 async function main(): Promise<void> {
@@ -85,6 +86,8 @@ async function main(): Promise<void> {
     sendText: (jid, text) => gateway.sendText(jid, text),
     lastActivityOf: (slug) => gateway.lastActivityOf(slug),
     phoneOf: (userPart) => gateway.phoneOfContact(userPart),
+    // Vigia de upstream do Baileys: commits novos na master / versão nova no npm → self-chat.
+    upstream: { versaoInstalada: versaoBaileysInstalada(), buscar: () => buscarUpstream() },
   });
   void radar.start();
 

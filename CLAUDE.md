@@ -103,3 +103,15 @@ O `ler_mensagens` separa coisas que antes confundiam a leitura:
 - **`rajada`** (id): msgs coladas do mesmo remetente (vídeo+texto+áudio numa tacada, gap < 90s)
   compartilham o mesmo `rajada` — trate como um bloco do mesmo assunto, não itens soltos.
 - **`citacao`/`citacao_de`**: a msg responde (reply) outra — o texto citado e quem mandou.
+
+## Baileys: dependência, não fork (como ficar atualizado)
+
+O coletor **usa** o Baileys como lib npm (`baileys`, canal `7.0.0-rc*`), com um patch local em
+`patches/` reaplicado pelo `patch-package` no `postinstall`. Não é fork: atualizar é bump de versão.
+Três camadas mantêm o projeto em dia:
+- **Dependabot** (`.github/dependabot.yml`): só pro `baileys`, semanal, abre PR quando sai versão.
+- **Bump manual:** `npm install baileys@<versão>`; se o patch não bater, reaplique o hunk de
+  `process-message.js` e regenere com `npx patch-package baileys` (apague o `.patch` antigo).
+- **Vigia no radar do coletor:** uma vez por dia checa a `master` do Baileys e o dist-tag do npm e
+  manda resumo no self-chat do operador. Config em `radar.config.json`: `upstreamAtivo`
+  (default true) e `upstreamIntervaloH` (default 24). Estado em `.radar-status.json` → `upstream`.
