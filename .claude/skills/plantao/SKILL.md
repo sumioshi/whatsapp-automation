@@ -52,20 +52,35 @@ curl -s -u "$WAC_CLOUD_USER:$WAC_CLOUD_PASS" -X POST -H "content-type: applicati
 **3. Matar monitor zumbi:** `TaskList` → `TaskStop` em qualquer Monitor antigo do MESMO chat.
 Armar sem matar o antigo = disparo em duplicata/triplicata.
 
-**4. Armar o Monitor** (o script encapsula SSE + reconexão + filtro `fromMe`):
+**4. Armar o Monitor** (o script encapsula SSE + reconexão com retomada + lock + filtro):
 ```
-Monitor(persistent: true, description: "Plantão SSE no chat <slug>", command:
-  $REPO/scripts/plantao-stream.sh <slug>)
+Monitor(persistent: true, description: "Plantão SSE em <slug>[, <slug2>...]", command:
+  $REPO/scripts/plantao-stream.sh <slug> [<slug2> ...])
 ```
 ($REPO expandido pro path absoluto real — o Monitor não herda variáveis da sua sessão.)
+Vários chats = UM Monitor com vários slugs (uma conexão só; a linha vem com `[slug]` na frente).
+`--alertar` no lugar dos slugs acompanha todos os chats com `alertar` ligado na triagem.
+Se o Monitor morrer na hora com código 3 e "plantão já ativo", já existe plantão desse
+conjunto nesta máquina (outra sessão ou zumbi) — não é erro do script; ache e mate o antigo.
 
-**5. Confirmar pro operador:** plantão armado; mensagens DELE (`fromMe`) não disparam.
+**5. Confirmar pro operador:** plantão armado; o que o próprio agente/MCP manda não dispara;
+resposta manual dele (celular/web) dispara como contexto.
 
 ## Quando o monitor disparar
 
-A linha do evento já traz `Fulano: texto`. Se precisar de contexto/mídia, use as tools MCP
-(`ler_mensagens` etc.). **Não responda no grupo por conta própria** — o pedido foi "me avisa";
-respeite o modo do chat (`confirmar` é o default).
+Cada linha é um evento, e o prefixo diz quem escreveu:
+- `Fulano: texto` — mensagem recebida. Se precisar de contexto/mídia, use as tools MCP
+  (`ler_mensagens` etc.). **Não responda no grupo por conta própria** — o pedido foi "me avisa";
+  respeite o modo do chat (`confirmar` é o default).
+- `Você (celular): texto` / `Você (web): texto` — o OPERADOR respondeu na mão. Absorva como
+  contexto (ele já cuidou daquilo; não repita, não responda por cima, não avise que viu). Só
+  fale se o que ele escreveu contradiz algo que você sabe do projeto.
+- `IA da Meta (sua conta): texto` — resposta automática da Meta em nome da conta. Trate como
+  contexto e avise o operador se ela prometeu algo errado.
+- O que o próprio agente/MCP/painel mandou NÃO aparece (o servidor oculta `origem: coletor`).
+
+Conexão que cai (deploy, wifi) reconecta sozinha e retoma de onde parou — nada se perde no
+buraco (teto de 200 mensagens por chat; acima disso o servidor avisa que truncou).
 
 ## Erros comuns
 

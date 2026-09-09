@@ -18,6 +18,7 @@ Siga os passos exatamente como especificados na skill `plantao`:
 3. **Matar monitores zumbis** antigos do mesmo chat.
 
 4. **Armar o Monitor SSE**:
-   - Execute o script `plantao-stream.sh <slug>` com `Monitor(persistent: true)`.
+   - Execute o script `plantao-stream.sh <slug> [slug...]` (ou `--alertar`) com `Monitor(persistent: true)` — vários chats cabem num Monitor só.
+   - Saída imediata com código 3 = já existe plantão desse conjunto; mate o antigo em vez de armar outro.
 
-5. **Confirmar ao usuário** que o plantão está ativo e pronto.
+5. **Confirmar ao usuário** que o plantão está ativo: mensagens recebidas e respostas manuais dele (`Você (celular)`) acordam o agente; o que o MCP mandou não.

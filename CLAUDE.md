@@ -28,12 +28,16 @@ global **`/plantao`** (`.claude/skills/plantao/`), que faz o fluxo completo — 
 e liga o `watch` do grupo (pegadinha: grupo novo nasce com captura desligada), mata zumbi e arma:
 
 ```
-Monitor(persistent: true, command: scripts/plantao-stream.sh <slug>)
+Monitor(persistent: true, command: scripts/plantao-stream.sh <slug> [<slug2> ...])
 ```
 
-O script (`scripts/plantao-stream.sh`) encapsula o SSE de `GET /api/events?slug=` + reconexão +
-filtro `fromMe`; requer `WAC_CLOUD_*` no `.env` da raiz (ele mesmo carrega). Use path absoluto
-se a sessão estiver fora do repo.
+O script (`scripts/plantao-stream.sh`) encapsula o SSE de `GET /api/events?slug=a,b` + reconexão
+COM retomada (`Last-Event-ID`, nada se perde no buraco) + lock por conjunto de chats (segunda
+instância sai com código 3) + filtro: imprime `Fulano: texto` (recebida), `Você (celular)`/`Você
+(web)` (o operador respondeu na mão → contexto, não responda por cima) e `IA da Meta (sua conta)`;
+o que o próprio MCP/painel mandou (`origem: coletor`) não desce. `--alertar` acompanha todos os
+chats com alerta ligado. Requer `WAC_CLOUD_*` no `.env` da raiz (ele mesmo carrega). Use path
+absoluto se a sessão estiver fora do repo.
 
 **Receita LOCAL (coletor local ligado via `npm run dev`):** vigia o arquivo direto — latência
 zero, mas só atualiza com o coletor local rodando:
@@ -43,8 +47,10 @@ Monitor(persistent: true, command:
   F="data/<slug>/messages.jsonl"; touch "$F"
   tail -n0 -F "$F" | while IFS= read -r line; do
     echo "$line" | python3 -c 'import sys,json;
-m=json.loads(sys.stdin.read());
-sys.exit(0) if m.get("fromMe") else print((m.get("senderName") or m.get("sender") or "?")+": "+((m.get("text") or "").strip() or "["+m.get("type","")+"]"), flush=True)'
+m=json.loads(sys.stdin.read()); t=(m.get("text") or "").strip() or "["+m.get("type","")+"]"
+o=m.get("origem")
+if m.get("fromMe"): print("Você ("+o+"): "+t, flush=True) if o in ("celular","web") else None
+else: print((m.get("senderName") or m.get("sender") or "?")+": "+t, flush=True)'
   done)
 ```
 
@@ -103,6 +109,9 @@ O `ler_mensagens` separa coisas que antes confundiam a leitura:
 - **`rajada`** (id): msgs coladas do mesmo remetente (vídeo+texto+áudio numa tacada, gap < 90s)
   compartilham o mesmo `rajada` — trate como um bloco do mesmo assunto, não itens soltos.
 - **`citacao`/`citacao_de`**: a msg responde (reply) outra — o texto citado e quem mandou.
+- **`origem`** (só em msg da própria conta): `coletor` = este agente/MCP/painel mandou; `celular`/
+  `web` = o operador respondeu na mão; `ia_meta` = IA da Meta em nome da conta (aí `de` vira
+  "IA da Meta"). Ausente = recebida ou anterior à feature. Diz quem de fato escreveu um "Você".
 
 ## Baileys: dependência, não fork (como ficar atualizado)
 
