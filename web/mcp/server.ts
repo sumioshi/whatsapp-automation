@@ -50,6 +50,7 @@ import {
   dsSetNote,
   dsSetAlert,
   dsSetAutonomo,
+  dsCancelarEnvio,
   dsSend,
   dsSendMedia,
   dsEditarPerfil,
@@ -142,6 +143,11 @@ const INSTRUCTIONS = [
   "",
   "REGISTRE ENTREGAS: ao concluir uma funcionalidade pra cliente, chame",
   "registrar_feature(grupo, nome, ref).",
+  "",
+  "CANCELAR: o Esc do operador durante responder/responder_midia interrompe a",
+  "entrega (o balão que não saiu não sai). Se ele disser 'cancela' no meio de um",
+  "envio, chame cancelar_envio(grupo) NA HORA, sem confirmar. Depois de qualquer",
+  "cancelamento, ler_mensagens no chat antes de reenviar: parte pode ter saído.",
 ].join("\n");
 
 /**
@@ -618,7 +624,7 @@ server.registerTool(
         ),
     },
   },
-  async ({ grupo, texto, um_balao }) => {
+  async ({ grupo, texto, um_balao }, extra) => {
     try {
       // Trava de tratamento: "tu" não é dele, e a automação já vazou isso em
       // 30 chats. Recusar aqui é mais barato que corrigir depois no chat.
@@ -631,14 +637,29 @@ server.registerTool(
       // Slug canônico do destino — modo/typos/perfil ficam no diretório certo
       // mesmo quando o agente passa o nome novo de um grupo renomeado.
       const slug = destino.slug ?? slugify(grupo);
-      await dsSend(jid, texto, {
-        humano: true,
-        slug,
-        typos: t.typos?.[slug] === true,
-        umBalao: um_balao === true,
-      });
+      // extra.signal aborta quando o cliente cancela a tool (Esc do operador):
+      // viaja até o coletor, que segura o próximo balão.
+      const r = await dsSend(
+        jid,
+        texto,
+        {
+          humano: true,
+          slug,
+          typos: t.typos?.[slug] === true,
+          umBalao: um_balao === true,
+        },
+        { signal: extra.signal },
+      );
       const modo = t.autonomo[slug] === true ? "autonomo" : "confirmar";
-      return ok({ destino: label, jid, modo }, `Mensagem enviada para "${label}".`);
+      if (r.cancelado) {
+        const enviados = r.enviados ?? 0;
+        return ok(
+          { destino: label, jid, modo, cancelado: true, enviados, baloes: r.baloes },
+          `Envio CANCELADO: ${enviados} de ${r.baloes ?? "?"} balões saíram antes. ` +
+            "Confira com ler_mensagens o que chegou no chat antes de reenviar.",
+        );
+      }
+      return ok({ destino: label, jid, modo, baloes: r.baloes }, `Mensagem enviada para "${label}".`);
     } catch (e) {
       return fail(e instanceof Error ? e.message : "coletor offline?");
     }
@@ -661,7 +682,7 @@ server.registerTool(
       mimetype: z.string().optional().describe("opcional (document); inferido pela extensão se ausente"),
     },
   },
-  async ({ grupo, kind, path, caption, fileName, mimetype }) => {
+  async ({ grupo, kind, path, caption, fileName, mimetype }, extra) => {
     if (caption) {
       const pronomes = tratamentoErrado(caption);
       if (pronomes.length) return fail(avisoDeTratamento(pronomes));
@@ -672,8 +693,37 @@ server.registerTool(
       // path absoluto = arquivo no disco; relativo = mediaPath dentro de DATA_DIR.
       const abs = path.startsWith("/") ? path : safeDataPath(path);
       if (kind === "document" && !fileName) return fail("fileName é obrigatório para document");
-      await dsSendMedia({ jid, kind, path: abs, caption, fileName, mimetype });
+      await dsSendMedia({ jid, kind, path: abs, caption, fileName, mimetype }, { signal: extra.signal });
       return ok({ destino: label, jid, kind }, `Arquivo (${kind}) enviado para "${label}".`);
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "coletor offline?");
+    }
+  },
+);
+
+server.registerTool(
+  "cancelar_envio",
+  {
+    description:
+      "Interrompe AGORA a entrega humanizada em andamento de um chat: o balão que ainda não saiu não sai; " +
+      "o que já saiu fica. Use na hora, SEM confirmar, quando o operador disser 'cancela'/'para'/'não manda' " +
+      "durante um envio, ou quando o Esc dele não tiver interrompido. Depois chame ler_mensagens no chat " +
+      "pra ver o que chegou a sair antes de reenviar.",
+    inputSchema: {
+      grupo: z.string().describe("slug, nome exato ou jid do chat cujo envio deve parar"),
+    },
+  },
+  async ({ grupo }) => {
+    try {
+      const { jid, label } = await resolveDestino(grupo);
+      if (!jid) return fail(`destino não encontrado: ${grupo}`);
+      const r = await dsCancelarEnvio(jid);
+      return ok(
+        { destino: label, jid, cancelado: r.cancelado },
+        r.cancelado
+          ? `Envio pra "${label}" cancelado — confira com ler_mensagens o que já tinha saído.`
+          : `Nenhum envio em andamento pra "${label}" (já terminou ou nem começou).`,
+      );
     } catch (e) {
       return fail(e instanceof Error ? e.message : "coletor offline?");
     }
