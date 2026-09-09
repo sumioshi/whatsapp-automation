@@ -104,6 +104,13 @@ function parseOutboundMedia(
   }
 }
 
+/**
+ * Entregas humanizadas em andamento, por jid. É o que permite cancelar de fora
+ * (POST /cancelar-envio) o que o Esc do cliente não conseguiu interromper.
+ * Uma entrega por chat de cada vez: a nova substitui a referência da anterior.
+ */
+const entregasEmAndamento = new Map<string, AbortController>();
+
 function readJson(req: import('node:http').IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let raw = '';
@@ -186,7 +193,7 @@ export function startControlServer(
   allowedDirs: string[],
   reconciler?: { tickNow(motivo: 'auto' | 'manual'): Promise<unknown> },
   radar?: { tickNow(motivo: 'auto' | 'manual'): Promise<unknown> },
-): void {
+): import('node:http').Server {
   const allowed = allowedDirs.map((d) => resolve(d));
   const server = createServer((req, res) => {
     const json = (code: number, body: unknown) => {
@@ -325,13 +332,34 @@ export function startControlServer(
             return;
           }
           if (humano) {
-            const r = await enviarHumano(gateway, env.DATA_DIR, jid, text, {
-              slug,
-              typos: typos === true,
-              umBalao: umBalao === true,
+            const ac = new AbortController();
+            // Cliente sumiu antes da resposta (Esc no agente, queda do painel): aborta
+            // entre passos — o que já saiu fica, o próximo balão não sai.
+            res.on('close', () => {
+              if (!res.writableFinished) ac.abort(new Error('cliente desconectou'));
             });
+            entregasEmAndamento.set(jid, ac);
+            let r: Awaited<ReturnType<typeof enviarHumano>>;
+            try {
+              r = await enviarHumano(gateway, env.DATA_DIR, jid, text, {
+                slug,
+                typos: typos === true,
+                umBalao: umBalao === true,
+                signal: ac.signal,
+              });
+            } finally {
+              if (entregasEmAndamento.get(jid) === ac) entregasEmAndamento.delete(jid);
+            }
+            if (r.cancelado) {
+              logger.warn(
+                { jid, enviados: r.enviados, baloes: r.baloes },
+                '📵 Entrega humanizada cancelada — balões restantes não saíram.',
+              );
+              json(200, { ok: true, cancelado: true, enviados: r.enviados, baloes: r.baloes });
+              return;
+            }
             logger.info({ jid, baloes: r.baloes }, '📤🧍 Entrega humanizada concluída.');
-            json(200, { ok: true, baloes: r.baloes });
+            json(200, { ok: true, baloes: r.baloes, enviados: r.enviados });
             return;
           }
           await gateway.sendText(jid, text, Array.isArray(mentions) ? mentions : undefined);
@@ -339,6 +367,28 @@ export function startControlServer(
           json(200, { ok: true });
         })
         .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));
+      return;
+    }
+
+    // Cancela a entrega humanizada em andamento de um chat (o que já saiu fica).
+    if (req.method === 'POST' && req.url === '/cancelar-envio') {
+      readJson(req)
+        .then((parsed) => {
+          const { jid } = (parsed ?? {}) as { jid?: string };
+          if (!jid) {
+            json(400, { error: 'jid é obrigatório' });
+            return;
+          }
+          const ac = entregasEmAndamento.get(jid);
+          if (!ac) {
+            json(200, { ok: true, cancelado: false });
+            return;
+          }
+          ac.abort(new Error('cancelado pelo operador'));
+          logger.warn({ jid }, '📵 Cancelamento de envio pedido pelo operador.');
+          json(200, { ok: true, cancelado: true });
+        })
+        .catch((err) => json(400, { error: err instanceof Error ? err.message : 'erro' }));
       return;
     }
 
@@ -453,4 +503,5 @@ export function startControlServer(
   server.listen(port, '127.0.0.1', () => {
     logger.info({ port }, '🎛️  API de controle (envio) ouvindo em 127.0.0.1.');
   });
+  return server;
 }
