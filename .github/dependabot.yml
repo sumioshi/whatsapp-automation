@@ -1,0 +1,20 @@
+# Só o Baileys: é a lib que fala o protocolo do WhatsApp, e ficar pra trás
+# nela é o que faz o servidor recusar a conexão. Todo o resto continua manual.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Sao_Paulo
+    allow:
+      - dependency-name: baileys
+    # A branch rc do Baileys é a que o projeto acompanha; pré-release conta.
+    versioning-strategy: increase
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - dependencies
+      - baileys
