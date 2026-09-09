@@ -69,6 +69,15 @@ Cada chat tem um modo, persistido (tool `definir_modo`, lido pelo `responder`):
 O retorno do `responder` traz o `modo` do chat. É **convenção que a IA respeita**, não trava de
 código — então NÃO burle o `confirmar`. Pra saber o modo de um chat sem enviar, use `estado_triagem`.
 
+### Cancelar um envio em andamento (Esc / "cancela")
+
+A entrega humanizada garante ≥ 5 s de visto/digitando antes do 1º balão — é a janela pra cancelar.
+O **Esc** do operador durante `responder`/`responder_midia` viaja até o coletor e segura o próximo
+balão (o que já saiu fica). Se ele disser **"cancela"** no meio de um envio, chame
+`cancelar_envio(grupo)` **na hora, sem confirmar** — é o caminho manual quando o Esc não propaga.
+O `responder` devolve `cancelado: true` + `enviados`; **depois de qualquer cancelamento,
+`ler_mensagens` no chat antes de reenviar**: parte pode ter saído.
+
 ## Despacho (fila de decisões)
 
 Itens numerados chegam no self-chat do operador depois de cada passada da triagem. Ele responde
