@@ -127,16 +127,60 @@ export interface SendOpts {
 }
 
 /** Envio de texto: remoto via /api/send; local direto no control server. */
-export async function dsSend(jid: string, text: string, opts: SendOpts = {}): Promise<void> {
+/** Resultado de um envio: `cancelado` quando a entrega foi interrompida (Esc /
+ *  cancelar_envio) — `enviados` diz quantos balões saíram antes; `baloes` é o total planejado. */
+export interface SendResult {
+  cancelado: boolean;
+  enviados?: number;
+  baloes?: number;
+}
+
+export interface SendExtra {
+  /** Cancelamento vindo de quem chama (o `extra.signal` da tool MCP). */
+  signal?: AbortSignal;
+}
+
+export async function dsSend(
+  jid: string,
+  text: string,
+  opts: SendOpts = {},
+  extra: SendExtra = {},
+): Promise<SendResult> {
   const body = { jid, text, ...opts };
-  if (mcpRemote()) { await cloudPost('/api/send', body); return; }
-  const res = await fetch(`${CONTROL_URL}/send`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = (await res.json()) as { ok?: boolean; error?: string };
+  let res: Response;
+  if (mcpRemote()) {
+    res = await cloudPost('/api/send', body, { signal: extra.signal });
+  } else {
+    res = await fetch(`${CONTROL_URL}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: extra.signal,
+    });
+  }
+  const data = (await res.json()) as {
+    ok?: boolean;
+    error?: string;
+    cancelado?: boolean;
+    enviados?: number;
+    baloes?: number;
+  };
   if (!res.ok || !data.ok) throw new Error(data.error ?? 'falha no envio');
+  return { cancelado: data.cancelado === true, enviados: data.enviados, baloes: data.baloes };
+}
+
+/** Cancela a entrega humanizada em andamento de um chat (o que já saiu fica). */
+export async function dsCancelarEnvio(jid: string): Promise<{ cancelado: boolean }> {
+  const res = mcpRemote()
+    ? await cloudPost('/api/cancelar-envio', { jid })
+    : await fetch(`${CONTROL_URL}/cancelar-envio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jid }),
+      });
+  const data = (await res.json()) as { ok?: boolean; error?: string; cancelado?: boolean };
+  if (!res.ok || !data.ok) throw new Error(data.error ?? 'falha ao cancelar');
+  return { cancelado: data.cancelado === true };
 }
 
 /** Edita mensagem PRÓPRIA já enviada. */
@@ -178,7 +222,7 @@ interface SendMediaArgs {
   fileName?: string;
   mimetype?: string;
 }
-export async function dsSendMedia(args: SendMediaArgs): Promise<void> {
+export async function dsSendMedia(args: SendMediaArgs, extra: SendExtra = {}): Promise<void> {
   if (mcpRemote()) {
     // A nuvem não enxerga o disco local. Se o arquivo existe aqui (arquivo novo do
     // operador, ou mídia já baixada), sobe os BYTES via multipart (sem inflar em
@@ -194,16 +238,17 @@ export async function dsSendMedia(args: SendMediaArgs): Promise<void> {
       if (args.mimetype) form.set('mimetype', args.mimetype);
       const blob = new Blob([bytes], args.mimetype ? { type: args.mimetype } : {});
       form.set('file', blob, args.fileName ?? 'file');
-      await cloudPostForm('/api/send-media-json', form);
+      await cloudPostForm('/api/send-media-json', form, { signal: extra.signal });
       return;
     }
-    await cloudPost('/api/send-media-json', args);
+    await cloudPost('/api/send-media-json', args, { signal: extra.signal });
     return;
   }
   const res = await fetch(`${CONTROL_URL}/send-media`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(args),
+    signal: extra.signal,
   });
   const data = (await res.json()) as { ok?: boolean; error?: string };
   if (!res.ok || !data.ok) throw new Error(data.error ?? 'falha no envio');

@@ -66,14 +66,26 @@ async function cloudHttpError(path: string, res: Response): Promise<Error> {
  * não devolver `200 {ok:false}`), senão a escrita remota engoliria o erro em
  * silêncio. As rotas atuais (/api/send, /api/send-media-json, /api/profile,
  * /api/triage, /api/edit-message, /api/react) respeitam isso. */
-export async function cloudPost(path: string, body: unknown): Promise<Response> {
+export interface CloudReqOpts {
+  /** Sinal de quem chama (ex.: o cancelamento da tool MCP): aborta a chamada
+   *  junto com o timeout. É o que faz o Esc do agente chegar até o coletor. */
+  signal?: AbortSignal;
+}
+
+/** Timeout da chamada combinado com o sinal de quem chama, se houver. */
+function sinalDaChamada(opts: CloudReqOpts): AbortSignal {
+  const timeout = AbortSignal.timeout(120_000);
+  return opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout;
+}
+
+export async function cloudPost(path: string, body: unknown, opts: CloudReqOpts = {}): Promise<Response> {
   const base = cloudUrl();
   if (!base) throw new Error('WAC_CLOUD_URL não configurado');
   const res = await fetch(`${base}${path}`, {
     method: 'POST',
     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(120_000),
+    signal: sinalDaChamada(opts),
   });
   if (!res.ok) throw await cloudHttpError(path, res);
   return res;
@@ -82,14 +94,18 @@ export async function cloudPost(path: string, body: unknown): Promise<Response> 
 /** POST multipart (upload de bytes). NÃO seta Content-Type: o fetch define o
  * boundary sozinho. Mesma auth/timeout/premissa de erro do cloudPost. Usado pra
  * subir arquivo novo do operador (imagem/vídeo) sem inflar em base64/JSON. */
-export async function cloudPostForm(path: string, form: FormData): Promise<Response> {
+export async function cloudPostForm(
+  path: string,
+  form: FormData,
+  opts: CloudReqOpts = {},
+): Promise<Response> {
   const base = cloudUrl();
   if (!base) throw new Error('WAC_CLOUD_URL não configurado');
   const res = await fetch(`${base}${path}`, {
     method: 'POST',
     headers: authHeaders(),
     body: form,
-    signal: AbortSignal.timeout(120_000),
+    signal: sinalDaChamada(opts),
   });
   if (!res.ok) throw await cloudHttpError(path, res);
   return res;

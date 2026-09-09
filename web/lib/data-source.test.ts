@@ -236,3 +236,52 @@ describe('dsGroupsConfig remoto — id tem que ser o JID real (bug do envio-por-
     );
   });
 });
+
+describe('cancelamento de envio', () => {
+  it('REMOTO: dsSend repassa o sinal ao fetch e devolve cancelado/enviados da rota', async () => {
+    vi.stubEnv('WAC_MCP_REMOTE', '1');
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    vi.stubEnv('WAC_CLOUD_USER', 'u');
+    vi.stubEnv('WAC_CLOUD_PASS', 'p');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ ok: true, cancelado: true, enviados: 1, baloes: 3 }), { status: 200 }),
+      );
+    const { dsSend } = await import('./data-source');
+    const ac = new AbortController();
+    const r = await dsSend('x@g.us', 'oi', { humano: true }, { signal: ac.signal });
+    expect(r).toEqual({ cancelado: true, enviados: 1, baloes: 3 });
+    const init = fetchSpy.mock.calls[0]?.[1] as { signal: AbortSignal };
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    ac.abort();
+    expect(init.signal.aborted).toBe(true);
+  });
+
+  it('REMOTO: dsCancelarEnvio faz POST /api/cancelar-envio {jid}', async () => {
+    vi.stubEnv('WAC_MCP_REMOTE', '1');
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    vi.stubEnv('WAC_CLOUD_USER', 'u');
+    vi.stubEnv('WAC_CLOUD_PASS', 'p');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true, cancelado: true }), { status: 200 }));
+    const { dsCancelarEnvio } = await import('./data-source');
+    expect(await dsCancelarEnvio('x@g.us')).toEqual({ cancelado: true });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://nuvem.exemplo/api/cancelar-envio',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ jid: 'x@g.us' }) }),
+    );
+  });
+
+  it('LOCAL: dsCancelarEnvio bate no control server', async () => {
+    vi.stubEnv('WAC_MCP_REMOTE', '');
+    vi.stubEnv('WAC_CLOUD_URL', '');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true, cancelado: false }), { status: 200 }));
+    const { dsCancelarEnvio } = await import('./data-source');
+    expect(await dsCancelarEnvio('x@g.us')).toEqual({ cancelado: false });
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/127\.0\.0\.1:\d+\/cancelar-envio$/);
+  });
+});

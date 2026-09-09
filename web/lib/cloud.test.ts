@@ -113,3 +113,38 @@ describe('cloudJson', () => {
     expect(await cloudJson('/api/x')).toEqual([{ a: 1 }]);
   });
 });
+
+describe('cloudPost — cancelamento', () => {
+  it('repassa o sinal de quem chama: fetch recebe um signal já abortado quando o chamador abortou', async () => {
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const { cloudPost } = await import('./cloud');
+    await cloudPost('/api/send', {}, { signal: AbortSignal.abort() });
+    const init = fetchSpy.mock.calls[0]?.[1] as { signal: AbortSignal };
+    expect(init.signal.aborted).toBe(true);
+  });
+
+  it('sem sinal de fora, o fetch ainda tem o timeout (signal não abortado)', async () => {
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const { cloudPost } = await import('./cloud');
+    await cloudPost('/api/send', {});
+    const init = fetchSpy.mock.calls[0]?.[1] as { signal: AbortSignal };
+    expect(init.signal.aborted).toBe(false);
+  });
+
+  it('cloudPostForm também repassa o sinal', async () => {
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{"ok":true}', { status: 200 }));
+    const { cloudPostForm } = await import('./cloud');
+    await cloudPostForm('/api/send-media-json', new FormData(), { signal: AbortSignal.abort() });
+    const init = fetchSpy.mock.calls[0]?.[1] as { signal: AbortSignal };
+    expect(init.signal.aborted).toBe(true);
+  });
+});

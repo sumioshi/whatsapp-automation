@@ -37,16 +37,33 @@ export async function POST(req: Request) {
         typos: body.typos === true,
         umBalao: body.umBalao === true,
       }),
+      // Cliente que desconecta (Esc no agente) derruba esta chamada, e o control
+      // server cancela a entrega entre passos.
+      signal: req.signal,
     });
-    const data = (await res.json()) as { ok?: boolean; error?: string; baloes?: number };
+    const data = (await res.json()) as {
+      ok?: boolean;
+      error?: string;
+      baloes?: number;
+      enviados?: number;
+      cancelado?: boolean;
+    };
     if (!res.ok || !data.ok) {
       return NextResponse.json(
         { error: data.error ?? "falha no envio" },
         { status: res.status || 502 },
       );
     }
-    return NextResponse.json({ ok: true, baloes: data.baloes });
-  } catch {
+    return NextResponse.json({
+      ok: true,
+      baloes: data.baloes,
+      enviados: data.enviados,
+      ...(data.cancelado ? { cancelado: true } : {}),
+    });
+  } catch (err) {
+    if (req.signal.aborted || (err instanceof Error && err.name === "AbortError")) {
+      return NextResponse.json({ ok: false, cancelado: true }, { status: 499 });
+    }
     return NextResponse.json(
       { error: "Coletor offline — inicie o coletor para enviar." },
       { status: 502 },
