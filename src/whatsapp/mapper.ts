@@ -15,6 +15,7 @@ import type {
 } from '../core/message.js';
 import { slugForGroup, slugify } from '../storage/paths.js';
 import { buildMediaDescriptor } from './media.js';
+import { origemDe } from './origem.js';
 
 /** True se o JID é uma conversa 1:1 (contato), não um grupo. */
 export function isDirectJid(jid: string): boolean {
@@ -176,6 +177,7 @@ export function mapMessage(
     quotedText: quoted.text,
     quotedSender: quoted.sender,
     media,
+    origem: origemDe(wa),
   };
 }
 

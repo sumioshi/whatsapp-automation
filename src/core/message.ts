@@ -37,6 +37,14 @@ export interface MediaDescriptor {
   download: () => Promise<Readable>;
 }
 
+/**
+ * De onde saiu uma mensagem da PRÓPRIA conta. `coletor` = este processo enviou
+ * (MCP, painel, API de controle); `celular` = aparelho principal; `web` = outro
+ * cliente vinculado (WhatsApp Web/Desktop); `ia_meta` = gerada pela IA da Meta em
+ * nome da conta. Ausente em mensagem recebida.
+ */
+export type Origem = 'coletor' | 'celular' | 'web' | 'ia_meta';
+
 /** Mensagem normalizada (independente do Baileys), pronta para ser processada. */
 export interface InboundMessage {
   /** ID da mensagem (key.id) — usado para dedup. */
@@ -69,6 +77,8 @@ export interface InboundMessage {
   /** JID de quem escreveu a mensagem citada (reply), se houver. */
   quotedSender: string | null;
   media: MediaDescriptor | null;
+  /** Só em mensagem da própria conta (ou de bot). Ver `Origem`. */
+  origem?: Origem;
 }
 
 /** Status de entrega/leitura de uma mensagem própria (fromMe). */
@@ -226,6 +236,8 @@ export interface MessageRecord {
   quotedSender: string | null;
   /** Caminho relativo do arquivo de mídia (a partir de DATA_DIR), ou null. */
   mediaPath: string | null;
+  /** Só em mensagem da própria conta (ou de bot). Ver `Origem`. */
+  origem?: Origem;
 }
 
 /**

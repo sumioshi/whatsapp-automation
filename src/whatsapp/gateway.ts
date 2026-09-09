@@ -461,7 +461,8 @@ export class BaileysGateway implements WhatsAppGateway {
     if (!sent || !this.sock) return;
     const groupName = this.groups.get(jid) ?? jid;
     const mapped = mapMessage(sent, this.sock, groupName);
-    if (mapped) this.emitMessageDeduped(mapped);
+    // Só aqui se sabe que o envio foi deste processo — marca antes do dedup/emissão.
+    if (mapped) this.emitMessageDeduped({ ...mapped, origem: 'coletor' });
   }
 
   /**
