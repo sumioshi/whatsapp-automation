@@ -90,3 +90,29 @@ describe('versaoBaileysInstalada', () => {
     expect(v).toBe(esperado);
   });
 });
+
+describe('buscarUpstream — autenticação no GitHub', () => {
+  function fetchCapturando(
+    headersVistos: Record<string, string | undefined>[],
+  ): typeof globalThis.fetch {
+    return (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const h = init?.headers as Record<string, string> | undefined;
+      if (url.includes('api.github.com')) headersVistos.push({ authorization: h?.authorization });
+      const body = url.includes('api.github.com') ? [] : { latest: '7.0.0-rc14' };
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as typeof globalThis.fetch;
+  }
+
+  it('com token manda Authorization: Bearer (IP compartilhado da nuvem toma 403 sem isso)', async () => {
+    const vistos: Record<string, string | undefined>[] = [];
+    await buscarUpstream(fetchCapturando(vistos), { token: 'ghp_x' });
+    expect(vistos[0]?.authorization).toBe('Bearer ghp_x');
+  });
+
+  it('sem token não manda Authorization', async () => {
+    const vistos: Record<string, string | undefined>[] = [];
+    await buscarUpstream(fetchCapturando(vistos), { token: null });
+    expect(vistos[0]?.authorization).toBeUndefined();
+  });
+});

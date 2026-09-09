@@ -87,7 +87,10 @@ async function main(): Promise<void> {
     lastActivityOf: (slug) => gateway.lastActivityOf(slug),
     phoneOf: (userPart) => gateway.phoneOfContact(userPart),
     // Vigia de upstream do Baileys: commits novos na master / versão nova no npm → self-chat.
-    upstream: { versaoInstalada: versaoBaileysInstalada(), buscar: () => buscarUpstream() },
+    upstream: {
+      versaoInstalada: versaoBaileysInstalada(),
+      buscar: () => buscarUpstream(globalThis.fetch, { token: env.AGENTE_GITHUB_TOKEN ?? null }),
+    },
   });
   void radar.start();
 

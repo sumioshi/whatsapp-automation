@@ -18,13 +18,23 @@ interface GithubCommit {
   commit?: { message?: string; author?: { date?: string } };
 }
 
+export interface UpstreamFetchOpts {
+  /** Token do GitHub (qualquer escopo serve pra repo público). Sem ele o limite
+   *  anônimo é por IP — na nuvem o IP é compartilhado e devolve 403 direto. */
+  token?: string | null;
+}
+
 export async function buscarUpstream(
   fetchFn: typeof globalThis.fetch = globalThis.fetch,
+  opts: UpstreamFetchOpts = {},
 ): Promise<UpstreamSnapshot> {
   // GitHub é a fonte principal: sem ela não há o que comparar → erro sobe.
-  const gh = await fetchFn(GITHUB_COMMITS, {
-    headers: { accept: 'application/vnd.github+json', 'user-agent': UA },
-  });
+  const headers: Record<string, string> = {
+    accept: 'application/vnd.github+json',
+    'user-agent': UA,
+  };
+  if (opts.token) headers.authorization = `Bearer ${opts.token}`;
+  const gh = await fetchFn(GITHUB_COMMITS, { headers });
   if (!gh.ok) throw new Error(`GitHub respondeu ${gh.status}`);
   const lista = (await gh.json()) as GithubCommit[];
   const commits: UpstreamCommit[] = [];
