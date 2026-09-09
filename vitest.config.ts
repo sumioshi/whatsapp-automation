@@ -12,5 +12,8 @@ export default defineConfig({
   test: {
     include: ['scripts/**/*.test.ts', 'web/lib/**/*.test.ts', 'src/**/*.test.ts'],
     environment: 'node',
+    // Alguns testes sobem processos/servidores reais; sob carga da suíte inteira o
+    // import de um módulo pode passar dos 5 s default e virar flake.
+    testTimeout: 15_000,
   },
 });
