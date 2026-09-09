@@ -84,10 +84,10 @@ Para rodar 24/7 em background existe um `ecosystem.config.cjs` (pm2). O `npm run
 |---|---|
 | Ler | `listar_grupos`, `ler_mensagens`, `buscar`, `listar_contatos`, `ler_notas`, `estado_triagem` |
 | Mídia | `transcrever`, `ver_imagem`, `ver_video`, `ler_documento`, `resumo_do_dia` |
-| Responder | `responder`, `responder_midia`, `editar_perfil` |
+| Responder | `responder`, `responder_midia`, `cancelar_envio`, `editar_perfil` |
 | Triagem | `marcar_resolvido`, `silenciar_grupo`, `anotar`, `alertar_chat`, `definir_modo`, `novidades` |
 
-Destaques: `buscar` acha texto **inclusive dentro das transcrições**; `ver_imagem`/`ver_video` devolvem a mídia pra IA *enxergar* (útil pra print de bug); `definir_modo` define por chat se a IA envia direto ou confirma antes; `responder` respeita esse modo. `editar_perfil` edita nome, recado/"sobre" e/ou foto do perfil — a IA pede confirmação antes (perfil é público); catálogo, localização e horário-oficial do business são read-only no WhatsApp.
+Destaques: `buscar` acha texto **inclusive dentro das transcrições**; `ver_imagem`/`ver_video` devolvem a mídia pra IA *enxergar* (útil pra print de bug); `definir_modo` define por chat se a IA envia direto ou confirma antes; `responder` respeita esse modo. `editar_perfil` edita nome, recado/"sobre" e/ou foto do perfil — a IA pede confirmação antes (perfil é público); catálogo, localização e horário-oficial do business são read-only no WhatsApp. `responder` entrega como humano (visto → digitando → balões) e é **cancelável**: o Esc no cliente MCP ou `cancelar_envio` seguram o balão que ainda não saiu (há uma janela mínima de 5 s antes do primeiro). `ler_mensagens` traz `origem` nas mensagens da própria conta — `coletor` (a IA/painel mandou), `celular`/`web` (o operador respondeu na mão) ou `ia_meta` (IA da Meta) — pra IA saber quem escreveu cada "Você".
 
 Para dirigir o MCP fora do Claude Code, use o driver da skill:
 

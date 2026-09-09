@@ -1,6 +1,6 @@
 ---
 name: run-whatsapp-automation
-description: Build, run, and drive the WhatsApp group collector — the Baileys collector daemon, the Next.js panel, the MLX transcriber service, and the MCP server. Use to run/start/build/screenshot the project or to call its MCP tools (listar_grupos, ler_mensagens, buscar, resumo_do_dia, ver_imagem, ver_video, ler_documento, transcrever, listar_contatos, responder, responder_midia, alertar_chat, novidades). ALSO use whenever asked to send, reply, or draft a message in a WhatsApp group: the rule is to run the draft through the humanizer skill first, then confirm the exact text with the user before sending.
+description: Build, run, and drive the WhatsApp group collector — the Baileys collector daemon, the Next.js panel, the MLX transcriber service, and the MCP server. Use to run/start/build/screenshot the project or to call its MCP tools (listar_grupos, ler_mensagens, buscar, resumo_do_dia, ver_imagem, ver_video, ler_documento, transcrever, listar_contatos, responder, responder_midia, cancelar_envio, alertar_chat, novidades). ALSO use whenever asked to send, reply, or draft a message in a WhatsApp group: the rule is to run the draft through the humanizer skill first, then confirm the exact text with the user before sending.
 ---
 
 # Run: WhatsApp Automation
@@ -38,6 +38,10 @@ grupo (via `responder`, `responder_midia` com legenda, pelo painel, ou pela API 
    responder o cliente na hora). A `comunicacao-cliente` diz o que confirmar
    (posicionamento/opinião) vs o que mandar direto (suporte).
 5. Só então envie (`responder` / `POST :4310/send` / painel).
+6. **Cancelamento:** a entrega humanizada dá ≥ 5 s de "digitando" antes do 1º balão. Se o
+   operador apertar Esc, o coletor segura o próximo balão; se ele disser "cancela" no meio
+   de um envio, chame `cancelar_envio(grupo)` NA HORA, sem confirmar. Depois de qualquer
+   cancelamento, `ler_mensagens` no chat antes de reenviar — parte pode ter saído.
 
 Isso vale para qualquer envio a grupo — é uma regra fixa, não opcional.
 
