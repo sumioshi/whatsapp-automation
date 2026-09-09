@@ -20,7 +20,7 @@ import {
   resolveMentions,
   roleOf,
 } from "./contacts";
-import type { MessageView } from "./data";
+import type { MessageView, Origem } from "./data";
 
 /** Versão compacta de uma mensagem (com papel e menções resolvidas), pronta pra IA consumir. */
 export type CompactMsg = {
@@ -51,6 +51,10 @@ export type CompactMsg = {
    * nuvem e ver_imagem/transcrever/etc. baixam sob demanda; NÃO é erro, pode ver
    * normalmente. Só em setup 100% local é que significa "mídia não capturada". */
   midia_pendente?: true;
+  /** Só em mensagem da própria conta: `coletor` (este agente/MCP/painel mandou),
+   * `celular`/`web` (o operador respondeu na mão) ou `ia_meta` (IA da Meta em nome
+   * da conta). Diz quem de fato escreveu um "Você"; ausente = recebida ou antiga. */
+  origem?: Origem;
 };
 
 /** Formata um timestamp UTC ISO como data+hora local de Brasília (America/Sao_Paulo).
@@ -94,7 +98,7 @@ export function compact(m: MessageView, c: Contacts): CompactMsg {
     id: m.id,
     timestamp: m.timestamp,
     hora_brt: horaBRT(m.timestamp),
-    de: m.senderName,
+    de: m.origem === "ia_meta" ? "IA da Meta" : m.senderName,
     papel: roleOf(c, numberFromJid(m.sender)), // 'me' | 'team' | 'client'
     tipo: m.type,
     texto: ehMidia ? undefined : textoResolvido,
@@ -106,6 +110,7 @@ export function compact(m: MessageView, c: Contacts): CompactMsg {
     midia: m.mediaPath || undefined,
     // Tipo com arquivo mas sem path local = pendente (na nuvem, baixa sob demanda).
     ...(TIPOS_COM_ARQUIVO.has(m.type) && !m.mediaPath ? { midia_pendente: true as const } : {}),
+    ...(m.origem ? { origem: m.origem } : {}),
   };
 }
 

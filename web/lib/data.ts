@@ -32,7 +32,17 @@ export interface MessageRecord {
   /** JID de quem escreveu a mensagem citada (reply), se houver. */
   quotedSender?: string | null;
   mediaPath: string | null;
+  /** Só em mensagem da própria conta (ou de bot). Ver `Origem`. */
+  origem?: Origem;
 }
+
+/**
+ * De onde saiu uma mensagem da própria conta (o coletor decide na captura):
+ * `coletor` = este processo enviou (MCP, painel, API de controle); `celular` =
+ * aparelho principal; `web` = WhatsApp Web/Desktop; `ia_meta` = IA da Meta em
+ * nome da conta. Mensagens antigas e recebidas não têm o campo.
+ */
+export type Origem = 'coletor' | 'celular' | 'web' | 'ia_meta';
 
 interface ReactionRecord {
   targetId: string;
