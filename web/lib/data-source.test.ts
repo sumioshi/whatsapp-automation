@@ -33,14 +33,14 @@ describe('modo REMOTO (flag=1) — busca via HTTP', () => {
     vi.stubEnv('WAC_CLOUD_PASS', 'p');
   });
 
-  it('dsGroupMessages chama /api/messages?slug=', async () => {
+  it('dsGroupMessages chama /api/messages com all=1 (histórico inteiro, igual ao modo local)', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify([{ id: 'r1' }]), { status: 200 }));
     const { dsGroupMessages } = await import('./data-source');
     expect(await dsGroupMessages('meu-grupo')).toEqual([{ id: 'r1' }]);
     expect(fetchSpy).toHaveBeenCalledWith(
-      'https://nuvem.exemplo/api/messages?slug=meu-grupo',
+      'https://nuvem.exemplo/api/messages?slug=meu-grupo&all=1',
       expect.objectContaining({ headers: expect.any(Object) }),
     );
   });

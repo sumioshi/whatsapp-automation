@@ -20,6 +20,11 @@ export async function GET(req: Request) {
   if (before && !/^[\w=+/-]{1,128}$/.test(before)) {
     return NextResponse.json({ error: "before inválido" }, { status: 400 });
   }
+  // all=1 devolve o histórico inteiro (consumidor: o MCP em modo remoto, que
+  // precisa da mesma visão que teria lendo o disco). O painel segue paginando.
+  if (url.searchParams.get("all") === "1") {
+    return NextResponse.json(await readGroupMessages(slug, { before }));
+  }
   const rawLimit = Number(url.searchParams.get("limit"));
   const limit = Number.isFinite(rawLimit) && rawLimit > 0
     ? Math.min(rawLimit, MAX_LIMIT)

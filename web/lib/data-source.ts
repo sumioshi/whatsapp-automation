@@ -25,7 +25,10 @@ import { CONTROL_URL } from './paths';
  */
 
 export async function dsGroupMessages(slug: string): Promise<MessageView[]> {
-  if (mcpRemote()) return cloudJson(`/api/messages?slug=${encodeURIComponent(slug)}`);
+  // all=1: o histórico INTEIRO, como o modo local lê do disco. A rota pagina por
+  // default (janela do painel), e uma janela silenciosa aqui fazia buscar, desde,
+  // msgId de editar/reagir e o lote de transcrição enxergarem só as últimas 150.
+  if (mcpRemote()) return cloudJson(`/api/messages?slug=${encodeURIComponent(slug)}&all=1`);
   return readGroupMessages(slug);
 }
 
