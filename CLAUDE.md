@@ -134,6 +134,11 @@ Contratos de tool que já confundiram agentes (leia o retorno, não chute parâm
 - **`responder`**: quando você já decidiu a quebra em N balões, passe `baloes: [...]` (até 8) numa
   chamada só. NUNCA chame `responder` N vezes pra simular balões — cada chamada é uma entrega
   separada, com visto/digitando e janela de cancelamento.
+- **DM por número**: se você JÁ TEM o telefone, a DM é `dm-<55DDDnúmero>` (só dígitos) em
+  `ler_mensagens`/`responder`. Telefone e LID da mesma pessoa são fundidos na leitura (o retorno
+  avisa em `nota_fusao`). Não use `listar_contatos` pra "achar" um número que você já tem.
+- **`listar_contatos`**: SEMPRE com `busca` (nome ou número, com ou sem o nono dígito). Sem filtro a
+  conta pode ter milhares de contatos e só vêm os 100 primeiros. O retorno traz `slug` da DM.
 
 ## Baileys: dependência, não fork (como ficar atualizado)
 

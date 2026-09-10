@@ -34,6 +34,8 @@ import { safeDataPath } from "../lib/paths";
 import { marcarRajadas } from "../lib/rajada";
 import { canonicalSlug, matchGrupo } from "../lib/resolve-grupo";
 import { slugify } from "../lib/slug";
+import { filtrarContatos } from "../lib/contatos-filtro";
+import { fundirMensagens, slugsIrmaosDeDm } from "../lib/dm-irmaos";
 import { mediaPathPorId, transcribe, transcribeBatch } from "../lib/transcribe";
 import { ultimaMidiaPath } from "../lib/ultima-midia";
 import { selectNew } from "../lib/novidades";
@@ -92,6 +94,20 @@ async function contacts(): Promise<Awaited<ReturnType<typeof dsContacts>>> {
   return value;
 }
 
+/**
+ * Mensagens de uma conversa. Pra DM, funde os slugs irmãos (telefone e LID da
+ * mesma pessoa) — senão quem lê um só perde metade da conversa até o
+ * reconciliador do coletor fundir os diretórios.
+ */
+async function mensagensDaConversa(slug: string): Promise<{ msgs: MessageView[]; slugs: string[] }> {
+  if (!/^dm-\d+$/.test(slug)) return { msgs: await dsGroupMessages(slug), slugs: [slug] };
+  const existentes = new Set((await dsListGroups()).map((g) => g.slug));
+  const slugs = slugsIrmaosDeDm(slug, await contacts(), existentes);
+  if (slugs.length === 1) return { msgs: await dsGroupMessages(slugs[0] ?? slug), slugs };
+  const listas = await Promise.all(slugs.map((sl) => dsGroupMessages(sl)));
+  return { msgs: fundirMensagens(listas), slugs };
+}
+
 function pendingMedia(msgs: MessageView[]): string[] {
   return msgs
     .filter((m) => (m.type === "audio" || m.type === "video") && !m.transcript && m.mediaPath)
@@ -109,7 +125,7 @@ async function resolverMidia(
   tipos: readonly string[],
 ): Promise<{ path: string } | { erro: string }> {
   if (mediaPath) return { path: mediaPath };
-  const ultima = ultimaMidiaPath(await dsGroupMessages(grupo), tipos);
+  const ultima = ultimaMidiaPath((await mensagensDaConversa(grupo)).msgs, tipos);
   return ultima
     ? { path: ultima }
     : { erro: `nenhuma mídia (${tipos.join("/")}) encontrada em "${grupo}"` };
@@ -222,7 +238,12 @@ server.registerTool(
       "Mensagens coladas do mesmo remetente (rajada: vídeo+texto+áudio numa tacada) compartilham um " +
       "`rajada` (id) — trate-as como um bloco do mesmo assunto, não itens soltos.",
     inputSchema: {
-      grupo: z.string().describe("slug do grupo (de listar_grupos)"),
+      grupo: z
+        .string()
+        .describe(
+          "slug do grupo (de listar_grupos) OU de uma DM: `dm-<55DDDnúmero>` (o número que você já tem, " +
+            "só dígitos) ou o jid. Telefone e LID da mesma pessoa são fundidos na leitura.",
+        ),
       desde: z.string().optional().describe("ISO date/datetime; só mensagens a partir daí"),
       limite: z
         .number()
@@ -240,8 +261,13 @@ server.registerTool(
       const slug = match ? canonicalSlug(match) : grupo;
       const notaRename =
         slug !== grupo ? { nota_slug: `lendo "${slug}" (slug estável de "${grupo}")` } : {};
-      let msgs = await dsGroupMessages(slug);
+      const conversa = await mensagensDaConversa(slug);
+      let msgs = conversa.msgs;
       const totalGrupo = msgs.length;
+      const notaFusao =
+        conversa.slugs.length > 1
+          ? { nota_fusao: `DM lida de ${conversa.slugs.length} slugs da mesma pessoa: ${conversa.slugs.join(", ")}` }
+          : {};
       if (desde) msgs = msgs.filter((m) => m.timestamp >= desde);
       // Default de 50 só quando nenhum filtro foi dado — senão respeita o que o
       // agente pediu (desde sem limite traz tudo do período; limite explícito manda).
@@ -251,6 +277,7 @@ server.registerTool(
       return text({
         grupo: slug,
         ...notaRename,
+        ...notaFusao,
         total: msgs.length,
         ...(msgs.length < totalGrupo && !desde && !limite
           ? { nota: `mostrando as ${msgs.length} mais recentes de ${totalGrupo}; passe limite/desde p/ mais` }
@@ -291,7 +318,7 @@ server.registerTool(
       const slugs = grupo ? [grupo] : (await dsListGroups()).map((g) => g.slug);
       const hits: Array<{ grupo: string; ts: string } & ReturnType<typeof compact>> = [];
       for (const slug of slugs) {
-        const msgs = await dsGroupMessages(slug);
+        const msgs = grupo ? (await mensagensDaConversa(slug)).msgs : await dsGroupMessages(slug);
         for (const m of msgs) {
           const haystack = `${m.text}\n${m.transcript ?? ""}`.toLowerCase();
           if (haystack.includes(alvo)) hits.push({ grupo: slug, ts: m.timestamp, ...compact(m, c) });
@@ -339,7 +366,7 @@ server.registerTool(
   async ({ grupo, mediaPath, id }) => {
     try {
       if (!mediaPath && id) {
-        const r = mediaPathPorId(await dsGroupMessages(grupo), id);
+        const r = mediaPathPorId((await mensagensDaConversa(grupo)).msgs, id);
         if (!r.ok) return fail(r.motivo);
         mediaPath = r.mediaPath;
       }
@@ -347,7 +374,7 @@ server.registerTool(
       // Sem mediaPath: lote dos pendentes LOCAIS, com teto (absorve o antigo
       // transcrever_lote). Pula os que só estão na nuvem e limita por chamada pra
       // não pendurar a chamada baixando/transcrevendo dezenas em série.
-      const pend = pendingMedia(await dsGroupMessages(grupo));
+      const pend = pendingMedia((await mensagensDaConversa(grupo)).msgs);
       if (!pend.length) return text("Nenhum áudio/vídeo pendente de transcrição.");
       const { textos, restantes, emCache } = await transcribeBatch(grupo, pend);
       return text({
@@ -380,7 +407,7 @@ server.registerTool(
   async ({ grupo, data }) => {
     try {
       const dia = data ?? new Date().toISOString().slice(0, 10);
-      let msgs = (await dsGroupMessages(grupo)).filter((m) => m.timestamp.startsWith(dia));
+      let msgs = (await mensagensDaConversa(grupo)).msgs.filter((m) => m.timestamp.startsWith(dia));
       // Transcreve os áudios/vídeos LOCAIS do dia que faltam (modelo morno, com
       // teto — não pendura a chamada nos que só estão na nuvem nem em lotes grandes).
       const pend = pendingMedia(msgs);
@@ -388,7 +415,7 @@ server.registerTool(
       if (pend.length) {
         const r = await transcribeBatch(grupo, pend);
         restantes = r.restantes;
-        msgs = (await dsGroupMessages(grupo)).filter((m) => m.timestamp.startsWith(dia));
+        msgs = (await mensagensDaConversa(grupo)).msgs.filter((m) => m.timestamp.startsWith(dia));
       }
       const c = await contacts();
       return text({
@@ -557,21 +584,32 @@ server.registerTool(
   "listar_contatos",
   {
     description:
-      "Lista quem já apareceu nas conversas: id -> nome e papel (me = você, team = seu time, client = cliente). Útil para saber quem é quem ao resumir.",
-    inputSchema: {},
+      "Acha QUEM é quem: nome, papel (me = você, team = seu time, client = cliente), jid de DM e o " +
+      "slug da DM pronto pra ler_mensagens. Telefone e LID da mesma pessoa vêm numa linha só. " +
+      "PASSE `busca` (pedaço do nome ou o número, com ou sem formatação/nono dígito) — a conta pode ter " +
+      "milhares de contatos e sem filtro só vêm os 100 primeiros. Se você JÁ TEM o número, nem precisa: " +
+      "a DM é o slug `dm-<55DDDnúmero>` direto em ler_mensagens/responder.",
+    inputSchema: {
+      busca: z.string().optional().describe("pedaço do nome ou número (ex.: 'paulo', '+55 11 98765-4321')"),
+      limite: z.number().int().positive().max(500).optional().describe("máximo de pessoas (default 100)"),
+    },
   },
-  async () => {
+  async ({ busca, limite }) => {
     const c = await contacts();
-    const contatos = [...c.names.entries()]
-      .map(([id, nome]) => ({
-        id,
-        nome,
-        papel: roleOf(c, id),
-        // jid de DM pra usar no 'responder', resolvido pelo sidecar (LID→telefone).
-        dmJid: sendableDmJid(c, id),
-      }))
-      .sort((a, b) => a.papel.localeCompare(b.papel) || a.nome.localeCompare(b.nome));
-    return text({ total: contatos.length, contatos });
+    const linhas = [...c.names.entries()].map(([id, nome]) => ({
+      id,
+      nome,
+      papel: roleOf(c, id),
+      // jid de DM pra usar no 'responder', resolvido pelo sidecar (LID→telefone).
+      dmJid: sendableDmJid(c, id),
+    }));
+    const r = filtrarContatos(linhas, busca, limite ?? 100);
+    return text({
+      total: r.total,
+      mostrados: r.mostrados.length,
+      ...(r.truncado ? { truncado: true, nota: "passe `busca` (nome ou número) pra achar alguém específico" } : {}),
+      contatos: r.mostrados,
+    });
   },
 );
 
@@ -590,6 +628,15 @@ async function resolveDestino(
   if (g.endsWith("@g.us")) {
     const match = matchGrupo(g, await dsGroupsConfig());
     return { jid: g, label: match?.name ?? g, ...(match ? { slug: canonicalSlug(match) } : {}) };
+  }
+  // Slug de DM (`dm-<telefone>` ou `dm-<lid>`): resolve pelo sidecar; o slug
+  // canônico (perfil/typos/modo) é o do telefone quando ele é conhecido.
+  const dm = /^dm-(\d+)$/.exec(g);
+  if (dm?.[1]) {
+    const jid = sendableDmJid(await contacts(), dm[1]);
+    if (!jid) return { jid: null, label: g };
+    const slug = jid.endsWith("@s.whatsapp.net") ? `dm-${numberFromJid(jid)}` : g;
+    return { jid, label: jid, slug };
   }
   if (g.includes("@") || /^\d{8,}$/.test(g)) {
     const userPart = numberFromJid(g);
@@ -816,7 +863,7 @@ server.registerTool(
       // histórico sabe de quem é a msg, então resolvemos aqui em vez de exigir
       // do chamador. Override manual só quando o chamador passa explicitamente.
       if (participant === undefined && fromMe === undefined) {
-        const alvo = (await dsGroupMessages(slugify(grupo))).find((m) => m.id === msgId);
+        const alvo = (await mensagensDaConversa(slugify(grupo))).msgs.find((m) => m.id === msgId);
         if (alvo) {
           fromMe = alvo.fromMe === true;
           participant = fromMe ? undefined : (alvo.sender ?? undefined);
