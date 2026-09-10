@@ -3,6 +3,7 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promise
 import { tmpdir } from "node:os";
 import { dirname, extname, join } from "node:path";
 import { BATCH_LIMIT, selectBatch } from "./batch-select";
+import { cloudPost, mcpRemote } from "./cloud";
 import { ensureLocalMedia, isMediaLocal } from "./cloud-media";
 import { readSettings } from "./config";
 import { transcriptPathFor } from "./data";
@@ -135,6 +136,42 @@ async function cached(sidecar: string): Promise<string | null> {
   }
 }
 
+/** Já existe transcrição desta mídia NESTE disco? */
+export async function temTranscricaoLocal(slug: string, mediaPath: string): Promise<boolean> {
+  return (await cached(transcriptPathFor(slug, mediaPath))) !== null;
+}
+
+/**
+ * Em modo remoto, sobe o texto pro sidecar da NUVEM. A transcrição roda aqui
+ * (MLX), mas quem responde `ler_mensagens`/pendentes é a nuvem: sem isso ela
+ * seguiria listando a mídia como não transcrita e o lote nunca avançaria.
+ * Best-effort: falha não derruba a transcrição (o cache local já existe).
+ */
+export async function publicarTranscricao(slug: string, mediaPath: string, text: string): Promise<void> {
+  if (!mcpRemote()) return;
+  try {
+    await cloudPost("/api/transcripts", { slug, mediaPath, text });
+  } catch {
+    // a nuvem fica desatualizada até a próxima tentativa; o texto já está salvo aqui
+  }
+}
+
+/**
+ * Resolve o mediaPath a partir do id da mensagem (campo `id` de ler_mensagens) —
+ * a IA costuma ter o id à mão, não o mediaPath.
+ */
+export function mediaPathPorId(
+  msgs: ReadonlyArray<{ id: string; type: string; mediaPath: string | null }>,
+  id: string,
+): { ok: true; mediaPath: string } | { ok: false; motivo: string } {
+  const m = msgs.find((x) => x.id === id);
+  if (!m) return { ok: false, motivo: `mensagem ${id} não encontrada neste chat` };
+  if (!m.mediaPath || !["audio", "video", "gif"].includes(m.type)) {
+    return { ok: false, motivo: `mensagem ${id} é do tipo ${m.type}, sem áudio/vídeo pra transcrever` };
+  }
+  return { ok: true, mediaPath: m.mediaPath };
+}
+
 /**
  * Transcreve uma mídia (ou devolve do cache) e grava o sidecar. Serializada.
  */
@@ -148,6 +185,7 @@ export function transcribe(slug: string, mediaPath: string): Promise<string> {
     const text = await runTranscription(await ensureLocalMedia(mediaPath), model, language);
     await mkdir(dirname(sidecar), { recursive: true });
     await writeFile(sidecar, `${text}\n`, "utf8");
+    await publicarTranscricao(slug, mediaPath, text);
     return text;
   });
 }
@@ -157,6 +195,9 @@ export interface BatchResult {
   textos: Array<[string, string]>;
   /** Quantos pendentes sobraram além do teto (chame de novo pra continuar). */
   restantes: number;
+  /** Mídias que já tinham transcrição local: não ocupam vaga do lote; em modo
+   *  remoto o texto é (re)publicado na nuvem pra ela parar de listá-las. */
+  emCache: string[];
 }
 
 /**
@@ -174,9 +215,18 @@ export async function transcribeBatch(
   mediaPaths: string[],
   limite: number = BATCH_LIMIT,
 ): Promise<BatchResult> {
-  const localFlags = await Promise.all(mediaPaths.map((mp) => isMediaLocal(mp)));
-  const locais = new Set(mediaPaths.filter((_, i) => localFlags[i]));
-  const { processar, restantes } = selectBatch(mediaPaths, locais, limite);
+  // Já transcritas aqui ficam fora do lote (senão o cache devolvia sempre as
+  // mesmas e as demais nunca chegavam a vez); só (re)publica na nuvem.
+  const cacheFlags = await Promise.all(mediaPaths.map((mp) => temTranscricaoLocal(slug, mp)));
+  const emCache = mediaPaths.filter((_, i) => cacheFlags[i]);
+  await Promise.allSettled(
+    emCache.map(async (mp) => publicarTranscricao(slug, mp, await transcribe(slug, mp))),
+  );
+  const pendentes = mediaPaths.filter((_, i) => !cacheFlags[i]);
+
+  const localFlags = await Promise.all(pendentes.map((mp) => isMediaLocal(mp)));
+  const locais = new Set(pendentes.filter((_, i) => localFlags[i]));
+  const { processar, restantes } = selectBatch(pendentes, locais, limite);
 
   // Baixa em PARALELO os que estão na nuvem (cacheia no disco). O timeout do
   // cloudFetch protege cada um; em paralelo o tempo total é ~o do mais lento, não
@@ -191,5 +241,5 @@ export async function transcribeBatch(
       // ignora falha de um item; segue os demais
     }
   }
-  return { textos, restantes };
+  return { textos, restantes, emCache };
 }
