@@ -34,7 +34,7 @@ import { safeDataPath } from "../lib/paths";
 import { marcarRajadas } from "../lib/rajada";
 import { canonicalSlug, matchGrupo } from "../lib/resolve-grupo";
 import { slugify } from "../lib/slug";
-import { transcribe, transcribeBatch } from "../lib/transcribe";
+import { mediaPathPorId, transcribe, transcribeBatch } from "../lib/transcribe";
 import { ultimaMidiaPath } from "../lib/ultima-midia";
 import { selectNew } from "../lib/novidades";
 import {
@@ -318,33 +318,47 @@ server.registerTool(
   {
     description:
       "Transcreve áudio/vídeo (MLX local, large-v3) e devolve o texto; reusa cache. " +
-      "COM mediaPath: transcreve só aquele (baixa da nuvem se preciso). SEM mediaPath: transcreve " +
-      "um lote dos pendentes do grupo (até 8 por chamada; os que só estão na nuvem baixam em " +
-      "paralelo, modelo morno = rápido). Se sobrar além do teto, o retorno traz `restantes` — chame " +
-      "de novo. O teto evita travar a chamada com dezenas de uma vez.",
+      "UMA mídia específica: passe `mediaPath` (campo 'midia' de ler_mensagens) OU `id` (campo 'id' " +
+      "da mensagem) — os dois funcionam; qualquer outro nome de parâmetro é ignorado. " +
+      "SEM os dois: transcreve um lote dos pendentes do grupo (até 8 NOVOS por chamada; o que já " +
+      "tem transcrição não ocupa vaga e vem em `em_cache`; os que só estão na nuvem baixam em " +
+      "paralelo). Se sobrar além do teto, o retorno traz `restantes` — chame de novo e o lote AVANÇA. " +
+      "Em modo remoto a transcrição é publicada na nuvem, então ler_mensagens passa a trazer `transcricao`.",
     inputSchema: {
       grupo: z.string().describe("slug do grupo"),
       mediaPath: z
         .string()
         .optional()
-        .describe("mediaPath relativo (campo 'midia') de UMA mídia; ausente = lote dos pendentes locais"),
+        .describe("mediaPath relativo (campo 'midia') de UMA mídia"),
+      id: z
+        .string()
+        .optional()
+        .describe("id da mensagem (campo 'id' de ler_mensagens) de UMA mídia — alternativa ao mediaPath"),
     },
   },
-  async ({ grupo, mediaPath }) => {
+  async ({ grupo, mediaPath, id }) => {
     try {
+      if (!mediaPath && id) {
+        const r = mediaPathPorId(await dsGroupMessages(grupo), id);
+        if (!r.ok) return fail(r.motivo);
+        mediaPath = r.mediaPath;
+      }
       if (mediaPath) return text(await transcribe(grupo, mediaPath));
       // Sem mediaPath: lote dos pendentes LOCAIS, com teto (absorve o antigo
       // transcrever_lote). Pula os que só estão na nuvem e limita por chamada pra
       // não pendurar a chamada baixando/transcrevendo dezenas em série.
       const pend = pendingMedia(await dsGroupMessages(grupo));
       if (!pend.length) return text("Nenhum áudio/vídeo pendente de transcrição.");
-      const { textos, restantes } = await transcribeBatch(grupo, pend);
+      const { textos, restantes, emCache } = await transcribeBatch(grupo, pend);
       return text({
         pendentes: pend.length,
         transcritos: textos.length,
         textos: textos.map(([midia, texto]) => ({ midia, texto })),
+        ...(emCache.length
+          ? { em_cache: emCache.length, nota_cache: "já transcritas antes — ler_mensagens traz o texto; não contam no lote" }
+          : {}),
         ...(restantes > 0
-          ? { restantes, nota: "chame de novo pra transcrever o resto (teto por chamada)" }
+          ? { restantes, nota: "chame de novo pra transcrever o resto (teto por chamada; o lote avança)" }
           : {}),
       });
     } catch (e) {
@@ -606,7 +620,10 @@ server.registerTool(
       "BALÕES: por default o texto é fatiado em até 3 balões (parágrafos em branco = quebras " +
       "explícitas suas). Use `um_balao: true` quando a mensagem deve chegar INTEIRA num balão só — " +
       "texto coeso/técnico (changelog, lista, instruções passo a passo), ou quando o operador pedir " +
-      "'manda numa mensagem só'. VOCÊ escolhe por mensagem; conversa curta e informal fica melhor em balões.",
+      "'manda numa mensagem só'. Quando VOCÊ já decidiu a quebra (4, 5 balões…), passe `baloes` " +
+      "(lista, um item = um balão, até 8) em UMA chamada — NUNCA chame responder várias vezes pra " +
+      "simular balões: cada chamada é uma entrega separada com visto/digitando. Conversa curta e " +
+      "informal fica melhor em balões.",
     inputSchema: {
       grupo: z
         .string()
@@ -614,7 +631,16 @@ server.registerTool(
           "slug do grupo (o mesmo de ler_mensagens/listar_grupos), nome exato, OU um jid " +
             "(grupo @g.us / DM '<numero>@s.whatsapp.net'). Slug é o jeito mais seguro.",
         ),
-      texto: z.string().describe("mensagem a enviar"),
+      texto: z.string().optional().describe("mensagem a enviar (obrigatório se não passar `baloes`)"),
+      baloes: z
+        .array(z.string().min(1))
+        .min(1)
+        .max(8)
+        .optional()
+        .describe(
+          "balões já decididos por você, na ordem (um item = um balão). Substitui `texto`/`um_balao`; " +
+            "tudo sai numa entrega humanizada só.",
+        ),
       um_balao: z
         .boolean()
         .optional()
@@ -624,8 +650,11 @@ server.registerTool(
         ),
     },
   },
-  async ({ grupo, texto, um_balao }, extra) => {
+  async ({ grupo, texto: textoArg, baloes, um_balao }, extra) => {
     try {
+      const lista = (baloes ?? []).map((b) => b.trim()).filter(Boolean);
+      const texto = lista.length ? lista.join("\n\n") : (textoArg ?? "").trim();
+      if (!texto) return fail("passe `texto` ou `baloes` (lista de balões)");
       // Trava de tratamento: "tu" não é dele, e a automação já vazou isso em
       // 30 chats. Recusar aqui é mais barato que corrigir depois no chat.
       const pronomes = tratamentoErrado(texto);
@@ -647,6 +676,7 @@ server.registerTool(
           slug,
           typos: t.typos?.[slug] === true,
           umBalao: um_balao === true,
+          ...(lista.length ? { baloes: lista } : {}),
         },
         { signal: extra.signal },
       );

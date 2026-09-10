@@ -122,6 +122,15 @@ O `ler_mensagens` separa coisas que antes confundiam a leitura:
   `web` = o operador respondeu na mão; `ia_meta` = IA da Meta em nome da conta (aí `de` vira
   "IA da Meta"). Ausente = recebida ou anterior à feature. Diz quem de fato escreveu um "Você".
 
+Contratos de tool que já confundiram agentes (leia o retorno, não chute parâmetro):
+- **`transcrever`**: uma mídia específica é `mediaPath` (campo `midia`) OU `id` (campo `id`); sem
+  os dois = lote de até 8 NOVOS pendentes (o que já tem transcrição vem em `em_cache`, não gasta
+  vaga, e o lote avança a cada chamada). A transcrição feita no Mac é publicada na nuvem, então
+  `ler_mensagens` passa a trazer `transcricao`.
+- **`responder`**: quando você já decidiu a quebra em N balões, passe `baloes: [...]` (até 8) numa
+  chamada só. NUNCA chame `responder` N vezes pra simular balões — cada chamada é uma entrega
+  separada, com visto/digitando e janela de cancelamento.
+
 ## Baileys: dependência, não fork (como ficar atualizado)
 
 O coletor **usa** o Baileys como lib npm (`baileys`, canal `7.0.0-rc*`), com um patch local em
