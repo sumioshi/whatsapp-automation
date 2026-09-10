@@ -29,6 +29,8 @@ interface SendBody {
   slug?: string;
   typos?: boolean;
   umBalao?: boolean;
+  /** Balões explícitos (um item = um balão); `text` vira opcional. */
+  baloes?: string[];
 }
 
 interface EditBody {
@@ -326,9 +328,14 @@ export function startControlServer(
     if (req.method === 'POST' && req.url === '/send') {
       readJson(req)
         .then(async (parsed) => {
-          const { jid, text, mentions, humano, slug, typos, umBalao } = (parsed ?? {}) as SendBody;
+          const { jid, mentions, humano, slug, typos, umBalao } = (parsed ?? {}) as SendBody;
+          const body = (parsed ?? {}) as SendBody;
+          const baloes = Array.isArray(body.baloes)
+            ? body.baloes.filter((b): b is string => typeof b === 'string' && b.trim() !== '')
+            : [];
+          const text = body.text?.trim() || baloes.join('\n\n');
           if (!jid || !text) {
-            json(400, { error: 'jid e text são obrigatórios' });
+            json(400, { error: 'jid e text (ou baloes) são obrigatórios' });
             return;
           }
           if (humano) {
@@ -345,6 +352,7 @@ export function startControlServer(
                 slug,
                 typos: typos === true,
                 umBalao: umBalao === true,
+                ...(baloes.length ? { baloes } : {}),
                 signal: ac.signal,
               });
             } finally {

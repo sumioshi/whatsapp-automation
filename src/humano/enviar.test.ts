@@ -33,3 +33,21 @@ describe('enviarHumano', () => {
     expect(chamadas[0]?.textos).toEqual(['oi tudo bem? vc quer o filtro por data ou por status?']);
   });
 });
+
+describe('enviarHumano — balões explícitos', () => {
+  it('baloes vira um balão por item, na ordem, sem fatiar de novo', async () => {
+    const chamadas: string[][] = [];
+    const gateway = {
+      async entregarHumano(_jid: string, plano: Passo[]) {
+        const textos = plano.flatMap((p) => (p.tipo === 'enviar' ? [p.texto] : []));
+        chamadas.push(textos);
+        return { enviados: textos.length, total: textos.length, cancelado: false };
+      },
+    };
+    const r = await enviarHumano(gateway, dataDir, '5511@s.whatsapp.net', 'ignorado', {
+      baloes: ['primeiro', ' segundo ', '', 'terceiro. Com ponto. E mais frase.', 'quarto', 'quinto'],
+    });
+    expect(r.baloes).toBe(5);
+    expect(chamadas[0]).toEqual(['primeiro', 'segundo', 'terceiro. Com ponto. E mais frase.', 'quarto', 'quinto']);
+  });
+});

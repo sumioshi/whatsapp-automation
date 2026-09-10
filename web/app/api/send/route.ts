@@ -10,6 +10,8 @@ interface Body {
   slug?: string;
   typos?: boolean;
   umBalao?: boolean;
+  /** Balões explícitos (um item = um balão); `text` vira opcional. */
+  baloes?: string[];
 }
 
 export async function POST(req: Request) {
@@ -20,9 +22,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
 
-  const text = body.text?.trim();
+  const baloes = Array.isArray(body.baloes)
+    ? body.baloes.filter((b): b is string => typeof b === "string" && b.trim() !== "")
+    : [];
+  const text = body.text?.trim() || baloes.join("\n\n");
   if (!body.jid || !text) {
-    return NextResponse.json({ error: "jid e text são obrigatórios" }, { status: 400 });
+    return NextResponse.json({ error: "jid e text (ou baloes) são obrigatórios" }, { status: 400 });
   }
 
   try {
@@ -36,6 +41,7 @@ export async function POST(req: Request) {
         slug: body.slug,
         typos: body.typos === true,
         umBalao: body.umBalao === true,
+        ...(baloes.length ? { baloes } : {}),
       }),
       // Cliente que desconecta (Esc no agente) derruba esta chamada, e o control
       // server cancela a entrega entre passos.

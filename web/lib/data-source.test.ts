@@ -285,3 +285,19 @@ describe('cancelamento de envio', () => {
     expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/127\.0\.0\.1:\d+\/cancelar-envio$/);
   });
 });
+
+describe('balões explícitos', () => {
+  it('REMOTO: dsSend repassa baloes no body do /api/send', async () => {
+    vi.stubEnv('WAC_MCP_REMOTE', '1');
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    vi.stubEnv('WAC_CLOUD_USER', 'u');
+    vi.stubEnv('WAC_CLOUD_PASS', 'p');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true, baloes: 2 }), { status: 200 }));
+    const { dsSend } = await import('./data-source');
+    await dsSend('x@g.us', 'a\n\nb', { humano: true, baloes: ['a', 'b'] });
+    const init = fetchSpy.mock.calls[0]?.[1] as { body: string };
+    expect(JSON.parse(init.body)).toMatchObject({ baloes: ['a', 'b'] });
+  });
+});

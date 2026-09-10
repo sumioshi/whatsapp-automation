@@ -28,13 +28,21 @@ export async function enviarHumano(
     slug?: string;
     typos?: boolean;
     umBalao?: boolean;
+    /** Balões já decididos por quem chama (um item = um balão, na ordem). Quando
+     *  presente, `texto` e `umBalao` são ignorados — ninguém fatia de novo. */
+    baloes?: string[];
     /** Aborta entre passos; nada que já saiu é desfeito. */
     signal?: AbortSignal;
     janelaMs?: number;
   } = {},
 ): Promise<{ baloes: number; enviados: number; cancelado: boolean }> {
   const perfil = await loadPerfilEnvio(opts.slug, dataDir);
-  const baloes = opts.umBalao ? [texto.trim()] : quebrarEmBaloes(texto, perfil);
+  const explicitos = (opts.baloes ?? []).map((b) => b.trim()).filter(Boolean);
+  const baloes = explicitos.length
+    ? explicitos
+    : opts.umBalao
+      ? [texto.trim()]
+      : quebrarEmBaloes(texto, perfil);
   const plano = garantirJanela(
     planoDeEntrega(baloes, perfil, {
       typos: opts.typos === true,

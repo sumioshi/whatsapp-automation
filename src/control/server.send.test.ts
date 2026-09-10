@@ -100,3 +100,24 @@ describe('control /send — cancelamento', () => {
     expect(await res.json()).toEqual({ ok: true, cancelado: false });
   });
 });
+
+describe('control /send — balões explícitos', () => {
+  it('baloes no corpo viram os balões do plano (um por item)', async () => {
+    const planos: string[][] = [];
+    const gw = {
+      async entregarHumano(_jid: string, plano: Passo[]) {
+        const textos = plano.flatMap((p) => (p.tipo === 'enviar' ? [p.texto] : []));
+        planos.push(textos);
+        return { enviados: textos.length, total: textos.length, cancelado: false };
+      },
+    } as unknown as WhatsAppGateway;
+    const base = await subir(gw);
+    const res = await fetch(`${base}/send`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jid: JID, humano: true, baloes: ['um', 'dois', 'três'] }),
+    });
+    expect(await res.json()).toMatchObject({ ok: true, baloes: 3, enviados: 3 });
+    expect(planos[0]).toEqual(['um', 'dois', 'três']);
+  });
+});

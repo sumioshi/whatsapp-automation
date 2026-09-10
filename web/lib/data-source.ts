@@ -124,6 +124,8 @@ export interface SendOpts {
   slug?: string;
   typos?: boolean;
   umBalao?: boolean;
+  /** Balões explícitos (um item = um balão, na ordem) — quem chama já decidiu a quebra. */
+  baloes?: string[];
 }
 
 /** Envio de texto: remoto via /api/send; local direto no control server. */
