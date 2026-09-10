@@ -60,6 +60,10 @@ Monitor(persistent: true, description: "Plantão SSE em <slug>[, <slug2>...]", c
 ($REPO expandido pro path absoluto real — o Monitor não herda variáveis da sua sessão.)
 Vários chats = UM Monitor com vários slugs (uma conexão só; a linha vem com `[slug]` na frente).
 `--alertar` no lugar dos slugs acompanha todos os chats com `alertar` ligado na triagem.
+**Coletor PESSOAL** (o 2º container, WhatsApp pessoal do operador): prefixe `PLANTAO_CLOUD=pessoal`
+no command (`PLANTAO_CLOUD=pessoal $REPO/scripts/plantao-stream.sh <slug>`); o script usa o trio
+`WAC_PESSOAL_*` do arquivo de ambiente da raiz. Slugs do pessoal vêm do MCP `whatsapp-pessoal`
+(`listar_grupos` lá), não do principal — são contas diferentes.
 Se o Monitor morrer na hora com código 3 e "plantão já ativo", já existe plantão desse
 conjunto nesta máquina (outra sessão ou zumbi) — não é erro do script; ache e mate o antigo.
 

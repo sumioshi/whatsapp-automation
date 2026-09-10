@@ -15,6 +15,7 @@
 # Last-Event-ID); o servidor manda ": ping" a cada 25s como keep-alive. Um lock por
 # conjunto de conversas impede plantão em duplicata (segunda instância sai com 3).
 # Variáveis de ambiente vencem o .env da raiz (WAC_CLOUD_URL/USER/PASS).
+# PLANTAO_CLOUD=pessoal troca pro coletor PESSOAL (trio WAC_PESSOAL_URL/USER/PASS).
 # PLANTAO_STATE_DIR (lock/cursor; default $TMPDIR ou /tmp), PLANTAO_RETRY_S (default 5).
 
 set -u
@@ -28,6 +29,13 @@ if [ -z "${WAC_CLOUD_URL:-}" ] && [ -f "$ROOT/.env" ]; then
   set +a
 fi
 
+CLOUD="${PLANTAO_CLOUD:-principal}"
+if [ "$CLOUD" = "pessoal" ]; then
+  : "${WAC_PESSOAL_URL:?WAC_PESSOAL_URL não configurado (trio do coletor pessoal no .env da raiz)}"
+  WAC_CLOUD_URL="$WAC_PESSOAL_URL"
+  WAC_CLOUD_USER="${WAC_PESSOAL_USER:?WAC_PESSOAL_USER não configurado}"
+  WAC_CLOUD_PASS="${WAC_PESSOAL_PASS:?WAC_PESSOAL_PASS não configurado}"
+fi
 : "${WAC_CLOUD_URL:?WAC_CLOUD_URL não configurado (defina no .env da raiz)}"
 : "${WAC_CLOUD_USER:?WAC_CLOUD_USER não configurado}"
 : "${WAC_CLOUD_PASS:?WAC_CLOUD_PASS não configurado}"
@@ -46,6 +54,7 @@ fi
 QUERY="$QUERY&ocultar=coletor"
 
 STATE="${PLANTAO_STATE_DIR:-${TMPDIR:-/tmp}}"
+if [ "$CLOUD" != "principal" ]; then KEY="$CLOUD-$KEY"; fi
 LOCK="$STATE/plantao-$KEY.pid"
 CURSOR="$STATE/plantao-$KEY.cursor"
 if [ -f "$LOCK" ] && kill -0 "$(cat "$LOCK" 2>/dev/null)" 2>/dev/null; then

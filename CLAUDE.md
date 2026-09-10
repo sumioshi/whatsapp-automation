@@ -39,6 +39,10 @@ o que o próprio MCP/painel mandou (`origem: coletor`) não desce. `--alertar` a
 chats com alerta ligado. Requer `WAC_CLOUD_*` no `.env` da raiz (ele mesmo carrega). Use path
 absoluto se a sessão estiver fora do repo.
 
+**Coletor PESSOAL:** o 2º container (WhatsApp pessoal do operador) tem MCP próprio,
+`whatsapp-pessoal` (mesmas tools, outro trio de acesso — contas e slugs diferentes). Plantão nele:
+`PLANTAO_CLOUD=pessoal scripts/plantao-stream.sh <slug>` (trio `WAC_PESSOAL_*` no arquivo de ambiente).
+
 **Receita LOCAL (coletor local ligado via `npm run dev`):** vigia o arquivo direto — latência
 zero, mas só atualiza com o coletor local rodando:
 

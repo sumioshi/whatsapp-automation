@@ -144,3 +144,35 @@ describe('plantao-stream.sh', { timeout: 15_000 }, () => {
     expect(segunda.err.join('')).toContain('já ativo');
   });
 });
+
+describe('plantao-stream.sh — outro coletor (PLANTAO_CLOUD)', () => {
+  it('PLANTAO_CLOUD=pessoal usa o trio WAC_PESSOAL_* e o lock ganha o prefixo do coletor', async () => {
+    responder = (_req, res) => {
+      res.write(frame('a=1', { slug: 'a', fromMe: false, senderName: 'Ana', text: 'oi' }));
+    };
+    const p = spawn('sh', [SCRIPT, 'a'], {
+      env: {
+        PATH: process.env.PATH ?? '',
+        // trio principal aponta pro nada: se o script usar ele, o teste falha
+        WAC_CLOUD_URL: 'http://127.0.0.1:9',
+        WAC_CLOUD_USER: 'x',
+        WAC_CLOUD_PASS: 'x',
+        WAC_PESSOAL_URL: `http://127.0.0.1:${porta}`,
+        WAC_PESSOAL_USER: 'u',
+        WAC_PESSOAL_PASS: 'p',
+        PLANTAO_CLOUD: 'pessoal',
+        PLANTAO_STATE_DIR: stateDir,
+        PLANTAO_RETRY_S: '0',
+      },
+      detached: true,
+    });
+    procs.push(p);
+    const out: string[] = [];
+    p.stdout.on('data', (b: Buffer) => out.push(...b.toString().split('\n').filter(Boolean)));
+    await espera(() => out.length >= 1);
+    expect(out[0]).toBe('Ana: oi');
+    expect(pedidos[0]?.url).toBe('/api/events?slug=a&ocultar=coletor');
+    const { readdir } = await import('node:fs/promises');
+    expect((await readdir(stateDir)).some((f) => f.startsWith('plantao-pessoal-'))).toBe(true);
+  });
+});

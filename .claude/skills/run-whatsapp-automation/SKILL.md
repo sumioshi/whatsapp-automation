@@ -21,6 +21,14 @@ tudo pra IA. São **5 processos**: `wa-collector` (daemon Baileys), `wa-panel`
 > **só roda em Apple Silicon** — em Linux o coletor e o painel sobem, mas o
 > transcriber não. Paths neste arquivo são relativos à raiz do repo.
 
+## Dois coletores, dois servidores MCP
+
+- **`whatsapp-collector`** = coletor PRINCIPAL (número business, clientes). É o default.
+- **`whatsapp-pessoal`** = coletor PESSOAL (2º container na Railway, WhatsApp pessoal do operador).
+  Mesmas tools, mesmo código, outro trio de acesso. Use quando o operador disser "no pessoal",
+  "meu WhatsApp pessoal", ou o chat não existir no principal. Contas diferentes → slugs diferentes;
+  `listar_grupos` em cada um. Plantão no pessoal: `PLANTAO_CLOUD=pessoal` no `plantao-stream.sh`.
+
 ## ⚠️ Regra: enviar mensagem no grupo → humanizar SEMPRE
 
 Sempre que o usuário pedir para **enviar, responder ou redigir uma mensagem** num
