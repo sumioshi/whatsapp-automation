@@ -28,7 +28,9 @@ export function quebrarEmBaloes(texto: string, perfil: PerfilEnvio = PERFIL_DEFA
   const partes = paragrafos.length > 1 ? paragrafos : quebrarPorSentenca(t, perfil.tamanhoMedioBalao);
 
   if (partes.length <= MAX_BALOES) return partes;
-  return [...partes.slice(0, MAX_BALOES - 1), partes.slice(MAX_BALOES - 1).join(' ')];
+  // O excedente vira UM balão só, mas cada parte segue sendo um parágrafo: colar
+  // com espaço produziria um bloco corrido com frases emendadas umas nas outras.
+  return [...partes.slice(0, MAX_BALOES - 1), partes.slice(MAX_BALOES - 1).join('\n\n')];
 }
 
 /** Junta sentenças até chegar perto do alvo; nunca corta no meio de uma sentença.

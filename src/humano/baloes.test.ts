@@ -71,6 +71,16 @@ describe('quebrarEmBaloes', () => {
     const partes = Array.from({ length: 5 }, (_, i) => `pensamento ${i} com corpo suficiente aqui dentro`);
     const baloes = quebrarEmBaloes(partes.join('\n\n'));
     expect(baloes.length).toBe(3);
-    expect(baloes.join(' ')).toBe(partes.join(' '));
+    expect(baloes.join('\n\n')).toBe(partes.join('\n\n'));
+  });
+
+  it('excedente de parágrafos funde com linha em branco, não colado por espaço', () => {
+    const partes = Array.from({ length: 5 }, (_, i) => `pensamento ${i} com corpo suficiente aqui dentro`);
+    const ultimo = quebrarEmBaloes(partes.join('\n\n'))[2] as string;
+    // os parágrafos 3, 4 e 5 caem todos no último balão: cada um precisa
+    // continuar sendo uma frase separada, senão o leitor recebe um parágrafo
+    // corrido com frases colando umas nas outras.
+    expect(ultimo).toBe([partes[2], partes[3], partes[4]].join('\n\n'));
+    expect(ultimo).not.toContain('dentro pensamento');
   });
 });
