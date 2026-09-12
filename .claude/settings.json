@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__whatsapp-collector__(responder|responder_midia|editar_mensagem)",
+        "matcher": "mcp__whatsapp-(collector|pessoal)__(responder|responder_midia|editar_mensagem)",
         "hooks": [
           {
             "type": "command",

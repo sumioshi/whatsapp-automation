@@ -11,6 +11,29 @@ persistente de monitoramento disponível no runtime. Se o runtime atual não con
 despertar o agente quando chegar um evento, não declare que o plantão foi armado;
 ofereça checar `novidades` sob demanda ou ligar `alertar_chat` (notificação no Mac).
 
+## Config por runtime
+
+Cada agente lê a sua pasta, mas o comportamento esperado é o mesmo nos três:
+
+| Runtime | MCP | Hooks | Skills de projeto | Contexto |
+|---|---|---|---|---|
+| Claude Code | `.mcp.json` (raiz) ou escopo de usuário | `.claude/settings.json` + `.claude/hooks/` | `.claude/skills/` | `CLAUDE.md` |
+| Codex | idem | `.codex/hooks.json` + `.codex/hooks/` | `.agents/skills/` | `AGENTS.md` |
+| Qwen Code | `.mcp.json` (raiz) ou `.qwen/settings.json` | `.qwen/settings.json` + `.qwen/hooks/` | `.agents/skills/` | `AGENTS.md` |
+
+- **`.mcp.json` é gitignored** (pode carregar segredo): parta de `.mcp.json.example` (modo local)
+  ou `.mcp.json.remote.example` (modo remoto). Segredo bom vive no `.env` da raiz — o server MCP
+  carrega esse arquivo no boot, então o registro não precisa repetir o trio da nuvem.
+- **Qwen Code** lê o `.mcp.json` da raiz nativamente, mas servidor declarado por arquivo do
+  workspace nasce *gated*: aprove uma vez com `qwen mcp approve <nome>` (ou pelo `/mcp`).
+  A aprovação é chaveada pelo hash da config — editar o `.mcp.json` pede aprovação de novo.
+  `qwen mcp list` mostra o estado de cada um.
+- **Trava de voz** (nos três): `responder`/`responder_midia`/`editar_mensagem` são negadas quando
+  a skill de voz do operador não foi carregada na sessão. O script `exigir-voz.sh` vive na pasta de
+  hooks de cada runtime e `WAC_SKILLS_VOZ` lista os nomes que contam. Falha aberta se nenhuma skill
+  de voz estiver instalada, se não houver transcript legível, e depois de 2 avisos na mesma sessão —
+  é lembrete, não parede. Ao receber a negativa, carregue a skill e reescreva; não contorne.
+
 ## REGRAS DURAS de envio (não negociáveis)
 
 1. **NUNCA envie mensagem sem pedido explícito do operador PARA AQUELE chat** — nem "de

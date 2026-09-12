@@ -1,0 +1,37 @@
+{
+  "$version": 4,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__whatsapp-(collector|pessoal)__(responder|responder_midia|editar_mensagem)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$QWEN_PROJECT_DIR/.qwen/hooks/exigir-voz.sh",
+            "name": "exigir-voz",
+            "description": "Nega envio de WhatsApp se a skill de voz do operador não foi carregada na sessão",
+            "timeout": 10000,
+            "statusMessage": "Checando skill de voz",
+            "env": {
+              "WAC_SKILLS_VOZ": "voz-do-operador voz-do-dono"
+            }
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(write_file|edit|notebook_edit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$QWEN_PROJECT_DIR/.agents/skills/impeccable/scripts/hook.mjs\"",
+            "name": "impeccable",
+            "timeout": 5000,
+            "statusMessage": "Checking UI changes"
+          }
+        ]
+      }
+    ]
+  }
+}

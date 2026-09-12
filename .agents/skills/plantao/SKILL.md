@@ -1,13 +1,13 @@
 ---
 name: plantao
-description: Use quando o operador pedir para ficar de olho, monitorar ou avisar quando chegar mensagem em um chat de WhatsApp. Resolve o chat, garante a captura e usa o mecanismo de monitoramento persistente disponível no runtime do Codex.
+description: Use quando o operador pedir para ficar de olho, monitorar ou avisar quando chegar mensagem em um chat de WhatsApp. Resolve o chat, garante a captura e usa o mecanismo de monitoramento persistente disponível no runtime.
 ---
 
-# Plantão de mensagens WhatsApp no Codex
+# Plantão de mensagens WhatsApp (adaptador de runtime)
 
 Leia completamente a skill canônica antes de agir:
 
-`/Users/operador/projetos/empresa-sumioshi/whatsapp-automation/.claude/skills/plantao/SKILL.md`
+`<raiz-do-repo>/.claude/skills/plantao/SKILL.md` (path relativo: `../../.claude/skills/plantao/SKILL.md`)
 
 Preserve dela:
 
@@ -20,21 +20,28 @@ Preserve dela:
 
 ## Adaptação de runtime
 
-As ferramentas `Monitor`, `TaskList` e `TaskStop` citadas na skill canônica são
-específicas do Claude Code. No Codex:
+As ferramentas `Monitor`, `TaskList` e `TaskStop` citadas na skill canônica são específicas do
+Claude Code. O equivalente muda por runtime:
 
-1. Use o mecanismo persistente de monitoramento, espera ou automação disponibilizado
-   pelo produto para executar:
+| Runtime | Armar | Inspecionar | Encerrar |
+|---|---|---|---|
+| Claude Code | `Monitor(persistent: true, command: …)` | `TaskList` | `TaskStop` |
+| Qwen Code | `monitor(command: …, idle_timeout_ms: 600000, max_events: 10000)` | `list_agents` | `task_stop` |
+| Outros | o mecanismo persistente de monitoramento/automação do produto | — | — |
 
-   ```bash
-   /Users/operador/projetos/empresa-sumioshi/whatsapp-automation/scripts/plantao-stream.sh <slug>
-   ```
+Em todos, o comando vigiado é o mesmo:
 
-2. Antes de criar um monitor, encerre qualquer monitor existente do mesmo chat quando
-   o runtime permitir inspecioná-los.
-3. Se o runtime atual não oferecer monitoramento persistente capaz de despertar o
-   agente, não declare que o plantão foi armado. Explique a limitação e ofereça:
-   - consultar `novidades` sob demanda; ou
-   - ativar `alertar_chat` para notificar o operador no Mac.
+```bash
+<raiz-do-repo>/scripts/plantao-stream.sh <slug>
+```
+
+**Limite do Qwen Code (importante):** o `monitor` para sozinho após `idle_timeout_ms` sem saída
+(teto 600000 ms = 10 min) ou `max_events` eventos. Chat quieto derruba o plantão — então, pra
+vigília longa, prefira `/loop` ou `cron_create` chamando `novidades` em intervalo, e diga ao
+operador qual dos dois você armou. Nunca declare plantão armado com o `monitor` prometendo horas.
+
+Antes de armar, encerre o monitor anterior do mesmo chat (zumbi duplica resposta). Se o runtime não
+oferecer monitoramento persistente capaz de despertar o agente, não declare que o plantão foi
+armado: explique a limitação e ofereça `novidades` sob demanda ou `alertar_chat` (notificação no Mac).
 
 Nunca substitua o plantão por um loop bloqueante improvisado nem envie mensagens ao chat.

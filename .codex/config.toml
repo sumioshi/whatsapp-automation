@@ -1,0 +1,5 @@
+[shell_environment_policy]
+inherit = "core"
+
+[shell_environment_policy.set]
+WAC_SKILLS_VOZ = "voz-do-operador voz-do-dono"
