@@ -58,15 +58,17 @@ describe("revisar — score", () => {
 
 describe("propriedade: janelas humanas variadas passam", () => {
   it("≥ 95% de 200 janelas sintéticas com score < LIMIAR", () => {
-    const aberturas = ["subi", "vou ver", "boa", "fechou", "pode testar?", "amanhã sai", "vi aqui", "tá no ar", "consegue olhar?", "ok", "beleza", "fica pra tarde", "o total bate", "não é isso, é o filtro", "valeu"];
-    const meio = ["o ajuste do painel", "a conta de hoje", "o filtro de período", "as datas do alerta", "o relatório", "a tela nova", "o deploy", "a regra da comissão"];
+    const aberturas = ["subi", "vou ver", "boa", "fechou", "pode testar?", "amanhã sai", "vi aqui", "tá no ar", "consegue olhar?", "ok", "beleza", "fica pra tarde", "o total bate", "não é isso, é o filtro", "valeu", "deixa comigo", "já olho", "tô vendo", "ficou pronto", "me manda o print?", "qual conta?", "hoje não dá, amanhã cedo", "rodou certo", "faltou o campo", "vou subir agora", "bateu aqui", "testa de novo", "era cache", "chegou", "sim"];
+    const meio = ["o ajuste do painel", "a conta de hoje", "o filtro de período", "as datas do alerta", "o relatório", "a tela nova", "o deploy", "a regra da comissão", "o cadastro", "a exportação", "o login", "a soma do mês", "o gráfico", "a notificação", "o backup", "a planilha", "o boleto", "o cupom", "a fila", "o webhook"];
+    const quando = ["amanhã", "hoje", "à tarde", "depois do almoço", "na segunda", "mais tarde"];
     let rnd = 7;
     const r = () => (rnd = (rnd * 48271) % 2147483647) / 2147483647;
     const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)] as T;
     const frase = () => {
       const k = r();
-      if (k < 0.35) return pick(aberturas);
-      if (k < 0.7) return `${pick(aberturas)} ${pick(meio)}`;
+      if (k < 0.3) return pick(aberturas);
+      if (k < 0.6) return `${pick(aberturas)} ${pick(meio)}`;
+      if (k < 0.8) return `${pick(aberturas)}, ${pick(meio)} ${pick(quando)}`;
       return `${pick(aberturas)} ${pick(meio)}, ${pick(aberturas)} ${pick(meio)}`;
     };
     let ok = 0;
