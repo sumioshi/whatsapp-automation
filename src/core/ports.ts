@@ -75,8 +75,8 @@ export interface WhatsAppGateway {
   /** Edita uma mensagem PRÓPRIA já enviada (o texto novo substitui; WhatsApp marca "editada"). */
   editText(jid: string, msgId: string, texto: string): Promise<void>;
   /**
-   * Entrega humanizada: toca a partitura (visto → pausas → digitando → balões).
-   * Presença/visto são best-effort; falha de um balão aborta o resto. O `signal`
+   * Entrega humanizada: toca a partitura (pausas → digitando → balões).
+   * Presença é best-effort; falha de um balão aborta o resto. O `signal`
    * cancela entre passos (nunca corta um envio já disparado): `cancelado: true`
    * e `enviados` diz quantos balões saíram antes.
    */
@@ -85,6 +85,10 @@ export interface WhatsAppGateway {
     plano: import('../humano/plano.js').Passo[],
     signal?: AbortSignal,
   ): Promise<{ enviados: number; total: number; cancelado: boolean }>;
+  /** Marca como lida a última mensagem recebida do chat (o "visto"). Best-effort. */
+  marcarLido(jid: string): Promise<void>;
+  /** Presença global da conta (online/offline). Best-effort. */
+  sendPresence(estado: 'available' | 'unavailable'): Promise<void>;
   /**
    * URL (alta-res) da foto de perfil de um grupo, ou null se não tiver/erro.
    * Encapsula a chamada ao Baileys; o download em si é feito pela aplicação.

@@ -108,6 +108,8 @@ const MAX_RECEIPTS = 1000;
  * history pode despejar meses de conversa; sem dedup, reprocessar duplicaria.
  */
 const MAX_SEEN_IDS = 50_000;
+/** Mensagens recebidas lembradas por chat (pra citar no envio). */
+const MAX_RECEBIDAS_POR_CHAT = 50;
 /** Reconexão: backoff exponencial com teto. */
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
@@ -208,6 +210,10 @@ export class BaileysGateway implements WhatsAppGateway {
   private readonly presenceSubscribed = new Set<string>();
   /** Key da última msg RECEBIDA por chat — usada pro "visto" da entrega humanizada. */
   private readonly lastIncomingKey = new Map<string, WAMessageKey>();
+  /** Últimas mensagens RECEBIDAS por chat (WAMessage cru) — para citar (`quoted`) no envio. */
+  private readonly recebidasRecentes = new Map<string, WAMessage[]>();
+  /** Intervalo de renovação do "digitando…" (o WhatsApp expira o indicador em ~10 s). */
+  private renovarComposingMs = 8000;
   /**
    * Resolve quando o 1º `refreshGroups()` (carregamento dos nomes de grupo)
    * completa. As mensagens só são processadas depois disso: na janela inicial do
@@ -377,6 +383,33 @@ export class BaileysGateway implements WhatsAppGateway {
     });
   }
 
+  private lembrarRecebida(jid: string, wa: WAMessage): void {
+    const lista = this.recebidasRecentes.get(jid) ?? [];
+    lista.push(wa);
+    if (lista.length > MAX_RECEBIDAS_POR_CHAT)
+      lista.splice(0, lista.length - MAX_RECEBIDAS_POR_CHAT);
+    this.recebidasRecentes.set(jid, lista);
+  }
+
+  async marcarLido(jid: string): Promise<void> {
+    const key = this.lastIncomingKey.get(jid);
+    if (!key || !this.sock) return;
+    try {
+      await this.sock.readMessages([key]);
+    } catch {
+      /* visto é best-effort */
+    }
+  }
+
+  async sendPresence(estado: 'available' | 'unavailable'): Promise<void> {
+    if (!this.sock) return;
+    try {
+      await this.sock.sendPresenceUpdate(estado);
+    } catch {
+      /* presença é best-effort */
+    }
+  }
+
   async entregarHumano(
     jid: string,
     plano: Passo[],
@@ -392,7 +425,7 @@ export class BaileysGateway implements WhatsAppGateway {
       try {
         await fn();
       } catch {
-        /* presença/visto falhando não pode impedir o texto */
+        /* presença falhando não pode impedir o texto */
       }
     };
 
@@ -405,34 +438,37 @@ export class BaileysGateway implements WhatsAppGateway {
           break;
         }
         switch (passo.tipo) {
-          case 'visto': {
-            const key = this.lastIncomingKey.get(jid);
-            if (key) await bestEffort(() => sock.readMessages([key]));
-            break;
-          }
           case 'pausa':
             await bestEffort(() => sock.sendPresenceUpdate('paused', jid));
             await dormir(passo.ms);
             break;
-          case 'digitando':
-            await bestEffort(() => sock.sendPresenceUpdate('composing', jid));
-            await dormir(passo.ms);
+          case 'digitando': {
+            // O indicador expira sozinho: renova enquanto o passo durar.
+            let restante = passo.ms;
+            while (restante > 0 && !signal?.aborted) {
+              await bestEffort(() => sock.sendPresenceUpdate('composing', jid));
+              const fatia = Math.min(restante, this.renovarComposingMs);
+              await dormir(fatia);
+              restante -= fatia;
+            }
             break;
+          }
           case 'enviar': {
             if (signal?.aborted) {
               cancelado = true;
               break;
             }
             try {
-              const primeiro = passo.typoAntes ?? passo.texto;
-              const sent = await sock.sendMessage(jid, { text: primeiro });
+              const quoted = passo.citar
+                ? this.recebidasRecentes.get(jid)?.find((m) => m.key.id === passo.citar)
+                : undefined;
+              const sent = await sock.sendMessage(
+                jid,
+                { text: passo.texto },
+                quoted ? { quoted } : undefined,
+              );
               this.echoSent(jid, sent);
               enviados += 1;
-              if (passo.typoAntes && sent?.key?.id) {
-                // O typo já saiu: a correção vai mesmo se cancelarem no meio da espera.
-                await dormir(passo.typoDelayMs ?? 3000);
-                await bestEffort(() => this.editText(jid, sent.key.id as string, passo.texto));
-              }
             } catch (e) {
               const msg = e instanceof Error ? e.message : String(e);
               throw new Error(
@@ -1054,7 +1090,10 @@ export class BaileysGateway implements WhatsAppGateway {
     if (!sock) return;
     for (const wa of upsert.messages) {
       const jid = wa.key.remoteJid;
-      if (!wa.key.fromMe && jid) this.lastIncomingKey.set(jid, wa.key);
+      if (!wa.key.fromMe && jid) {
+        this.lastIncomingKey.set(jid, wa.key);
+        this.lembrarRecebida(jid, wa);
+      }
       // Coleta grupos (@g.us) e DMs (contato 1:1); ignora broadcast/status e afins.
       if (!jid || !(jid.endsWith('@g.us') || isDirectJid(jid))) continue;
       // Chat ativo (chegou mensagem em tempo real) → passa a receber presença dele.

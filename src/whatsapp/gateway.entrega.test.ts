@@ -8,10 +8,13 @@ import { BaileysGateway } from './gateway.js';
 type SockFake = {
   user: { id: string };
   enviadas: string[];
+  quotes: unknown[];
   presencas: string[];
+  lidas: number;
   sendMessage(
     jid: string,
     c: { text: string },
+    o?: { quoted?: unknown },
   ): Promise<{ key: { remoteJid: string; fromMe: true; id: string } }>;
   sendPresenceUpdate(p: string): Promise<void>;
   readMessages(): Promise<void>;
@@ -25,9 +28,12 @@ async function makeGateway() {
   const sock: SockFake = {
     user: { id: '5511888888888:2@s.whatsapp.net' },
     enviadas: [],
+    quotes: [],
     presencas: [],
-    async sendMessage(jid, c) {
+    lidas: 0,
+    async sendMessage(jid, c, o) {
       this.enviadas.push(c.text);
+      this.quotes.push(o?.quoted);
       return {
         key: {
           remoteJid: jid,
@@ -39,7 +45,9 @@ async function makeGateway() {
     async sendPresenceUpdate(p) {
       this.presencas.push(p);
     },
-    async readMessages() {},
+    async readMessages() {
+      this.lidas += 1;
+    },
   };
   (gw as unknown as { sock: unknown }).sock = sock;
   return { gw, sock };
@@ -47,7 +55,6 @@ async function makeGateway() {
 
 const JID = '5511999999999@s.whatsapp.net';
 const plano: Passo[] = [
-  { tipo: 'visto' },
   { tipo: 'pausa', ms: 150 },
   { tipo: 'digitando', ms: 150 },
   { tipo: 'enviar', texto: 'primeiro' },
@@ -90,5 +97,44 @@ describe('entregarHumano — cancelamento', () => {
     const r = await gw.entregarHumano(JID, plano, AbortSignal.abort());
     expect(r.cancelado).toBe(true);
     expect(sock.enviadas).toEqual([]);
+  });
+});
+
+describe('entregarHumano — v2', () => {
+  it('digitando longo renova o composing (passo de renovação injetado em 50 ms)', async () => {
+    const { gw, sock } = await makeGateway();
+    (gw as unknown as { renovarComposingMs: number }).renovarComposingMs = 50;
+    await gw.entregarHumano(JID, [
+      { tipo: 'digitando', ms: 230 },
+      { tipo: 'enviar', texto: 'x' },
+    ]);
+    expect(sock.presencas.filter((p) => p === 'composing').length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('citar: o balão sai com quoted da mensagem recebida em cache; id desconhecido envia sem quote', async () => {
+    const { gw, sock } = await makeGateway();
+    (gw as unknown as { lembrarRecebida(jid: string, wa: unknown): void }).lembrarRecebida(JID, {
+      key: { id: 'ABC', remoteJid: JID, fromMe: false },
+      message: { conversation: 'oi' },
+    });
+    await gw.entregarHumano(JID, [
+      { tipo: 'enviar', texto: 'resp', citar: 'ABC' },
+      { tipo: 'enviar', texto: 'sem', citar: 'NOPE' },
+    ]);
+    expect((sock.quotes[0] as { key: { id: string } }).key.id).toBe('ABC');
+    expect(sock.quotes[1]).toBeUndefined();
+  });
+
+  it('marcarLido lê a última recebida do jid; sendPresence repassa available/unavailable', async () => {
+    const { gw, sock } = await makeGateway();
+    (gw as unknown as { lastIncomingKey: Map<string, unknown> }).lastIncomingKey.set(JID, {
+      id: 'K',
+      remoteJid: JID,
+    });
+    await gw.marcarLido(JID);
+    expect(sock.lidas).toBe(1);
+    await gw.sendPresence('available');
+    await gw.sendPresence('unavailable');
+    expect(sock.presencas.slice(-2)).toEqual(['available', 'unavailable']);
   });
 });
