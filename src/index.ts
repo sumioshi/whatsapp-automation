@@ -29,7 +29,7 @@ import { env } from './config/env.js';
 import { GroupConfig } from './config/groups.js';
 import { startControlServer } from './control/server.js';
 import type { GroupInfo } from './core/message.js';
-import { enviarHumano } from './humano/enviar.js';
+import { FilaEnvio } from './humano/fila.js';
 import { logger } from './logger.js';
 import { FileStore } from './storage/fileStore.js';
 import { setGroupSlugOverrides } from './storage/paths.js';
@@ -62,6 +62,21 @@ async function main(): Promise<void> {
     if (s.connection === 'open') conectado = true;
     else if (s.connection) conectado = false;
     void status.setConnection(s.connection, s.qr);
+  });
+
+  // Fila de entregas humanizadas: tickets com latência humana, retomados no boot.
+  const fila = await FilaEnvio.carregar({
+    dataDir: env.DATA_DIR,
+    gateway,
+    conectado: () => conectado,
+  });
+  fila.on('entrega', (t) => {
+    if (t.estado === 'interrompido') {
+      logger.warn(
+        { ticket: t.id, jid: t.jid, motivo: t.motivo, enviados: t.enviados, total: t.total },
+        '🛑 Entrega interrompida.',
+      );
+    }
   });
 
   // Reconciliador: nomes + buracos de histórico, no intervalo do painel.
@@ -101,7 +116,7 @@ async function main(): Promise<void> {
     selfJid: () => gateway.selfJid(),
     sendText: (jid, text) => gateway.sendText(jid, text),
     sendHumano: async (jid, texto, slug) => {
-      await enviarHumano(gateway, env.DATA_DIR, jid, texto, { slug });
+      await fila.enfileirar({ jid, slug, texto, origem: 'despacho' });
     },
     jidDoSlug: (slug) => {
       const dm = /^dm-(\d+)$/.exec(slug);
@@ -136,6 +151,7 @@ async function main(): Promise<void> {
   gateway.onMessage((msg) => {
     void collector.handle(msg);
     void despacho.onMensagem(msg);
+    fila.aoMensagem(msg);
   });
 
   // Reações (emoji) também.
@@ -151,6 +167,7 @@ async function main(): Promise<void> {
   // Presença (digitando/online/visto por último) — estado efêmero, sidecar volátil.
   gateway.onPresence((p) => {
     collector.handlePresence(p);
+    fila.aoPresenca(p);
   });
 
   // Enquetes: definição (opções) e votos decifrados.
@@ -175,8 +192,8 @@ async function main(): Promise<void> {
   });
 
   watchGroupsConfig(env.GROUPS_CONFIG, groupConfig, status);
-  startControlServer(gateway, env.CONTROL_PORT, [env.DATA_DIR, tmpdir()], reconciler, radar);
-  registerShutdown(gateway, despacho);
+  startControlServer(gateway, env.CONTROL_PORT, [env.DATA_DIR, tmpdir()], reconciler, radar, fila);
+  registerShutdown(gateway, despacho, fila);
 
   logger.info('🚀 Coletor iniciando...');
   await gateway.start();
@@ -229,13 +246,14 @@ function watchGroupsConfig(path: string, groupConfig: GroupConfig, status: Statu
 }
 
 /** Encerramento limpo em SIGINT/SIGTERM. */
-function registerShutdown(gateway: BaileysGateway, despacho: Despacho): void {
+function registerShutdown(gateway: BaileysGateway, despacho: Despacho, fila: FilaEnvio): void {
   let closing = false;
   const shutdown = async (signal: string): Promise<void> => {
     if (closing) return;
     closing = true;
     logger.info({ signal }, '🛑 Encerrando...');
     despacho.stop();
+    await fila.parar();
     await gateway.stop();
     process.exit(0);
   };

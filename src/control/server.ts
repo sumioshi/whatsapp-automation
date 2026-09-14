@@ -7,7 +7,7 @@ import { join, resolve, sep } from 'node:path';
 import { env } from '../config/env.js';
 import type { OutboundMedia } from '../core/message.js';
 import type { WhatsAppGateway } from '../core/ports.js';
-import { enviarHumano } from '../humano/enviar.js';
+import { type FilaEnvio, resumoTicket } from '../humano/fila.js';
 import { logger } from '../logger.js';
 import { slugify } from '../storage/paths.js';
 import { assertPublicHttpUrl } from './safe-url.js';
@@ -31,6 +31,13 @@ interface SendBody {
   umBalao?: boolean;
   /** Balões explícitos (um item = um balão); `text` vira opcional. */
   baloes?: string[];
+  urgencia?: 'agora' | 'normal' | 'calma';
+  /** id de mensagem recebida a citar no 1º balão. */
+  citar?: string;
+  /** true = segura a resposta até a entrega terminar (formato v1). */
+  aguardar?: boolean;
+  decorrido_s?: number;
+  latenciaMaxima_s?: number;
 }
 
 interface EditBody {
@@ -105,13 +112,6 @@ function parseOutboundMedia(
       return { error: 'kind inválido' };
   }
 }
-
-/**
- * Entregas humanizadas em andamento, por jid. É o que permite cancelar de fora
- * (POST /cancelar-envio) o que o Esc do cliente não conseguiu interromper.
- * Uma entrega por chat de cada vez: a nova substitui a referência da anterior.
- */
-const entregasEmAndamento = new Map<string, AbortController>();
 
 function readJson(req: import('node:http').IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -195,6 +195,7 @@ export function startControlServer(
   allowedDirs: string[],
   reconciler?: { tickNow(motivo: 'auto' | 'manual'): Promise<unknown> },
   radar?: { tickNow(motivo: 'auto' | 'manual'): Promise<unknown> },
+  fila?: FilaEnvio,
 ): import('node:http').Server {
   const allowed = allowedDirs.map((d) => resolve(d));
   const server = createServer((req, res) => {
@@ -339,35 +340,46 @@ export function startControlServer(
             return;
           }
           if (humano) {
-            const ac = new AbortController();
-            // Cliente sumiu antes da resposta (Esc no agente, queda do painel): aborta
-            // entre passos — o que já saiu fica, o próximo balão não sai.
-            res.on('close', () => {
-              if (!res.writableFinished) ac.abort(new Error('cliente desconectou'));
-            });
-            entregasEmAndamento.set(jid, ac);
-            let r: Awaited<ReturnType<typeof enviarHumano>>;
-            try {
-              r = await enviarHumano(gateway, env.DATA_DIR, jid, text, {
-                slug,
-                typos: typos === true,
-                umBalao: umBalao === true,
-                ...(baloes.length ? { baloes } : {}),
-                signal: ac.signal,
-              });
-            } finally {
-              if (entregasEmAndamento.get(jid) === ac) entregasEmAndamento.delete(jid);
-            }
-            if (r.cancelado) {
-              logger.warn(
-                { jid, enviados: r.enviados, baloes: r.baloes },
-                '📵 Entrega humanizada cancelada — balões restantes não saíram.',
-              );
-              json(200, { ok: true, cancelado: true, enviados: r.enviados, baloes: r.baloes });
+            if (!fila) {
+              json(503, { error: 'fila de entregas indisponível' });
               return;
             }
-            logger.info({ jid, baloes: r.baloes }, '📤🧍 Entrega humanizada concluída.');
-            json(200, { ok: true, baloes: r.baloes, enviados: r.enviados });
+            const urgencia =
+              body.urgencia === 'agora' || body.urgencia === 'calma' ? body.urgencia : 'normal';
+            const { ticket, substituiu } = await fila.enfileirar({
+              jid,
+              slug,
+              texto: text,
+              origem: 'api',
+              urgencia,
+              typos: typos === true,
+              umBalao: umBalao === true,
+              ...(baloes.length ? { baloes } : {}),
+              ...(typeof body.citar === 'string' && body.citar ? { citar: body.citar } : {}),
+              ...(typeof body.decorrido_s === 'number' ? { decorrido_s: body.decorrido_s } : {}),
+              ...(typeof body.latenciaMaxima_s === 'number'
+                ? { latenciaMaxima_s: body.latenciaMaxima_s }
+                : {}),
+            });
+            if (body.aguardar === true) {
+              // Formato v1: segura a conexão até terminar; cliente que some cancela o ticket.
+              const ac = new AbortController();
+              res.on('close', () => {
+                if (!res.writableFinished) ac.abort(new Error('cliente desconectou'));
+              });
+              const fim = await fila.aguardar(ticket.id, ac.signal);
+              const cancelado = fim.estado !== 'entregue';
+              json(200, {
+                ok: true,
+                ticket: fim.id,
+                baloes: fim.total,
+                enviados: fim.enviados,
+                cancelado,
+                ...(fim.motivo ? { motivo: fim.motivo } : {}),
+              });
+              return;
+            }
+            json(202, { ok: true, ...resumoTicket(ticket), ...(substituiu ? { substituiu } : {}) });
             return;
           }
           await gateway.sendText(jid, text, Array.isArray(mentions) ? mentions : undefined);
@@ -378,23 +390,53 @@ export function startControlServer(
       return;
     }
 
-    // Cancela a entrega humanizada em andamento de um chat (o que já saiu fica).
+    // Estado das entregas humanizadas: todas as vivas, a de um chat ou um ticket.
+    if (req.method === 'GET' && req.url?.startsWith('/entregas')) {
+      if (!fila) {
+        json(503, { error: 'fila de entregas indisponível' });
+        return;
+      }
+      const url = new URL(req.url, 'http://localhost');
+      const partes = url.pathname.split('/').filter(Boolean);
+      if (partes.length === 2) {
+        const t = fila.status({ ticket: decodeURIComponent(partes[1] as string) });
+        if (!t) json(404, { error: 'ticket não encontrado' });
+        else json(200, { ok: true, entrega: resumoTicket(t) });
+        return;
+      }
+      const jid = url.searchParams.get('jid');
+      if (jid) {
+        const t = fila.status({ jid });
+        json(200, { ok: true, entrega: t ? resumoTicket(t) : null });
+        return;
+      }
+      json(200, { ok: true, entregas: fila.listar().map(resumoTicket) });
+      return;
+    }
+
+    // Cancela a entrega humanizada agendada ou em andamento (o que já saiu fica).
     if (req.method === 'POST' && req.url === '/cancelar-envio') {
       readJson(req)
         .then((parsed) => {
-          const { jid } = (parsed ?? {}) as { jid?: string };
-          if (!jid) {
-            json(400, { error: 'jid é obrigatório' });
+          const { jid, ticket } = (parsed ?? {}) as { jid?: string; ticket?: string };
+          if (!jid && !ticket) {
+            json(400, { error: 'jid ou ticket é obrigatório' });
             return;
           }
-          const ac = entregasEmAndamento.get(jid);
-          if (!ac) {
+          if (!fila) {
+            json(503, { error: 'fila de entregas indisponível' });
+            return;
+          }
+          const t = fila.cancelar({ jid, ticket });
+          if (!t) {
             json(200, { ok: true, cancelado: false });
             return;
           }
-          ac.abort(new Error('cancelado pelo operador'));
-          logger.warn({ jid }, '📵 Cancelamento de envio pedido pelo operador.');
-          json(200, { ok: true, cancelado: true });
+          logger.warn(
+            { jid: t.jid, ticket: t.id },
+            '📵 Cancelamento de envio pedido pelo operador.',
+          );
+          json(200, { ok: true, cancelado: true, ticket: t.id, enviados: t.enviados });
         })
         .catch((err) => json(400, { error: err instanceof Error ? err.message : 'erro' }));
       return;
