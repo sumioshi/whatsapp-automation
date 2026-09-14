@@ -1,157 +1,146 @@
 /**
- * Partitura da entrega humanizada: dado os balões, gera a sequência de passos
- * (visto, pausas, digitando, envios) que o executor do gateway toca. Puro, com
- * RNG injetável — o realismo vem da IRREGULARIDADE (jitter, log-normal), nunca
- * de intervalos uniformes. Teto global de 45s: o /send segura o HTTP até o fim.
+ * Partitura da entrega: dado os balões, a sequência de pausas, digitação e
+ * envios que o gateway toca. Sem "visto" (o worker lê antes, na hora certa) e
+ * sem teto curto: quem limita o tempo é a latência humana. Puro, rng injetável;
+ * o realismo vem da irregularidade (jitter, log-normal, pausas de pensar).
  */
 import type { PerfilEnvio } from './baloes.js';
 import { PERFIL_DEFAULT } from './baloes.js';
 
 export type Passo =
-  | { tipo: 'visto' }
   | { tipo: 'pausa'; ms: number }
   | { tipo: 'digitando'; ms: number }
-  | { tipo: 'enviar'; texto: string; typoAntes?: string; typoDelayMs?: number };
+  | { tipo: 'enviar'; texto: string; citar?: string };
 
 export interface CtxEntrega {
   typos?: boolean;
-  foraDoExpediente?: boolean;
   msgRecebidaChars?: number;
+  /** id da mensagem recebida a citar (só o 1º balão). */
+  citar?: string;
   rng?: () => number;
 }
 
-export const TETO_MS = 45_000;
+export const CPS_PADRAO = 3.0;
+const CPS_MIN = 1.8;
+const CPS_MAX = 5.5;
+/** Só protege contra bug (balão gigante × perfil lento); não é ritmo. */
+export const TETO_SEGURANCA_MS = 6 * 60_000;
 const TYPO_CHANCE = 0.03;
+const TYPO_MIN_PALAVRAS = 4;
 const PISO_DIGITANDO_MS = 300;
+const PENSAR_JANELA_CHARS = 40;
+const PENSAR_CHANCE = 0.3;
+const LEITURA_MS_POR_CHAR = 30;
+const LEITURA_TETO_MS = 6000;
+
+const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+
+/** N(0,1) por Box-Muller (com seno: rng constante 0,5 dá 0). */
+function normal(rng: () => number): number {
+  const u1 = clamp(rng(), 1e-12, 1 - 1e-12);
+  return Math.sqrt(-2 * Math.log(u1)) * Math.sin(2 * Math.PI * rng());
+}
 
 export function planoDeEntrega(
   baloes: string[],
-  _perfil: PerfilEnvio = PERFIL_DEFAULT,
+  perfil: PerfilEnvio = PERFIL_DEFAULT,
   ctx: CtxEntrega = {},
 ): Passo[] {
   const rng = ctx.rng ?? Math.random;
-  const passos: Passo[] = [{ tipo: 'visto' }];
+  const passos: Passo[] = [];
 
-  // pausa de "leitura": 2-5s base + ~20ms/char da msg recebida; fora do expediente ×2.5
-  let leitura = 2000 + rng() * 3000 + Math.min((ctx.msgRecebidaChars ?? 0) * 20, 6000);
-  if (ctx.foraDoExpediente) leitura *= 2.5;
+  // Leitura: 0,5–1,5 s + 30 ms/char da msg recebida (teto 6 s).
+  const leitura =
+    500 +
+    rng() * 1000 +
+    Math.min((ctx.msgRecebidaChars ?? 0) * LEITURA_MS_POR_CHAR, LEITURA_TETO_MS);
   passos.push({ tipo: 'pausa', ms: Math.round(leitura) });
 
+  const cpsBase = clamp(perfil.charsPorSegundo ?? CPS_PADRAO, CPS_MIN, CPS_MAX);
   const validos = baloes.map((b) => b.trim()).filter(Boolean);
   validos.forEach((texto, i) => {
-    if (i > 0) passos.push({ tipo: 'pausa', ms: pausaEntreBaloes(rng) });
-    passos.push({
-      tipo: 'digitando',
-      ms: Math.max(PISO_DIGITANDO_MS, Math.round(texto.length * (40 + rng() * 40))),
-    });
-    const typoAntes =
-      ctx.typos && rng() < TYPO_CHANCE ? (injetarTypo(texto, rng) ?? undefined) : undefined;
-    // typoDelayMs é sorteado AQUI (no plano, com o rng semeável) — é o tempo entre
-    // o envio com typo e o edit que corrige, hoje fora do teto porque o executor
-    // sorteava na hora com Math.random(). Sorteando no plano, capar() consegue
-    // somar/escalar esse tempo junto com os demais e o executor fica determinístico.
-    const typoDelayMs = typoAntes ? Math.round(2000 + rng() * 3000) : undefined;
+    if (i > 0) passos.push({ tipo: 'pausa', ms: pausaEntreBaloes(perfil, rng) });
+
+    const typo =
+      ctx.typos && texto.split(/\s+/).length >= TYPO_MIN_PALAVRAS && rng() < TYPO_CHANCE
+        ? injetarTypo(texto, rng)
+        : null;
+    const digitado = typo?.texto ?? texto;
+
+    const cps = cpsBase * clamp(1 + 0.25 * normal(rng), 0.5, 1.5);
+    passos.push(...digitar(digitado, cps, rng));
     passos.push({
       tipo: 'enviar',
-      texto,
-      ...(typoAntes ? { typoAntes } : {}),
-      ...(typoDelayMs !== undefined ? { typoDelayMs } : {}),
+      texto: digitado,
+      ...(i === 0 && ctx.citar ? { citar: ctx.citar } : {}),
     });
+
+    if (typo) {
+      // Erro visivelmente corrigido: balão "*palavra" um pouco depois, nunca edição.
+      passos.push({ tipo: 'pausa', ms: Math.round(2000 + rng() * 3000) });
+      passos.push({
+        tipo: 'digitando',
+        ms: Math.max(PISO_DIGITANDO_MS, Math.round(((typo.correta.length + 1) / cps) * 1000)),
+      });
+      passos.push({ tipo: 'enviar', texto: `*${typo.correta}` });
+    }
   });
 
-  return capar(passos);
+  return capar(passos, TETO_SEGURANCA_MS);
 }
 
-/** 1-8s com cauda (log-normal aproximada): quase sempre curto, às vezes longo. */
-function pausaEntreBaloes(rng: () => number): number {
-  const u = rng();
-  return Math.round(1000 + Math.exp(u * 2.1) * 800); // ~1.8s..7.5s
-}
-
-/** Escala os tempos se o total passar do teto — e GARANTE o teto: floor no
- * escalonamento e o resíduo de arredondamento é aparado do maior passo. O
- * `typoDelayMs` (tempo do envio-com-typo até o edit corretivo) soma e escala
- * junto com os `ms` — senão o executor esperaria além do teto por fora do plano. */
-function capar(passos: Passo[]): Passo[] {
-  const parteExtra = (p: Passo) => (p.tipo === 'enviar' ? (p.typoDelayMs ?? 0) : 0);
-  const somaPasso = (p: Passo) => ('ms' in p ? p.ms : 0) + parteExtra(p);
-  const soma = (ps: Passo[]) => ps.reduce((acc, p) => acc + somaPasso(p), 0);
-  const total = soma(passos);
-  if (total <= TETO_MS) return passos;
-  const fator = TETO_MS / total;
-  const escalados = passos.map((p): Passo => {
-    const base: Passo = 'ms' in p ? { ...p, ms: Math.max(1, Math.floor(p.ms * fator)) } : { ...p };
-    if (base.tipo === 'enviar' && base.typoDelayMs !== undefined) {
-      base.typoDelayMs = Math.max(1, Math.floor(base.typoDelayMs * fator));
+/** Digitação em janelas de 40 chars; entre janelas, com p = 0,3, uma pausa de pensar (0,8–3,5 s). */
+function digitar(texto: string, cps: number, rng: () => number): Passo[] {
+  const janelas = Math.max(1, Math.ceil(texto.length / PENSAR_JANELA_CHARS));
+  const out: Passo[] = [];
+  let acumulado = 0;
+  for (let j = 0; j < janelas; j++) {
+    const chars = Math.min(PENSAR_JANELA_CHARS, texto.length - j * PENSAR_JANELA_CHARS);
+    acumulado += (chars / cps) * 1000;
+    const pensa = j < janelas - 1 && rng() < PENSAR_CHANCE;
+    if (pensa) {
+      out.push({ tipo: 'digitando', ms: Math.round(acumulado) });
+      out.push({ tipo: 'pausa', ms: Math.round(800 + rng() * 2700) });
+      acumulado = 0;
     }
-    return base;
-  });
-  const excesso = soma(escalados) - TETO_MS;
-  if (excesso > 0) {
-    // aparar o resíduo do maior "slot" de tempo — seja ms de pausa/digitando, seja typoDelayMs de um enviar
-    type Slot = { valor: number; aparar: (novoValor: number) => void };
-    const slots: Slot[] = [];
-    for (const p of escalados) {
-      if ('ms' in p) {
-        slots.push({
-          valor: p.ms,
-          aparar: (v) => {
-            p.ms = v;
-          },
-        });
-      }
-      if (p.tipo === 'enviar' && p.typoDelayMs !== undefined) {
-        slots.push({
-          valor: p.typoDelayMs,
-          aparar: (v) => {
-            p.typoDelayMs = v;
-          },
-        });
-      }
-    }
-    const maior = slots.reduce<Slot | null>((m, s) => (!m || s.valor > m.valor ? s : m), null);
-    if (maior) maior.aparar(Math.max(1, maior.valor - excesso));
   }
-  return escalados;
+  out.push({ tipo: 'digitando', ms: Math.max(PISO_DIGITANDO_MS, Math.round(acumulado)) });
+  return out;
 }
 
-/**
- * Typo plausível: troca duas letras adjacentes no meio de uma palavra ≥4 chars.
- * Devolve null se não houver palavra elegível (o chamador simplesmente não usa).
- */
-export function injetarTypo(texto: string, rng: () => number): string | null {
+function pausaEntreBaloes(perfil: PerfilEnvio, rng: () => number): number {
+  if (perfil.pausaEntreBaloes_s) {
+    return Math.round(clamp(perfil.pausaEntreBaloes_s * Math.exp(0.5 * normal(rng)), 1, 15) * 1000);
+  }
+  return Math.round(1000 + Math.exp(rng() * 2.1) * 800); // ~1,8 s..7,5 s com cauda
+}
+
+export function duracaoPlano(plano: Passo[]): number {
+  return plano.reduce((acc, p) => acc + ('ms' in p ? p.ms : 0), 0);
+}
+
+function capar(passos: Passo[], teto: number): Passo[] {
+  const total = duracaoPlano(passos);
+  if (total <= teto) return passos;
+  const fator = teto / total;
+  return passos.map(
+    (p): Passo => ('ms' in p ? { ...p, ms: Math.max(1, Math.floor(p.ms * fator)) } : { ...p }),
+  );
+}
+
+/** Typo plausível: troca duas letras adjacentes no meio de uma palavra ≥ 4 letras. */
+export function injetarTypo(
+  texto: string,
+  rng: () => number,
+): { texto: string; correta: string } | null {
   const palavras = texto.split(' ');
   const idx = palavras.map((w, i) => ({ w, i })).filter(({ w }) => /^[a-zà-ú]{4,}$/i.test(w));
   if (!idx.length) return null;
-  const { w, i } = idx[Math.floor(rng() * idx.length)]!;
+  const { w, i } = idx[Math.floor(rng() * idx.length)] as { w: string; i: number };
   const pos = 1 + Math.floor(rng() * (w.length - 2));
   const trocada = w.slice(0, pos) + w[pos + 1] + w[pos] + w.slice(pos + 2);
   if (trocada === w) return null;
   const out = [...palavras];
   out[i] = trocada;
-  return out.join(' ');
-}
-
-/**
- * Garante uma janela mínima (visto/pausa/digitando) antes do PRIMEIRO balão sair —
- * é o tempo que o operador tem pra cancelar um envio do agente (Esc / "cancela").
- * A extensão vai no `digitando` (ele vê "digitando…" no chat), inserindo um se não
- * houver. Plano sem envio não muda.
- */
-export function garantirJanela(plano: Passo[], minMs: number): Passo[] {
-  const idxEnvio = plano.findIndex((p) => p.tipo === 'enviar');
-  if (idxEnvio === -1) return plano;
-  const antes = plano.slice(0, idxEnvio);
-  const soma = antes.reduce((s, p) => s + ('ms' in p ? p.ms : 0), 0);
-  if (soma >= minMs) return plano;
-  const falta = minMs - soma;
-  const idxDigitando = antes.map((p) => p.tipo).lastIndexOf('digitando');
-  const out = plano.slice();
-  if (idxDigitando === -1) {
-    out.splice(idxEnvio, 0, { tipo: 'digitando', ms: falta });
-  } else {
-    const d = plano[idxDigitando] as { tipo: 'digitando'; ms: number };
-    out[idxDigitando] = { tipo: 'digitando', ms: d.ms + falta };
-  }
-  return out;
+  return { texto: out.join(' '), correta: w };
 }
