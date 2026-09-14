@@ -85,3 +85,19 @@ describe("ritmo, esqueleto, saudação, resposta redonda", () => {
     expect(scoreRepeticao({ ...base, baloes: ["subi, pode testar?"], ultimasMinhas: [] }).score).toBe(0);
   });
 });
+
+describe("calibração no corpus real (2026-09-14)", () => {
+  it("exclamação em excesso não vira hit: o operador usa mais '!' que a automação", () => {
+    const r = scoreRepeticao({ ...base, baloes: ["fechou!"], ultimasMinhas: ["boa!", "show!", "top!", "vai!", "sim!"] });
+    expect(regras(r)).not.toContain("exclamacao");
+  });
+  it("ritmo é informativo: aparece com peso 0", () => {
+    const iguais = Array(5).fill("subi o ajuste do painel hoje cedo");
+    const r = scoreRepeticao({ ...base, baloes: ["subi o ajuste do filtro hoje cedo"], ultimasMinhas: iguais });
+    expect(r.hits.find((h) => h.regra === "ritmo")?.peso).toBe(0);
+  });
+  it("feature em excesso só conta com 3+ mensagens da janela", () => {
+    const r = scoreRepeticao({ ...base, baloes: ["Assim: fica"], ultimasMinhas: ["Um: dois", "ok", "boa", "vou", "sim"] });
+    expect(regras(r)).not.toContain("dois_pontos_intro");
+  });
+});

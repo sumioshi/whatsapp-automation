@@ -38,6 +38,8 @@ export async function lerCorpusAgrupado(caminho: string): Promise<MsgCorpus[]> {
       .filter((m): m is NonNullable<typeof m> => Boolean(m) && elegivelParaBaseline(m!))
       .map((m) => ({ slug: "chat", ts: m.timestamp, t: m.text! }));
   }
+  // O JSON `[{slug, ts, t}]` é o corpus já filtrado (só mensagens do operador, pré-automação);
+  // a elegibilidade por `origem`/data só se aplica ao messages.jsonl cru.
   const lista = JSON.parse(raw) as Array<{ slug?: string; ts?: string; t?: string; text?: string }>;
   return lista
     .map((m) => ({ slug: m.slug ?? "chat", ts: m.ts ?? "", t: (m.t ?? m.text ?? "").trim() }))
@@ -111,14 +113,15 @@ async function main() {
     return { recusadas: (recusadas / n) * 100, p95: s[Math.floor(0.95 * (n - 1))] ?? 0, zero: (scores.filter((x) => x === 0).length / n) * 100, top };
   };
 
-  const original = { ...AJUSTES, limiar: CONFIG_REVISAO.limiar };
+  const ajustesOriginais = { ...AJUSTES };
+  const limiarOriginal = CONFIG_REVISAO.limiar;
   const passos: Array<{ nome: string; aplicar: () => void }> = [
     { nome: "atual (defaults calibrados)", aplicar: () => {} },
     { nome: "alt: z-score com k ≥ 1 (sem calibrar)", aplicar: () => { AJUSTES.excessoMinK = 1; } },
     { nome: "alt: + exclamação no excesso", aplicar: () => { AJUSTES.excessoSemExclamacao = false; } },
     { nome: "alt: + ritmo peso 1", aplicar: () => { AJUSTES.ritmoPeso = 1; } },
-    { nome: "alt: voltar aos defaults, paráfrase peso 2", aplicar: () => { Object.assign(AJUSTES, original); AJUSTES.parafrasePeso = 2; } },
-    { nome: "alt: defaults, limiar 5", aplicar: () => { Object.assign(AJUSTES, original); CONFIG_REVISAO.limiar = 5; } },
+    { nome: "alt: voltar aos defaults, paráfrase peso 2", aplicar: () => { Object.assign(AJUSTES, ajustesOriginais); AJUSTES.parafrasePeso = 2; } },
+    { nome: "alt: defaults, limiar 5", aplicar: () => { Object.assign(AJUSTES, ajustesOriginais); CONFIG_REVISAO.limiar = 5; } },
   ];
 
   console.log(`corpus: ${textos.length} msgs em ${new Set(msgs.map((m) => m.slug)).size} chats; janelas por chat: ${janelas.length}; baseline gravado em ${join(DATA_DIR, ".estilo-baseline.json")}`);
@@ -130,8 +133,8 @@ async function main() {
     const m = medir();
     console.log(`${p.nome.padEnd(38)} recusadas ${m.recusadas.toFixed(1).padStart(5)}%  p95 ${String(m.p95).padStart(2)}  score0 ${m.zero.toFixed(1).padStart(5)}%  | ${m.top}`);
   }
-  Object.assign(AJUSTES, original);
-  CONFIG_REVISAO.limiar = original.limiar;
+  Object.assign(AJUSTES, ajustesOriginais);
+  CONFIG_REVISAO.limiar = limiarOriginal;
 }
 
 if (process.argv[1] && /estilo-baseline\.ts$/.test(process.argv[1])) {

@@ -826,7 +826,11 @@ server.registerTool(
       let descartados: Array<{ indice: number; score: number; sugestao?: string }> | undefined;
 
       if (candidatos) {
-        const cands = candidatos.map((c) => c.map((b) => b.trim()).filter(Boolean)).filter((c) => c.length);
+        const cands = candidatos.map((c) => c.map((b) => b.trim()).filter(Boolean));
+        // Candidato vazio é recusado de saída: descartar em silêncio desalinharia os
+        // índices de `escolhido`/`descartados` e o registro de calibração.
+        const vazio = cands.findIndex((c) => !c.length);
+        if (vazio >= 0) return fail(`candidato ${vazio} está vazio; mande só candidatos com texto`);
         const r = escolherCandidato(cands, { ...ctx, ignorarScore });
         if (r.indice < 0) {
           void registrarRevisao(DATA_DIR, {
@@ -940,12 +944,12 @@ server.registerTool(
     },
   },
   async ({ grupo, kind, path, caption, fileName, mimetype }, extra) => {
-    if (caption?.trim()) {
-      const { ctx } = await contextoDoChat(grupo);
-      const rev = revisar({ ...ctx, baloes: [caption.trim()] });
-      if (!rev.ok) return fail(`revisão recusou a legenda (${rev.resumo}); nada foi enviado. Sugestões: ${rev.sugestoes.join("; ")}.`);
-    }
     try {
+      if (caption?.trim()) {
+        const { ctx } = await contextoDoChat(grupo);
+        const rev = revisar({ ...ctx, baloes: [caption.trim()] });
+        if (!rev.ok) return fail(`revisão recusou a legenda (${rev.resumo}); nada foi enviado. Sugestões: ${rev.sugestoes.join("; ")}.`);
+      }
       const { jid, label } = await resolveDestino(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
       // path absoluto = arquivo no disco; relativo = mediaPath dentro de DATA_DIR.
@@ -1006,10 +1010,10 @@ server.registerTool(
     },
   },
   async ({ grupo, msgId, texto }) => {
-    const { ctx } = await contextoDoChat(grupo);
-    const rev = revisar({ ...ctx, baloes: [texto.trim()] });
-    if (!rev.ok) return fail(`revisão recusou (${rev.resumo}); nada foi editado. Sugestões: ${rev.sugestoes.join("; ")}.`);
     try {
+      const { ctx } = await contextoDoChat(grupo);
+      const rev = revisar({ ...ctx, baloes: [texto.trim()] });
+      if (!rev.ok) return fail(`revisão recusou (${rev.resumo}); nada foi editado. Sugestões: ${rev.sugestoes.join("; ")}.`);
       const { jid, label } = await resolveDestino(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
       await dsEditMessage(jid, msgId, texto);
