@@ -30,7 +30,7 @@ import { avisoDeTratamento, tratamentoErrado } from "../lib/voz-guard";
 import { type MessageView } from "../lib/data";
 import { ensureLocalMedia } from "../lib/cloud-media";
 import { extractDocumentText } from "../lib/documents";
-import { safeDataPath } from "../lib/paths";
+import { DATA_DIR, safeDataPath } from "../lib/paths";
 import { marcarRajadas } from "../lib/rajada";
 import { canonicalSlug, matchGrupo } from "../lib/resolve-grupo";
 import { slugify } from "../lib/slug";
@@ -39,6 +39,11 @@ import { fundirMensagens, slugsIrmaosDeDm } from "../lib/dm-irmaos";
 import { mediaPathPorId, transcribe, transcribeBatch } from "../lib/transcribe";
 import { ultimaMidiaPath } from "../lib/ultima-midia";
 import { selectNew } from "../lib/novidades";
+import { baselineDoChat, carregarBaselinePadrao, contextoDeEscrita, type ContextoEscrita } from "../lib/estilo/contexto";
+import { resumirEstilo } from "../lib/estilo/resumo";
+import { revisar } from "../lib/estilo/revisar";
+import { escolherCandidato } from "../lib/estilo/escolher";
+import { registrarRevisao } from "../lib/estilo/registro";
 import {
   dsGroupMessages,
   dsListGroups,
@@ -106,6 +111,28 @@ async function mensagensDaConversa(slug: string): Promise<{ msgs: MessageView[];
   if (slugs.length === 1) return { msgs: await dsGroupMessages(slugs[0] ?? slug), slugs };
   const listas = await Promise.all(slugs.map((sl) => dsGroupMessages(sl)));
   return { msgs: fundirMensagens(listas), slugs };
+}
+
+/**
+ * Contexto de escrita de um chat: últimas mensagens da conta e do cliente,
+ * estado da conversa e baseline do operador. Falha em qualquer ponto degrada
+ * para "sem janela" (o guard ainda roda nos bloqueios), nunca para pular.
+ */
+async function contextoDoChat(grupo: string): Promise<{ slug: string; label: string; jid: string | null; ctx: ContextoEscrita; modo: "confirmar" | "autonomo" }> {
+  const destino = await resolveDestino(grupo);
+  const slug = destino.slug ?? slugify(grupo);
+  const padrao = await carregarBaselinePadrao(DATA_DIR);
+  let ctx: ContextoEscrita;
+  try {
+    const { msgs } = await mensagensDaConversa(slug);
+    const c = await contacts();
+    ctx = contextoDeEscrita(msgs, c, new Date(), baselineDoChat(slug, msgs, padrao));
+  } catch {
+    ctx = contextoDeEscrita([], { names: new Map(), ownIds: new Set(), teamIds: new Set(), phones: new Map(), lids: new Set(), hasSidecar: false } as never, new Date(), padrao);
+  }
+  const t = await dsTriage().catch(() => ({ autonomo: {} as Record<string, boolean> }));
+  const modo = t.autonomo?.[slug] === true ? "autonomo" : "confirmar";
+  return { slug, label: destino.label, jid: destino.jid, ctx, modo };
 }
 
 function pendingMedia(msgs: MessageView[]): string[] {
@@ -650,6 +677,63 @@ async function resolveDestino(
     ? { jid: match.id, label: match.name, slug: canonicalSlug(match) }
     : { jid: null, label: g };
 }
+
+server.registerTool(
+  "preparar_resposta",
+  {
+    description:
+      "Chame ANTES de redigir qualquer mensagem pra um chat. Devolve o que a conta já usou nas últimas 5 mensagens " +
+      "ali (aberturas, verbos, pontuação, tamanhos), o estado da conversa (ativa/fria, o que o cliente deixou em " +
+      "aberto, se o operador já respondeu na mão) e `instrucoes` numéricas pra variar. Escreva seguindo as " +
+      "instruções; o `responder` revisa e recusa o que estourar.",
+    inputSchema: { grupo: z.string().describe("slug, nome exato ou jid do chat") },
+  },
+  async ({ grupo }) => {
+    try {
+      const { label, ctx, modo } = await contextoDoChat(grupo);
+      const estilo = resumirEstilo(ctx.ultimasMinhas, ctx.baseline);
+      const e = ctx.estado;
+      const instrucoes = [...estilo.instrucoes];
+      if (e.estado === "fria" && (ctx.intervaloDesdeMinhaUltima_s ?? Infinity) > 4 * 3600) instrucoes.push("conversa fria há horas: saudação curta cabe");
+      if (e.estado === "ativa") instrucoes.push("conversa ativa: entra direto no assunto, sem saudação");
+      if (e.perguntasAbertas.length) instrucoes.push(`cliente deixou ${e.perguntasAbertas.length} pergunta(s) em aberto: responde uma e, se precisar, diz quando vem o resto`);
+      if (e.operadorRespondeuNaMao) instrucoes.push("o operador respondeu na mão há pouco: não repita nem responda por cima");
+      if (e.rajadaDoClienteEmAndamento) instrucoes.push("o cliente ainda está mandando: espera a rajada terminar antes de responder");
+      return text({
+        destino: label,
+        modo,
+        estado_conversa: e,
+        estilo_recente: estilo,
+        baseline: { origem: ctx.baseline.origem, n: ctx.baseline.n },
+        instrucoes,
+      });
+    } catch (err) {
+      return fail(err instanceof Error ? err.message : "falha ao montar o contexto");
+    }
+  },
+);
+
+server.registerTool(
+  "revisar_texto",
+  {
+    description:
+      "Revisa um rascunho SEM enviar: repetição contra as últimas mensagens do chat, dois-pontos e outros tells, " +
+      "auto-incriminação, desculpa, tratamento. Devolve ok/score/hits/sugestoes. No modo 'confirmar', revise, " +
+      "corrija e só então mostre o texto ao operador.",
+    inputSchema: {
+      grupo: z.string().describe("slug, nome exato ou jid do chat"),
+      baloes: z.array(z.string().min(1)).min(1).max(8).describe("rascunho, um item por balão"),
+    },
+  },
+  async ({ grupo, baloes }) => {
+    try {
+      const { ctx } = await contextoDoChat(grupo);
+      return text(revisar({ ...ctx, baloes: baloes.map((b) => b.trim()).filter(Boolean) }));
+    } catch (err) {
+      return fail(err instanceof Error ? err.message : "falha ao revisar");
+    }
+  },
+);
 
 server.registerTool(
   "responder",
