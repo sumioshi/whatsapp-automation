@@ -71,7 +71,7 @@ beforeEach(async () => {
 afterEach(async () => {
   for (const p of procs.splice(0)) {
     try {
-      process.kill(-(p.pid as number), 'SIGTERM');
+      process.kill(-(p.pid as number), 'SIGKILL');
     } catch {
       /* já morreu */
     }
@@ -99,6 +99,24 @@ describe('plantao-stream.sh', { timeout: 15_000 }, () => {
       'Carlos: [image]',
     ]);
     expect(pedidos[0]?.url).toBe('/api/events?slug=a&ocultar=coletor');
+  });
+
+  it('event: entrega — interrompida acorda com motivo e contagem; entregue fica em silêncio', async () => {
+    responder = (_req, res) => {
+      res.write(
+        `event: entrega\ndata: ${JSON.stringify({ slug: 'a', ticket: 'x', estado: 'entregue', enviados: 2, total: 2 })}\n\n`,
+      );
+      res.write(
+        `event: entrega\ndata: ${JSON.stringify({ slug: 'a', ticket: 'y', estado: 'interrompido', motivo: 'mensagem_nova', enviados: 1, total: 3 })}\n\n`,
+      );
+      res.write(frame('a=10', { slug: 'a', fromMe: false, senderName: 'Carlos', text: 'depois' }));
+    };
+    const { out } = rodar(['a']);
+    await espera(() => out.length >= 2);
+    expect(out).toEqual([
+      'Entrega interrompida (mensagem nova, 1/3 saiu) — releia o chat e responda de novo',
+      'Carlos: depois',
+    ]);
   });
 
   it('reconecta mandando o último id em Last-Event-ID', async () => {

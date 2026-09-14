@@ -7,6 +7,9 @@
 #   Fulano: texto                    mensagem recebida
 #   Você (celular): texto            o operador respondeu na mão (celular ou web)
 #   IA da Meta (sua conta): texto    resposta gerada pela Meta em nome da conta
+#   Entrega interrompida (mensagem nova, 1/3 saiu) — releia o chat e responda de novo
+#                                    uma entrega humanizada agendada não saiu (ou saiu pela
+#                                    metade); entregas concluídas ficam em silêncio
 # O que o próprio coletor mandou (MCP/painel/API) NÃO aparece: o servidor oculta
 # (`ocultar=coletor`) e uma fromMe sem `origem` (coletor antigo) fica em silêncio.
 # Com mais de uma conversa, a linha vem com [slug] na frente.
@@ -75,11 +78,26 @@ conectar() {
   fi
 }
 
+EVENTO=""
 while :; do
   conectar | while IFS= read -r line; do
     case "$line" in
     "id: "*) printf '%s' "${line#id: }" > "$CURSOR" ;;
+    "event: "*) EVENTO="${line#event: }" ;;
     "data: "*)
+      if [ "$EVENTO" = "entrega" ]; then
+        EVENTO=""
+        printf '%s\n' "${line#data: }" | MULTI="$MULTI" python3 -c 'import sys, json, os
+m = json.loads(sys.stdin.read())
+if m.get("estado") == "interrompido":
+    pre = "[" + str(m.get("slug", "?")) + "] " if os.environ.get("MULTI") == "1" else ""
+    motivos = {"mensagem_nova": "mensagem nova", "operador_respondeu": "operador respondeu na mão", "reinicio": "coletor reiniciou", "falha": "falha no envio"}
+    motivo = motivos.get(m.get("motivo"), str(m.get("motivo")))
+    saiu = str(m.get("enviados", 0)) + "/" + str(m.get("total", "?"))
+    print(f"{pre}Entrega interrompida ({motivo}, {saiu} saiu) — releia o chat e responda de novo", flush=True)'
+        continue
+      fi
+      EVENTO=""
       printf '%s\n' "${line#data: }" | MULTI="$MULTI" python3 -c 'import sys, json, os
 m = json.loads(sys.stdin.read())
 pre = "[" + str(m.get("slug", "?")) + "] " if os.environ.get("MULTI") == "1" else ""

@@ -24,6 +24,12 @@ export interface StreamOpts {
   pollMs?: number;
   heartbeatMs?: number;
   maxReplay?: number;
+  /**
+   * Também acompanha `<dataDir>/.entregas.jsonl` (transições da fila de
+   * entregas humanizadas) e emite `event: entrega` para as conversas do
+   * stream. Sem `id:` — não entra no cursor de retomada, começa do fim.
+   */
+  entregas?: boolean;
 }
 
 export interface StreamHandle {
@@ -35,6 +41,9 @@ export interface StreamHandle {
 interface Conversa {
   slug: string;
   file: string;
+  /** Nome do arquivo vigiado dentro do diretório (fs.watch no diretório). */
+  arquivo: string;
+  tipo: 'mensagem' | 'entrega';
   /** Offset do primeiro byte ainda não consumido como linha completa. */
   base: number;
   carry: Buffer;
@@ -43,6 +52,7 @@ interface Conversa {
   watcher: FSWatcher | null;
 }
 
+const ENTREGAS_FILE = '.entregas.jsonl';
 const POLL_MS = 5_000; // rede de segurança caso o fs.watch perca evento
 const HEARTBEAT_MS = 25_000; // mantém a conexão viva através do proxy
 const MAX_REPLAY = 200;
@@ -55,12 +65,27 @@ export function abrirStreamEventos(
   const conversas: Conversa[] = opts.slugs.map((slug) => ({
     slug,
     file: join(opts.dataDir, slug, 'messages.jsonl'),
+    arquivo: 'messages.jsonl',
+    tipo: 'mensagem',
     base: 0,
     carry: Buffer.alloc(0),
     draining: false,
     replayPendente: opts.cursor.has(slug),
     watcher: null,
   }));
+  if (opts.entregas) {
+    conversas.push({
+      slug: '',
+      file: join(opts.dataDir, ENTREGAS_FILE),
+      arquivo: ENTREGAS_FILE,
+      tipo: 'entrega',
+      base: 0,
+      carry: Buffer.alloc(0),
+      draining: false,
+      replayPendente: false,
+      watcher: null,
+    });
+  }
   const offsets = new Map<string, number>();
   let closed = false;
   let poll: ReturnType<typeof setInterval> | null = null;
@@ -77,7 +102,7 @@ export function abrirStreamEventos(
         // arquivo trocado/truncado (rewrite atômico): sem replay do antigo
         c.base = size;
         c.carry = Buffer.alloc(0);
-        offsets.set(c.slug, size);
+        if (c.tipo === 'mensagem') offsets.set(c.slug, size);
         return;
       }
       const pos = c.base + c.carry.length;
@@ -103,19 +128,24 @@ export function abrirStreamEventos(
         }
       }
       for (const { line, end } of linhas) {
-        offsets.set(c.slug, end);
         let obj: Record<string, unknown>;
         try {
           obj = JSON.parse(line) as Record<string, unknown>;
         } catch {
           continue; // linha corrompida: inútil pro consumidor, segue a vida
         }
+        if (c.tipo === 'entrega') {
+          const slug = typeof obj.slug === 'string' ? obj.slug : '';
+          if (opts.slugs.includes(slug)) emit(`event: entrega\ndata: ${JSON.stringify(obj)}\n\n`);
+          continue;
+        }
+        offsets.set(c.slug, end);
         if (!passaFiltro(obj as { fromMe?: boolean; origem?: string; sender?: string }, opts.filtro, opts.papelDe)) {
           continue;
         }
         emit(`id: ${formatCursor(offsets)}\ndata: ${JSON.stringify({ ...obj, slug: c.slug })}\n\n`);
       }
-      if (!linhas.length) offsets.set(c.slug, c.base);
+      if (!linhas.length && c.tipo === 'mensagem') offsets.set(c.slug, c.base);
     } catch {
       // arquivo pode não existir ainda; o próximo evento/poll tenta de novo
     } finally {
@@ -130,7 +160,7 @@ export function abrirStreamEventos(
   const iniciar = async () => {
     for (const c of conversas) {
       const size = await tamanho(c);
-      const cur = opts.cursor.get(c.slug);
+      const cur = c.tipo === 'mensagem' ? opts.cursor.get(c.slug) : undefined;
       // Cursor válido retoma de lá; ausente ou além do arquivo começa do fim.
       if (cur !== undefined && cur <= size) {
         c.base = cur;
@@ -138,11 +168,11 @@ export function abrirStreamEventos(
         c.base = size;
         c.replayPendente = false;
       }
-      offsets.set(c.slug, c.base);
+      if (c.tipo === 'mensagem') offsets.set(c.slug, c.base);
       try {
         // No DIRETÓRIO: sobrevive ao rewrite-por-rename do arquivo.
         c.watcher = watch(dirname(c.file), (_event, name) => {
-          if (name === 'messages.jsonl') void drain(c);
+          if (name === c.arquivo) void drain(c);
         });
       } catch {
         // diretório da conversa ainda não existe; o poll cobre

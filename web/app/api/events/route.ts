@@ -16,7 +16,9 @@ export const dynamic = 'force-dynamic';
  * reenviar em `Last-Event-ID` retoma do buraco. `alertar=1` inclui todas as
  * conversas com `alertar` ligado na triagem. É o canal de "plantão" do Monitor
  * no modo remoto: o Mac abre a conexão (atravessa NAT) e o servidor empurra na
- * hora que chega. Atrás do mesmo Basic Auth do painel (proxy.ts cobre /api).
+ * hora que chega. Também emite `event: entrega` (transição de uma entrega
+ * humanizada dessas conversas: interrompida, entregue…). Atrás do mesmo Basic
+ * Auth do painel (proxy.ts cobre /api).
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -57,7 +59,7 @@ export async function GET(req: Request) {
           /* já fechado pelo runtime */
         }
       };
-      handle = abrirStreamEventos({ dataDir: DATA_DIR, slugs, cursor, filtro, papelDe }, (frame) => {
+      handle = abrirStreamEventos({ dataDir: DATA_DIR, slugs, cursor, filtro, papelDe, entregas: true }, (frame) => {
         if (fechado) return;
         try {
           controller.enqueue(enc.encode(frame));

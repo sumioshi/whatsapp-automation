@@ -141,4 +141,19 @@ describe('abrirStreamEventos', () => {
     expect(frames[0]).toBe(': conectado slugs=a\n\n');
     await espera(() => frames.includes(': ping\n\n'));
   });
+
+  it('entregas: emite event: entrega (sem id) só para linhas do .entregas.jsonl com slug do stream', async () => {
+    const { frames, h } = abrir({ slugs: ['chat-a'], entregas: true });
+    await h.drainAll();
+    await appendFile(
+      join(dir, '.entregas.jsonl'),
+      linha({ ts: 't', ticket: 'x', slug: 'chat-a', estado: 'interrompido', motivo: 'mensagem_nova', enviados: 1, total: 3 }) +
+        linha({ ts: 't', ticket: 'y', slug: 'outro', estado: 'entregue' }),
+    );
+    await espera(() => frames.some((f) => f.startsWith('event: entrega')));
+    const entregas = frames.filter((f) => f.startsWith('event: entrega'));
+    expect(entregas).toHaveLength(1);
+    expect(entregas[0]).not.toContain('id:');
+    expect(entregas[0]).toContain('"ticket":"x"');
+  });
 });
