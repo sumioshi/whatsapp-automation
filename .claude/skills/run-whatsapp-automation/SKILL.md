@@ -1,6 +1,6 @@
 ---
 name: run-whatsapp-automation
-description: Build, run, and drive the WhatsApp group collector — the Baileys collector daemon, the Next.js panel, the MLX transcriber service, and the MCP server. Use to run/start/build/screenshot the project or to call its MCP tools (listar_grupos, ler_mensagens, buscar, resumo_do_dia, ver_imagem, ver_video, ler_documento, transcrever, listar_contatos, preparar_resposta, revisar_texto, responder, responder_midia, cancelar_envio, alertar_chat, novidades). ALSO use whenever asked to send, reply, or draft a message in a WhatsApp group: the rule is to run the draft through preparar_resposta and the operator's voice skill, review it with revisar_texto, then confirm the exact text with the user before sending.
+description: Build, run, and drive the WhatsApp group collector — the Baileys collector daemon, the Next.js panel, the MLX transcriber service, and the MCP server. Use to run/start/build/screenshot the project or to call its MCP tools (listar_grupos, ler_mensagens, buscar, resumo_do_dia, ver_imagem, ver_video, ler_documento, transcrever, listar_contatos, preparar_resposta, revisar_texto, responder, responder_midia, status_envio, cancelar_envio, alertar_chat, novidades). ALSO use whenever asked to send, reply, or draft a message in a WhatsApp group: the rule is to run the draft through preparar_resposta and the operator's voice skill, review it with revisar_texto, then confirm the exact text with the user before sending.
 ---
 
 # Run: WhatsApp Automation
@@ -61,10 +61,14 @@ sem OK explícito do operador.
    se recusar, ela devolve `hits`/`sugestoes` — reescreva e chame de novo, nada foi enviado.
    `revisao: 'ignorar'` pula só o score (nunca os bloqueios) e só com OK explícito do operador
    pro texto exatamente como está.
-6. **Cancelamento:** a entrega humanizada dá ≥ 5 s de "digitando" antes do 1º balão. Se o
-   operador apertar Esc, o coletor segura o próximo balão; se ele disser "cancela" no meio
-   de um envio, chame `cancelar_envio(grupo)` NA HORA, sem confirmar. Depois de qualquer
-   cancelamento, `ler_mensagens` no chat antes de reenviar — parte pode ter saído.
+6. **Ticket e cancelamento:** `responder` devolve um `ticket` na hora e a entrega sai depois,
+   com latência humana (segundos numa conversa ativa, minutos a horas numa fria). Guarde o
+   ticket; `status_envio(ticket)` consulta. Se o plantão imprimir `Entrega interrompida
+   (mensagem nova, …)`, o cliente falou antes do balão sair: `ler_mensagens` →
+   `preparar_resposta` → `responder` de novo (o novo ticket substitui o anterior). Se o
+   operador disser "cancela", chame `cancelar_envio(grupo)` NA HORA, sem confirmar. Depois de
+   qualquer cancelamento ou interrupção, `ler_mensagens` antes de reenviar — parte pode ter
+   saído. `urgencia: 'agora'` só quando o cliente espera um ok imediato.
 
 Isso vale para qualquer envio a grupo — é uma regra fixa, não opcional.
 

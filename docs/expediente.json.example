@@ -9,5 +9,7 @@
     "sex": ["09:00", "18:00"]
   },
   "recado_dentro": "Disponível",
-  "recado_fora": "Fora do expediente. Respondo seg–sex, 9h–18h."
+  "recado_fora": "Fora do expediente. Respondo seg–sex, 9h–18h.",
+  "segurarEnvios": false,
+  "presencaCoerente": true
 }

@@ -95,14 +95,23 @@ recusadas (orçamento de 6%).
   chat com ≥ 100 mensagens do próprio operador usa baseline próprio. Registro em
   `data/.revisoes.jsonl` (score, hits, enviado) para recalibrar.
 
-### Cancelar um envio em andamento (Esc / "cancela")
+### Entrega por ticket (latência humana) e cancelamento
 
-A entrega humanizada garante ≥ 5 s de visto/digitando antes do 1º balão — é a janela pra cancelar.
-O **Esc** do operador durante `responder`/`responder_midia` viaja até o coletor e segura o próximo
-balão (o que já saiu fica). Se ele disser **"cancela"** no meio de um envio, chame
-`cancelar_envio(grupo)` **na hora, sem confirmar** — é o caminho manual quando o Esc não propaga.
-O `responder` devolve `cancelado: true` + `enviados`; **depois de qualquer cancelamento,
-`ler_mensagens` no chat antes de reenviar**: parte pode ter saído.
+`responder` NÃO envia na hora: devolve um `ticket` e a mensagem sai depois, com latência humana
+(conversa ativa: mediana ~30 s; conversa fria: minutos a horas, teto 4 h; hora do dia, expediente
+e ritmo do cliente entram na conta). O visto sai antes do "digitando", na hora certa, e a
+digitação anda na velocidade medida do operador. Se o cliente escrever antes do 1º balão, o
+ticket é interrompido e o plantão imprime `Entrega interrompida (mensagem nova, 0/3 saiu)` —
+releia o chat e responda de novo. Se o operador responder na mão (celular/web), idem. Novo
+`responder` no mesmo chat substitui o ticket anterior. `urgencia: 'agora'` = só a janela de 5 s
+(cliente esperando um ok); `'calma'` = update sem pressa. `status_envio(grupo|ticket)` consulta;
+`cancelar_envio(grupo|ticket)` cancela agendado ou em andamento — se ele disser **"cancela"**,
+chame **na hora, sem confirmar**. `aguardar: true` segura a chamada como antes (Esc aborta).
+**Depois de qualquer cancelamento ou interrupção, `ler_mensagens` no chat antes de reenviar**:
+parte pode ter saído. `citar: <id>` responde uma mensagem específica (reply). Typos ligados: a
+correção sai como balão `*palavra`, nunca edição. Teto por chat: `definir_modo(grupo,
+latencia_maxima_s)`. Config em `data/expediente.json`: `segurarEnvios` (represa até a próxima
+abertura em vez de só atrasar) e `presencaCoerente` (online ao ler/digitar, offline depois).
 
 ## Despacho (fila de decisões)
 
