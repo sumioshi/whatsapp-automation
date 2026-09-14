@@ -69,4 +69,9 @@ describe("grupo F — 'não dá' sem alternativa", () => {
     expect(grupos("não dá hoje, mas amanhã cedo sai")).not.toContain("F");
     expect(grupos("não consigo hoje, o que dá é amanhã")).not.toContain("F");
   });
+  it("regressão: 'mas' como substring não causa falso positivo", () => {
+    expect(grupos("não dá pra mastigar isso hoje")).toContain("F");
+    expect(grupos("não dá pra fazer o mascaramento")).toContain("F");
+    expect(grupos("não consigo, isso é uma tremenda amassada")).toContain("F");
+  });
 });

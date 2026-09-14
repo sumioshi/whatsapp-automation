@@ -36,7 +36,7 @@ const RE: Record<Exclude<GrupoCulpa, "F">, RegExp> = {
 const NAO_DA_RE = /\b(não consigo|nao consigo|não dá|nao da|não tem como|nao tem como)/iu;
 // Alternativa = outra hora/caminho na MESMA mensagem. "dá pra"/"consigo" ficam de fora:
 // estão dentro do próprio "não dá pra"/"não consigo" e anulariam a regra.
-const ALTERNATIVA_RE = /(mas|porém|porem|o que dá|o que da|amanhã|amanha|depois|à tarde|a tarde|à noite|a noite|cedo|semana que vem)/iu;
+const ALTERNATIVA_RE = /\b(mas|porém|porem)\b|(o que dá|o que da)|\b(amanhã|amanha|depois|cedo)\b|(à tarde|a tarde|à noite|a noite)|(semana que vem)/iu;
 
 function casos(re: RegExp, texto: string): string[] {
   return [...texto.matchAll(re)].map((m) => m[0]);
