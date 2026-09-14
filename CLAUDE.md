@@ -20,15 +20,17 @@ ativamente (ser acordado quando chega msg), arme um Monitor no `data/<slug-do-gr
 
 ### Recipe do Monitor de mensagem (sem zumbi)
 
-Pra ser acordado quando chega msg nova num chat (modo monitor/autônomo), arme **UM** Monitor
-persistente, filtrando o que é seu (`fromMe`). São duas receitas conforme a fonte:
+Pra ser acordado quando chega msg nova num chat (modo monitor/autônomo), arme **UM** Monitor,
+filtrando o que é seu (`fromMe`). O Monitor do harness expira em no máximo 30 min
+(`timeout_ms: 1800000`; não existe mais `persistent`): na notificação de expiração, rearme com o
+mesmo command. São duas receitas conforme a fonte:
 
 **Receita PADRÃO (nuvem, SSE — funciona com o Mac "limpo", sem coletor local):** use a skill
 global **`/plantao`** (`.claude/skills/plantao/`), que faz o fluxo completo — resolve slug, checa
 e liga o `watch` do grupo (pegadinha: grupo novo nasce com captura desligada), mata zumbi e arma:
 
 ```
-Monitor(persistent: true, command: scripts/plantao-stream.sh <slug> [<slug2> ...])
+Monitor(timeout_ms: 1800000, command: scripts/plantao-stream.sh <slug> [<slug2> ...])
 ```
 
 O script (`scripts/plantao-stream.sh`) encapsula o SSE de `GET /api/events?slug=a,b` + reconexão
@@ -47,7 +49,7 @@ absoluto se a sessão estiver fora do repo.
 zero, mas só atualiza com o coletor local rodando:
 
 ```
-Monitor(persistent: true, command:
+Monitor(timeout_ms: 1800000, command:
   F="data/<slug>/messages.jsonl"; touch "$F"
   tail -n0 -F "$F" | while IFS= read -r line; do
     echo "$line" | python3 -c 'import sys,json;

@@ -7,7 +7,7 @@ description: Use quando o operador pedir pra "ficar de olho", "monitorar", "me a
 
 ## Overview
 
-Arma **UM** Monitor persistente do harness que acorda o agente a cada mensagem nova de um chat,
+Arma **UM** Monitor do harness que acorda o agente a cada mensagem nova de um chat,
 via **SSE da nuvem** — funciona com o Mac "limpo" (não precisa de coletor local, `npm run dev`,
 pm2 nem sync). O coletor 24/7 é o da nuvem (Railway); o Mac só segura uma conexão HTTP.
 
@@ -54,10 +54,15 @@ Armar sem matar o antigo = disparo em duplicata/triplicata.
 
 **4. Armar o Monitor** (o script encapsula SSE + reconexão com retomada + lock + filtro):
 ```
-Monitor(persistent: true, description: "Plantão SSE em <slug>[, <slug2>...]", command:
+Monitor(timeout_ms: 1800000, description: "Plantão SSE em <slug>[, <slug2>...]", command:
   $REPO/scripts/plantao-stream.sh <slug> [<slug2> ...])
 ```
 ($REPO expandido pro path absoluto real — o Monitor não herda variáveis da sua sessão.)
+**O Monitor do harness expira: teto de 30 min (`timeout_ms: 1800000`), não existe mais
+`persistent`.** Na notificação de expiração, rearme com o MESMO command na hora — o lock do
+script libera sozinho (pid morto) e o plantão novo começa em "agora"; o buraco é de segundos.
+Se a sessão ficou parada muito tempo, confira o chat com `ler_mensagens` em vez de confiar só
+no disparo.
 Vários chats = UM Monitor com vários slugs (uma conexão só; a linha vem com `[slug]` na frente).
 `--alertar` no lugar dos slugs acompanha todos os chats com `alertar` ligado na triagem.
 **Coletor PESSOAL** (o 2º container, WhatsApp pessoal do operador): prefixe `PLANTAO_CLOUD=pessoal`
