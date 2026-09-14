@@ -213,8 +213,8 @@ const INSTRUCTIONS = [
   "que o operador não quer que o cliente receba. Se ainda estiver com placeholders,",
   "ou não existir aqui, siga com cuidado normal e avise o operador.",
   "",
-  "Depois dela, `comunicacao-cliente` (conduta com cliente). `humanizer` só em texto",
-  "LONGO (proposta, changelog); num balão de conversa não agrega.",
+  "Depois dela, `comunicacao-cliente` (conduta: o que responder, modos, erro sem se",
+  "rebaixar, urgencia). Nunca `humanizer` em balão de conversa.",
   "",
   "ANTES DE REDIGIR: preparar_resposta(grupo) — devolve o que a conta já usou nas",
   "últimas msgs do chat e o que o cliente deixou em aberto. O responder REVISA o",
@@ -797,7 +797,8 @@ server.registerTool(
       "(jid '<numero>@s.whatsapp.net', de listar_contatos). " +
       "VOZ: carregue a skill de voz do operador (`voz-do-operador` ou a preenchida desta máquina) " +
       "ANTES de redigir — ela define grafia, registro e a camada " +
-      "de venda do operador, medidos no texto real dele. Depois `comunicacao-cliente` (conduta). " +
+      "de venda do operador, medidos no texto real dele. Depois `comunicacao-cliente` (conduta: o que " +
+      "responder, três modos, erro sem se rebaixar, urgencia). " +
       "CONFIRMAÇÃO: cada chat tem um modo (definir_modo). No modo 'confirmar' (DEFAULT), você DEVE " +
       "ter mostrado o texto e recebido OK do operador antes de chamar. " +
       "No modo 'autonomo', pode enviar direto. O retorno traz o `modo` do chat. " +
@@ -1030,7 +1031,7 @@ server.registerTool(
       grupo: z.string().describe("nome exato do grupo OU o jid"),
       kind: z.enum(["image", "document", "audio", "video"]).describe("tipo do arquivo"),
       path: z.string().describe("caminho absoluto do arquivo OU mediaPath relativo (de uma mensagem recebida)"),
-      caption: z.string().optional().describe("legenda (ignorada em audio); passe pelo humanizer antes"),
+      caption: z.string().optional().describe("legenda (ignorada em audio); escreva na voz do operador, é revisada como o responder"),
       fileName: z.string().optional().describe("obrigatório para document — nome exibido"),
       mimetype: z.string().optional().describe("opcional (document); inferido pela extensão se ausente"),
     },

@@ -102,8 +102,8 @@ Se um dos lados for esmagador (é o caso comum), **escreva aqui o proibido de fo
 explícita**, com a contagem ao lado. E note: tratamento **não** é calibragem — não
 se espelha o pronome do interlocutor, ele é traço fixo de quem escreve.
 
-Este projeto traz uma trava de código para isso em `web/lib/voz-guard.ts`: o envio
-pelo MCP recusa mensagem com o pronome errado. Ajuste a lista para o seu caso.
+Este projeto traz uma trava de código para isso na revisão de envio (`web/lib/estilo/`):
+o `responder` recusa mensagem com o pronome errado. Ajuste a lista para o seu caso.
 
 ## NENHUM MARCADOR É OBRIGATÓRIO — o teto de frequência
 
@@ -261,13 +261,20 @@ desculpa · prova concreta em vez de adjetivo · escassez só se for verdadeira.
 
 # Relação com outras skills
 
-Esta skill define **quem** escreve. Se houver uma skill de conduta com cliente, ela
-define **como se comporta** — use as duas.
+Ordem fixa ao redigir para o WhatsApp: **`preparar_resposta` → esta skill →
+`comunicacao-cliente` → `responder`**.
 
-Skills de "remover cara de IA" genéricas (tipo `humanizer`) só quando o texto for
-**longo**: proposta, changelog, update em parágrafos. Elas operam em prosa e foram
-escritas para blog post e ensaio; num balão curto de conversa não têm onde agir, e a
-seção "O que é cara de IA" acima já cobre o que importa aqui.
+Esta skill define **quem** escreve (forma: grafia, pontuação, aberturas, tratamento, emoji).
+`comunicacao-cliente` define **como se comporta** com cliente (o que responder, modos,
+erro e problema, relação, urgência) e não opina sobre forma — onde divergirem, esta ganha.
+
+O contável é código: o `responder` recusa tratamento errado, confissão de culpa, dois-pontos
+de introdução, travessão, formatação, repetição contra as últimas mensagens do chat, saudação
+reflexa e desculpa repetida; o motor de entrega cuida da latência e do typo corrigido com
+`*palavra`. Não fabrique erro nem simule tempo no texto.
+
+Skills genéricas de "remover cara de IA" (tipo `humanizer`) não entram em balão de conversa;
+só em prosa longa, se o operador pedir.
 
 # Manutenção
 

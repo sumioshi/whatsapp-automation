@@ -37,20 +37,20 @@ grupo" abaixo.
 Sempre que o usuário pedir para **enviar, responder ou redigir uma mensagem** num
 grupo (via `responder`, `responder_midia` com legenda, pelo painel, ou pela API de controle `:4310`):
 
-Pipeline de envio: `preparar_resposta(grupo)` → redigir com a skill de voz do operador e
-`comunicacao-cliente` (humanizer só em texto longo) → no modo `confirmar`, `revisar_texto` e
-mostrar ao operador o texto já revisado → `responder` com `candidatos` (2-3 versões) ou
-`baloes`. Se a revisão recusar, reescreva seguindo `sugestoes`; não use `revisao: 'ignorar'`
+Pipeline de envio, nesta ordem: `preparar_resposta(grupo)` → skill de voz do operador
+(`voz-do-dono` nesta máquina; molde `voz-do-operador`) → `comunicacao-cliente` (conduta) →
+no modo `confirmar`, `revisar_texto` e mostrar ao operador o texto já revisado → `responder`
+com `candidatos` (2-3 versões) ou `baloes`. `humanizer` não entra em balão de conversa. Se a revisão recusar, reescreva seguindo `sugestoes`; não use `revisao: 'ignorar'`
 sem OK explícito do operador.
 
 1. **Antes de redigir**, chame `preparar_resposta(grupo)` — devolve o estilo recente do chat
    e o que o cliente deixou em aberto, com `instrucoes` numéricas.
 2. **Rascunhe** a mensagem com a skill de voz do operador (`voz-do-operador`).
-3. **Se for mensagem pra cliente/parceiro**, aplique também a skill
-   **`comunicacao-cliente`** — cuida do tom de relacionamento (Carnegie + Voss) e corta os
-   tells que o cliente percebe (dois-pontos de introdução, "Gente/Pessoal", formatação,
-   dramatizar). Reserve a skill `humanizer` pra texto LONGO (proposta, changelog em
-   parágrafos) — num balão de conversa não agrega, a voz do operador já cobre os tells.
+3. **Se for mensagem pra cliente/parceiro**, aplique depois a skill
+   **`comunicacao-cliente`** — a camada de conduta: o que responder e o que deixar, os três
+   modos (factual/delicado/grave), como comunicar erro sem se rebaixar, regras de relação e
+   qual `urgencia` passar. Ela não opina sobre forma (isso é da voz) nem repete os tells
+   (isso o `responder` recusa em código). `humanizer` só em prosa longa, se o operador pedir.
 4. **Confirme antes de enviar** (mostre texto + grupo), EXCETO quando o usuário já
    liberou envio direto pra aquele contexto (ex: suporte técnico onde ele autorizou
    responder o cliente na hora). No modo `confirmar`, rode `revisar_texto` primeiro e
@@ -89,8 +89,9 @@ meio. Pra isso nunca acontecer:
    carregada no boot) ou o coletor local desligado. O fix é reconectar o MCP (`/mcp` → reconnect)
    ou reiniciar a sessão — não é improvisar um canal alternativo de envio.
 
-> Instale a skill `humanizer` uma vez (global):
-> `git clone https://github.com/blader/humanizer.git ~/.claude/skills/humanizer`
+> Opcional, só para prosa longa (proposta, changelog): a skill `humanizer`
+> (`git clone https://github.com/blader/humanizer.git ~/.claude/skills/humanizer`).
+> Nunca em balão de conversa.
 
 ## Prerequisites
 
@@ -156,7 +157,7 @@ node .claude/skills/run-whatsapp-automation/driver.mjs call resumo_do_dia '{"gru
 node .claude/skills/run-whatsapp-automation/driver.mjs call ver_imagem '{"grupo":"meu-grupo","mediaPath":"meu-grupo/image/<arquivo>.jpg"}'
 node .claude/skills/run-whatsapp-automation/driver.mjs call ler_documento '{"grupo":"meu-grupo","mediaPath":"meu-grupo/document/<arquivo>.pdf"}'
 node .claude/skills/run-whatsapp-automation/driver.mjs call ver_video '{"grupo":"meu-grupo","mediaPath":"meu-grupo/gif/<arquivo>.mp4","frames":3}'  # GIF/vídeo: amostra frames (precisa de ffmpeg)
-# responder_midia ENVIA de verdade — só após confirmar com o usuário (legenda passa pelo humanizer):
+# responder_midia ENVIA de verdade — só após confirmar com o usuário (legenda na voz do operador, revisada como o responder):
 node .claude/skills/run-whatsapp-automation/driver.mjs call responder_midia '{"grupo":"Acme Corp","kind":"document","path":"/abs/contrato.pdf","fileName":"contrato.pdf","caption":"segue o contrato"}'
 # alertar_chat liga/desliga a notificação no Mac de um chat; novidades puxa o que chegou (ver seção abaixo):
 node .claude/skills/run-whatsapp-automation/driver.mjs call alertar_chat '{"grupo":"dm-<id>","ativar":true}'

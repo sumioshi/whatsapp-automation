@@ -67,7 +67,8 @@ crons do `/loop`: só um por chat.
 Cada chat tem um modo, persistido (tool `definir_modo`, lido pelo `responder`):
 
 - **`confirmar` (DEFAULT)** — antes de enviar pra esse chat, MOSTRE o texto e espere o OK do operador
-  (passando por humanizer + comunicacao-cliente). Nenhum cliente real recebe msg sem ele ver.
+  (texto já passado pela skill de voz do operador e pela `comunicacao-cliente`, nesta ordem).
+  Nenhum cliente real recebe msg sem ele ver.
 - **`autonomo`** — pode enviar direto, sem confirmar. Ligue com `definir_modo(grupo, autonomo: true)`.
 
 O retorno do `responder` traz o `modo` do chat. É **convenção que a IA respeita**, não trava de
