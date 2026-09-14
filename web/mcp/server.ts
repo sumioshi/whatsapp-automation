@@ -117,7 +117,9 @@ async function mensagensDaConversa(slug: string): Promise<{ msgs: MessageView[];
  * estado da conversa e baseline do operador. Falha em qualquer ponto degrada
  * para "sem janela" (o guard ainda roda nos bloqueios), nunca para pular.
  */
-async function contextoDoChat(grupo: string): Promise<{ slug: string; label: string; jid: string | null; ctx: ContextoEscrita; modo: "confirmar" | "autonomo" }> {
+async function contextoDoChat(
+  grupo: string,
+): Promise<{ slug: string; label: string; jid: string | null; ctx: ContextoEscrita; modo: "confirmar" | "autonomo"; typos: boolean }> {
   const destino = await resolveDestino(grupo);
   const slug = destino.slug ?? slugify(grupo);
   const padrao = await carregarBaselinePadrao(DATA_DIR);
@@ -129,9 +131,12 @@ async function contextoDoChat(grupo: string): Promise<{ slug: string; label: str
   } catch {
     ctx = contextoDeEscrita([], { names: new Map(), ownIds: new Set(), teamIds: new Set(), phones: new Map(), lids: new Set(), hasSidecar: false } as never, new Date(), padrao);
   }
-  const t = await dsTriage().catch(() => ({ autonomo: {} as Record<string, boolean> }));
+  // Um único fetch de triagem serve modo E typos — evitar um 2º dsTriage() no
+  // handler de responder, que em modo remoto seria uma ida a mais pra nuvem.
+  const t = await dsTriage().catch(() => ({ autonomo: {} as Record<string, boolean>, typos: {} as Record<string, boolean> }));
   const modo = t.autonomo?.[slug] === true ? "autonomo" : "confirmar";
-  return { slug, label: destino.label, jid: destino.jid, ctx, modo };
+  const typos = t.typos?.[slug] === true;
+  return { slug, label: destino.label, jid: destino.jid, ctx, modo, typos };
 }
 
 function pendingMedia(msgs: MessageView[]): string[] {
@@ -810,7 +815,7 @@ server.registerTool(
       if (!candidatos && !textoBase) return fail("passe `texto`, `baloes` ou `candidatos`");
       if (candidatos && textoBase) return fail("`candidatos` é exclusivo com `texto`/`baloes`");
 
-      const { slug, label, jid, ctx, modo } = await contextoDoChat(grupo);
+      const { slug, label, jid, ctx, modo, typos } = await contextoDoChat(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
       const ignorarScore = revisao === "ignorar";
 
@@ -869,7 +874,6 @@ server.registerTool(
 
       if (!rev) return fail("revisão não produzida");
 
-      const t = await dsTriage();
       // extra.signal aborta quando o cliente cancela a tool (Esc do operador):
       // viaja até o coletor, que segura o próximo balão.
       const r = await dsSend(
@@ -878,7 +882,7 @@ server.registerTool(
         {
           humano: true,
           slug,
-          typos: t.typos?.[slug] === true,
+          typos,
           umBalao: um_balao === true,
           ...(lista.length ? { baloes: lista } : {}),
         },
