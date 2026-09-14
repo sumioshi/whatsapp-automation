@@ -6,14 +6,21 @@
  */
 export interface PerfilEnvio {
   tamanhoMedioBalao: number;
-  baloesPorRajada: number;
-  fracaoRespostaCurta: number;
+  /** Velocidade de digitação medida (chars/s); null = usar o default do plano. */
+  charsPorSegundo: number | null;
+  pausaEntreBaloes_s: number | null;
+  /** Mediana msg do cliente → 1ª resposta do operador. */
+  latenciaMediana_s: number | null;
+  /** Mediana msg do operador → próxima do cliente. */
+  latenciaClienteMediana_s: number | null;
 }
 
 export const PERFIL_DEFAULT: PerfilEnvio = {
   tamanhoMedioBalao: 120,
-  baloesPorRajada: 2,
-  fracaoRespostaCurta: 0.3,
+  charsPorSegundo: null,
+  pausaEntreBaloes_s: null,
+  latenciaMediana_s: null,
+  latenciaClienteMediana_s: null,
 };
 
 const CURTO = 80;
@@ -24,8 +31,12 @@ export function quebrarEmBaloes(texto: string, perfil: PerfilEnvio = PERFIL_DEFA
   if (!t) return [];
   if (t.length <= CURTO) return [t];
 
-  const paragrafos = t.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
-  const partes = paragrafos.length > 1 ? paragrafos : quebrarPorSentenca(t, perfil.tamanhoMedioBalao);
+  const paragrafos = t
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const partes =
+    paragrafos.length > 1 ? paragrafos : quebrarPorSentenca(t, perfil.tamanhoMedioBalao);
 
   if (partes.length <= MAX_BALOES) return partes;
   // O excedente vira UM balão só, mas cada parte segue sendo um parágrafo: colar
