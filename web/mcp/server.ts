@@ -1082,8 +1082,8 @@ server.registerTool(
       return ok(
         { destino: label, jid, cancelado: r.cancelado, ...(r.ticket ? { ticket: r.ticket } : {}), ...(r.enviados !== undefined ? { enviados: r.enviados } : {}) },
         r.cancelado
-          ? `Entrega ${r.ticket ?? ""} pra "${label}" cancelada (${r.enviados ?? 0} balão(ões) já tinham saído) — confira com ler_mensagens.`
-          : `Nenhuma entrega agendada ou em andamento pra "${label}" (já terminou ou nem começou).`,
+          ? `Entrega ${r.ticket ?? ""}${grupo ? ` pra "${label}"` : ""} cancelada (${r.enviados ?? 0} balão(ões) já tinham saído) — confira com ler_mensagens.`
+          : `Nenhuma entrega agendada ou em andamento${grupo ? ` pra "${label}"` : ` com ticket ${ticket}`} (já terminou ou nem começou).`,
       );
     } catch (e) {
       return fail(e instanceof Error ? e.message : "coletor offline?");
