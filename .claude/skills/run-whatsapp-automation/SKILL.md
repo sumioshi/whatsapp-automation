@@ -1,6 +1,6 @@
 ---
 name: run-whatsapp-automation
-description: Build, run, and drive the WhatsApp group collector — the Baileys collector daemon, the Next.js panel, the MLX transcriber service, and the MCP server. Use to run/start/build/screenshot the project or to call its MCP tools (listar_grupos, ler_mensagens, buscar, resumo_do_dia, ver_imagem, ver_video, ler_documento, transcrever, listar_contatos, responder, responder_midia, cancelar_envio, alertar_chat, novidades). ALSO use whenever asked to send, reply, or draft a message in a WhatsApp group: the rule is to run the draft through the humanizer skill first, then confirm the exact text with the user before sending.
+description: Build, run, and drive the WhatsApp group collector — the Baileys collector daemon, the Next.js panel, the MLX transcriber service, and the MCP server. Use to run/start/build/screenshot the project or to call its MCP tools (listar_grupos, ler_mensagens, buscar, resumo_do_dia, ver_imagem, ver_video, ler_documento, transcrever, listar_contatos, preparar_resposta, revisar_texto, responder, responder_midia, cancelar_envio, alertar_chat, novidades). ALSO use whenever asked to send, reply, or draft a message in a WhatsApp group: the rule is to run the draft through preparar_resposta and the operator's voice skill, review it with revisar_texto, then confirm the exact text with the user before sending.
 ---
 
 # Run: WhatsApp Automation
@@ -9,7 +9,10 @@ Coleta conteúdo de grupos de WhatsApp (áudio/vídeo/imagem/documento/texto) e 
 tudo pra IA. São **5 processos**: `wa-collector` (daemon Baileys), `wa-panel`
 (Next.js em :3000), `wa-transcriber` (serviço MLX em :4320), `wa-notifier`
 (notificação de mensagens de cliente, ver seção abaixo) e o **MCP server**
-(stdio, sob demanda). O MCP é dirigido pelo **driver** abaixo.
+(stdio, sob demanda). O MCP é dirigido pelo **driver** abaixo. Tools de escrita
+`preparar_resposta` (contexto antes de redigir) e `revisar_texto` (revisa sem
+enviar) entram no pipeline de envio — ver seção "Regra: enviar mensagem no
+grupo" abaixo.
 
 > **Como os 3 primeiros rodam:** em **dev local** (o caso atual) é `npm run dev` na
 > raiz, que sobe os três via `concurrently` — **não pm2**. Em **produção** é pm2
@@ -34,18 +37,30 @@ tudo pra IA. São **5 processos**: `wa-collector` (daemon Baileys), `wa-panel`
 Sempre que o usuário pedir para **enviar, responder ou redigir uma mensagem** num
 grupo (via `responder`, `responder_midia` com legenda, pelo painel, ou pela API de controle `:4310`):
 
-1. **Rascunhe** a mensagem.
-2. **Passe o rascunho pela skill `humanizer`** (invoque a skill `humanizer`) para
-   tirar cara de texto de IA e deixar o tom natural.
+Pipeline de envio: `preparar_resposta(grupo)` → redigir com a skill de voz do operador e
+`comunicacao-cliente` (humanizer só em texto longo) → no modo `confirmar`, `revisar_texto` e
+mostrar ao operador o texto já revisado → `responder` com `candidatos` (2-3 versões) ou
+`baloes`. Se a revisão recusar, reescreva seguindo `sugestoes`; não use `revisao: 'ignorar'`
+sem OK explícito do operador.
+
+1. **Antes de redigir**, chame `preparar_resposta(grupo)` — devolve o estilo recente do chat
+   e o que o cliente deixou em aberto, com `instrucoes` numéricas.
+2. **Rascunhe** a mensagem com a skill de voz do operador (`voz-do-operador`).
 3. **Se for mensagem pra cliente/parceiro**, aplique também a skill
-   **`comunicacao-cliente`** — vem depois do humanizer e cuida do tom de
-   relacionamento (Carnegie + Voss) e corta os tells que o cliente percebe
-   (dois-pontos de introdução, "Gente/Pessoal", formatação, dramatizar).
+   **`comunicacao-cliente`** — cuida do tom de relacionamento (Carnegie + Voss) e corta os
+   tells que o cliente percebe (dois-pontos de introdução, "Gente/Pessoal", formatação,
+   dramatizar). Reserve a skill `humanizer` pra texto LONGO (proposta, changelog em
+   parágrafos) — num balão de conversa não agrega, a voz do operador já cobre os tells.
 4. **Confirme antes de enviar** (mostre texto + grupo), EXCETO quando o usuário já
    liberou envio direto pra aquele contexto (ex: suporte técnico onde ele autorizou
-   responder o cliente na hora). A `comunicacao-cliente` diz o que confirmar
-   (posicionamento/opinião) vs o que mandar direto (suporte).
-5. Só então envie (`responder` / `POST :4310/send` / painel).
+   responder o cliente na hora). No modo `confirmar`, rode `revisar_texto` primeiro e
+   mostre ao operador o texto já revisado (fica mais fácil aprovar sabendo que passou).
+5. Só então envie: `responder` aceita `candidatos` (2-3 versões — o código envia a que
+   menos destoa do chat) ou `baloes` (já decidida a quebra). A revisão de estilo (`web/lib/estilo/`)
+   roda dentro do `responder`/`responder_midia`/`editar_mensagem` antes do envio de verdade;
+   se recusar, ela devolve `hits`/`sugestoes` — reescreva e chame de novo, nada foi enviado.
+   `revisao: 'ignorar'` pula só o score (nunca os bloqueios) e só com OK explícito do operador
+   pro texto exatamente como está.
 6. **Cancelamento:** a entrega humanizada dá ≥ 5 s de "digitando" antes do 1º balão. Se o
    operador apertar Esc, o coletor segura o próximo balão; se ele disser "cancela" no meio
    de um envio, chame `cancelar_envio(grupo)` NA HORA, sem confirmar. Depois de qualquer

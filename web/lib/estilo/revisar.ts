@@ -23,6 +23,8 @@ export interface Revisao {
 }
 
 export const LIMIAR = 4;
+/** Limiar efetivo; a calibração (scripts/estilo-baseline.ts) pode ajustar em tempo de execução. */
+export const CONFIG_REVISAO = { limiar: LIMIAR };
 
 const PESO_TELL: Partial<Record<TellId, number>> = { dois_pontos_intro: 2, travessao: 2, nao_so_mas: 2, markdown: 2, bullets: 2 };
 const TETO_MINIMIZADOR = 3;
@@ -65,10 +67,10 @@ export function revisar(e: EntradaRevisao): Revisao {
 
   const score = hits.reduce((a, h) => a + h.peso, 0);
   const grave = hits.some((h) => h.peso >= 3);
-  const ok = bloqueios.length === 0 && (e.ignorarScore === true || (score < LIMIAR && !grave));
+  const ok = bloqueios.length === 0 && (e.ignorarScore === true || (score < CONFIG_REVISAO.limiar && !grave));
   const sugestoes = [...new Set([...bloqueios, ...hits].map((h) => h.sugestao))];
   const resumo = bloqueios.length
     ? `bloqueado: ${bloqueios.map((b) => b.regra).join(", ")}`
-    : `score ${score} (limiar ${LIMIAR})${grave ? ", com hit grave" : ""}: ${hits.map((h) => h.regra).join(", ") || "limpo"}`;
+    : `score ${score} (limiar ${CONFIG_REVISAO.limiar})${grave ? ", com hit grave" : ""}: ${hits.map((h) => h.regra).join(", ") || "limpo"}`;
   return { ok, bloqueios, score, hits, sugestoes, resumo };
 }

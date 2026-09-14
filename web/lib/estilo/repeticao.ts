@@ -25,6 +25,24 @@ export interface EntradaRepeticao {
 
 export const SAUDACAO_RE = /^\s*(opa|oi|olá|ola|bom dia|boa tarde|boa noite|e aí|e ai|fala)\b/i;
 
+/**
+ * Botões de calibração. Os valores default são os calibrados no corpus real do
+ * operador (scripts/estilo-baseline.ts imprime a tabela); o script pode
+ * sobrescrever em tempo de execução para medir alternativas.
+ */
+export const AJUSTES = {
+  /** fração de bigramas do rascunho já vistos numa mensagem anterior */
+  parafraseLimiar: 0.5,
+  parafrasePeso: 3,
+  parafraseMinBigramas: 5,
+  /** ritmo é informativo: o limiar é o p10 do próprio operador, que por construção dispara em ~10% das janelas dele */
+  ritmoPeso: 0,
+  /** mínimo de mensagens da janela com a feature para o z-score contar (com 6 msgs, 2 já davam z ≥ 3 e o hábito por chat estourava) */
+  excessoMinK: 3,
+  /** o operador usa exclamação MAIS que a automação; excesso aqui não é sinal de IA */
+  excessoSemExclamacao: true,
+};
+
 /** Features em que o sinal é excesso (o operador usa pouco). Pergunta/emoji/maiúscula são déficit, não hit. */
 const FEATURES_EXCESSO: Feature[] = ["dois_pontos_intro", "travessao", "ponto_final", "exclamacao", "triade", "nao_so_mas", "bullets", "negrito", "parenteses"];
 
@@ -71,13 +89,13 @@ export function scoreRepeticao(e: EntradaRepeticao): { score: number; hits: Hit[
 
   // 3. quase-paráfrase
   const bd = bigramas(rascunho);
-  if (bd.size >= 5) {
+  if (bd.size >= AJUSTES.parafraseMinBigramas) {
     for (const m of e.ultimasMinhas) {
       const bm = bigramas(m);
       if (bm.size < 5) continue;
       const inter = [...bd].filter((x) => bm.has(x)).length / bd.size;
-      if (inter >= 0.5) {
-        hits.push({ regra: "parafrase", peso: 3, motivo: `${Math.round(inter * 100)}% dos pares de palavras já estavam numa mensagem anterior`, sugestao: "diz só o que é novo, ou reage em vez de repetir" });
+      if (inter >= AJUSTES.parafraseLimiar) {
+        hits.push({ regra: "parafrase", peso: AJUSTES.parafrasePeso, motivo: `${Math.round(inter * 100)}% dos pares de palavras já estavam numa mensagem anterior`, sugestao: "diz só o que é novo, ou reage em vez de repetir" });
         break;
       }
     }
@@ -85,8 +103,9 @@ export function scoreRepeticao(e: EntradaRepeticao): { score: number; hits: Hit[
 
   // 4. feature vs baseline (excesso)
   for (const f of FEATURES_EXCESSO) {
+    if (f === "exclamacao" && AJUSTES.excessoSemExclamacao) continue;
     const k = janela.filter((t) => temFeature(f, t)).length;
-    if (k > 0 && zBinomial(k, n, e.baseline.p[f]) >= 3) {
+    if (k >= AJUSTES.excessoMinK && zBinomial(k, n, e.baseline.p[f]) >= 3) {
       const sug = f in SUGESTAO_TELL ? SUGESTAO_TELL[f as keyof typeof SUGESTAO_TELL] : "usa como ele usa: quase nunca";
       hits.push({ regra: f, peso: 2, motivo: `${k} de ${n} mensagens com ${f}; o operador usa em ${(e.baseline.p[f] * 100).toFixed(1)}%`, sugestao: sug });
     }
@@ -97,8 +116,8 @@ export function scoreRepeticao(e: EntradaRepeticao): { score: number; hits: Hit[
   if (toks.length >= 30 && n >= 3) {
     const d2 = distinct2(toks);
     const cv = cvTamanho(janela);
-    if (d2 < e.baseline.distinct2p10) hits.push({ regra: "ritmo", peso: 1, motivo: `diversidade de pares ${d2.toFixed(2)} abaixo do piso dele ${e.baseline.distinct2p10}`, sugestao: "varia vocabulário e estrutura" });
-    else if (cv < e.baseline.cvP10) hits.push({ regra: "ritmo", peso: 1, motivo: `todas as mensagens com tamanho parecido (CV ${cv.toFixed(2)})`, sugestao: "varia: uma curta, uma de duas frases" });
+    if (d2 < e.baseline.distinct2p10) hits.push({ regra: "ritmo", peso: AJUSTES.ritmoPeso, motivo: `diversidade de pares ${d2.toFixed(2)} abaixo do piso dele ${e.baseline.distinct2p10}`, sugestao: "varia vocabulário e estrutura" });
+    else if (cv < e.baseline.cvP10) hits.push({ regra: "ritmo", peso: AJUSTES.ritmoPeso, motivo: `todas as mensagens com tamanho parecido (CV ${cv.toFixed(2)})`, sugestao: "varia: uma curta, uma de duas frases" });
   }
 
   // 6. esqueleto

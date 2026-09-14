@@ -73,6 +73,28 @@ Cada chat tem um modo, persistido (tool `definir_modo`, lido pelo `responder`):
 O retorno do `responder` traz o `modo` do chat. É **convenção que a IA respeita**, não trava de
 código — então NÃO burle o `confirmar`. Pra saber o modo de um chat sem enviar, use `estado_triagem`.
 
+## Revisão de texto antes do envio (código, não convenção)
+
+`responder`, `responder_midia` (legenda) e `editar_mensagem` passam o texto por uma revisão
+determinística ANTES de enviar (`web/lib/estilo/`), no molde da trava do "tu": bloqueio
+(tratamento errado, confissão de culpa tipo "culpa minha/foi mal") nunca passa; o resto soma
+num score contra as últimas 5 mensagens da conta no chat e contra o baseline medido do
+operador (dois-pontos de introdução, travessão, ponto final, abertura repetida, mesma palavra,
+paráfrase, saudação com menos de 1 h, "acabei/sem querer", drama, minimizador,
+desculpa repetida). Score ≥ 4 ou hit grave = recusa com `hits` e `sugestoes`; reescreva e chame
+de novo, nada foi enviado. Calibrado no histórico real dele: 5,8% das mensagens dele seriam
+recusadas (orçamento de 6%).
+
+- **Antes de redigir:** `preparar_resposta(grupo)` devolve o estilo recente e o que o cliente
+  deixou em aberto, com `instrucoes` numéricas. Escreva variando de propósito.
+- **Candidatos:** mande 2-3 versões em `candidatos` e o código envia a que menos destoa.
+  `revisar_texto` revisa sem enviar (útil no modo `confirmar`).
+- **`revisao: 'ignorar'`** pula só o score, nunca bloqueios, e só quando o operador aprovou o
+  texto exatamente assim.
+- Baseline: `npm run estilo-baseline` recalcula de `.private/voz/` para `data/.estilo-baseline.json`;
+  chat com ≥ 100 mensagens do próprio operador usa baseline próprio. Registro em
+  `data/.revisoes.jsonl` (score, hits, enviado) para recalibrar.
+
 ### Cancelar um envio em andamento (Esc / "cancela")
 
 A entrega humanizada garante ≥ 5 s de visto/digitando antes do 1º balão — é a janela pra cancelar.
