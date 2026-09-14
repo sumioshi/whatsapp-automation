@@ -57,6 +57,8 @@ import {
   dsSetAlert,
   dsSetAutonomo,
   dsCancelarEnvio,
+  dsStatusEntrega,
+  dsSetLatenciaMaxima,
   dsSend,
   dsSendMedia,
   dsEditarPerfil,
@@ -119,7 +121,15 @@ async function mensagensDaConversa(slug: string): Promise<{ msgs: MessageView[];
  */
 async function contextoDoChat(
   grupo: string,
-): Promise<{ slug: string; label: string; jid: string | null; ctx: ContextoEscrita; modo: "confirmar" | "autonomo"; typos: boolean }> {
+): Promise<{
+  slug: string;
+  label: string;
+  jid: string | null;
+  ctx: ContextoEscrita;
+  modo: "confirmar" | "autonomo";
+  typos: boolean;
+  latenciaMaxima_s: number | undefined;
+}> {
   const destino = await resolveDestino(grupo);
   const slug = destino.slug ?? slugify(grupo);
   const padrao = await carregarBaselinePadrao(DATA_DIR);
@@ -133,10 +143,34 @@ async function contextoDoChat(
   }
   // Um único fetch de triagem serve modo E typos — evitar um 2º dsTriage() no
   // handler de responder, que em modo remoto seria uma ida a mais pra nuvem.
-  const t = await dsTriage().catch(() => ({ autonomo: {} as Record<string, boolean>, typos: {} as Record<string, boolean> }));
+  const t = await dsTriage().catch(() => ({
+    autonomo: {} as Record<string, boolean>,
+    typos: {} as Record<string, boolean>,
+    latenciaMaxima: {} as Record<string, number>,
+  }));
   const modo = t.autonomo?.[slug] === true ? "autonomo" : "confirmar";
   const typos = t.typos?.[slug] === true;
-  return { slug, label: destino.label, jid: destino.jid, ctx, modo, typos };
+  const latenciaMaxima_s = t.latenciaMaxima?.[slug];
+  return { slug, label: destino.label, jid: destino.jid, ctx, modo, typos, latenciaMaxima_s };
+}
+
+/**
+ * Quando o agente leu cada chat pela última vez (preparar_resposta/ler_mensagens).
+ * O responder manda `decorrido_s` = tempo desde essa leitura: a latência humana
+ * desconta o que o agente já gastou pensando, senão a espera soma duas vezes.
+ */
+const ultimaLeitura = new Map<string, number>();
+
+function decorridoDesdeLeitura(slug: string): number | undefined {
+  const t = ultimaLeitura.get(slug);
+  return t ? Math.round((Date.now() - t) / 1000) : undefined;
+}
+
+function formatarPrevisao(s: number | undefined): string {
+  if (s === undefined) return "?";
+  if (s < 90) return `${Math.round(s)} s`;
+  if (s < 5400) return `${Math.round(s / 60)} min`;
+  return `${(s / 3600).toFixed(1).replace(/\.0$/, "")} h`;
 }
 
 function pendingMedia(msgs: MessageView[]): string[] {
@@ -194,10 +228,12 @@ const INSTRUCTIONS = [
   "REGISTRE ENTREGAS: ao concluir uma funcionalidade pra cliente, chame",
   "registrar_feature(grupo, nome, ref).",
   "",
-  "CANCELAR: o Esc do operador durante responder/responder_midia interrompe a",
-  "entrega (o balão que não saiu não sai). Se ele disser 'cancela' no meio de um",
-  "envio, chame cancelar_envio(grupo) NA HORA, sem confirmar. Depois de qualquer",
-  "cancelamento, ler_mensagens no chat antes de reenviar: parte pode ter saído.",
+  "ENTREGA: responder devolve um TICKET na hora; a mensagem sai depois, com latência",
+  "humana (segundos numa conversa ativa, minutos a horas numa fria). status_envio",
+  "acompanha; cancelar_envio cancela agendado ou em andamento — se o operador disser",
+  "'cancela', chame NA HORA, sem confirmar. Se o plantão avisar 'Entrega interrompida',",
+  "releia o chat e responda de novo. `urgencia: 'agora'` só quando o cliente espera um",
+  "ok. Depois de cancelar ou interromper, ler_mensagens antes de reenviar.",
 ].join("\n");
 
 /**
@@ -308,6 +344,7 @@ server.registerTool(
       const teto = limite ?? (desde ? undefined : 50);
       if (teto) msgs = msgs.slice(-teto);
       const c = await contacts();
+      ultimaLeitura.set(slug, Date.now());
       return text({
         grupo: slug,
         ...notaRename,
@@ -697,7 +734,7 @@ server.registerTool(
   },
   async ({ grupo }) => {
     try {
-      const { label, ctx, modo } = await contextoDoChat(grupo);
+      const { slug, label, jid, ctx, modo } = await contextoDoChat(grupo);
       const estilo = resumirEstilo(ctx.ultimasMinhas, ctx.baseline);
       const e = ctx.estado;
       const instrucoes = [...estilo.instrucoes];
@@ -706,12 +743,22 @@ server.registerTool(
       if (e.perguntasAbertas.length) instrucoes.push(`cliente deixou ${e.perguntasAbertas.length} pergunta(s) em aberto: responde uma e, se precisar, diz quando vem o resto`);
       if (e.operadorRespondeuNaMao) instrucoes.push("o operador respondeu na mão há pouco: não repita nem responda por cima");
       if (e.rajadaDoClienteEmAndamento) instrucoes.push("o cliente ainda está mandando: espera a rajada terminar antes de responder");
+      const pendente = jid ? await dsStatusEntrega({ jid }).catch(() => null) : null;
+      const entrega_pendente =
+        pendente && (pendente.estado === "agendado" || pendente.estado === "entregando") ? pendente : null;
+      if (entrega_pendente) {
+        instrucoes.push(
+          `já existe uma entrega ${entrega_pendente.estado} pra esse chat (ticket ${entrega_pendente.ticket}, sai em ~${formatarPrevisao(entrega_pendente.previsao_s)}): um novo responder substitui ela`,
+        );
+      }
+      ultimaLeitura.set(slug, Date.now());
       return text({
         destino: label,
         modo,
         estado_conversa: e,
         estilo_recente: estilo,
         baseline: { origem: ctx.baseline.origem, n: ctx.baseline.n },
+        entrega_pendente,
         instrucoes,
       });
     } catch (err) {
@@ -764,7 +811,11 @@ server.registerTool(
       "informal fica melhor em balões. " +
       "REVISÃO: antes de enviar, o texto passa por revisão (repetição contra as últimas mensagens do chat, " +
       "dois-pontos e tells, auto-incriminação, desculpa). Recusa devolve hits e sugestões; reescreva e " +
-      "chame de novo. Chame preparar_resposta ANTES de redigir.",
+      "chame de novo. Chame preparar_resposta ANTES de redigir. " +
+      "ENTREGA: devolve um TICKET na hora; a mensagem sai depois com latência humana (segundos numa " +
+      "conversa ativa, minutos a horas numa fria), visto antes do digitando, digitação na velocidade do " +
+      "operador. Novo responder no mesmo chat SUBSTITUI o ticket anterior. Acompanhe com status_envio; " +
+      "cancelar_envio cancela. Se o plantão avisar 'Entrega interrompida', releia o chat e responda de novo.",
     inputSchema: {
       grupo: z
         .string()
@@ -806,16 +857,34 @@ server.registerTool(
           "'ignorar' pula APENAS o score de estilo (nunca bloqueios de tratamento/culpa). Só quando o operador " +
             "aprovou o texto exatamente assim e a revisão recusou.",
         ),
+      urgencia: z
+        .enum(["agora", "normal", "calma"])
+        .optional()
+        .describe(
+          "'agora' = cliente esperando um ok (só a janela de 5 s); 'normal' (default) = latência humana pelo " +
+            "estado da conversa; 'calma' = update sem pressa (força o regime frio: minutos a horas).",
+        ),
+      citar: z
+        .string()
+        .optional()
+        .describe("id da mensagem recebida a responder (reply): o 1º balão sai citando ela"),
+      aguardar: z
+        .boolean()
+        .optional()
+        .describe(
+          "true = segura a chamada até a entrega terminar (comportamento antigo; Esc cancela). " +
+            "Default false: devolve o ticket na hora.",
+        ),
     },
   },
-  async ({ grupo, texto: textoArg, baloes, um_balao, candidatos, revisao }, extra) => {
+  async ({ grupo, texto: textoArg, baloes, um_balao, candidatos, revisao, urgencia, citar, aguardar }, extra) => {
     try {
       const listaBase = (baloes ?? []).map((b) => b.trim()).filter(Boolean);
       const textoBase = listaBase.length ? listaBase.join("\n\n") : (textoArg ?? "").trim();
       if (!candidatos && !textoBase) return fail("passe `texto`, `baloes` ou `candidatos`");
       if (candidatos && textoBase) return fail("`candidatos` é exclusivo com `texto`/`baloes`");
 
-      const { slug, label, jid, ctx, modo, typos } = await contextoDoChat(grupo);
+      const { slug, label, jid, ctx, modo, typos, latenciaMaxima_s } = await contextoDoChat(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
       const ignorarScore = revisao === "ignorar";
 
@@ -880,6 +949,7 @@ server.registerTool(
 
       // extra.signal aborta quando o cliente cancela a tool (Esc do operador):
       // viaja até o coletor, que segura o próximo balão.
+      const decorrido_s = decorridoDesdeLeitura(slug);
       const r = await dsSend(
         jid,
         texto,
@@ -889,6 +959,11 @@ server.registerTool(
           typos,
           umBalao: um_balao === true,
           ...(lista.length ? { baloes: lista } : {}),
+          ...(urgencia ? { urgencia } : {}),
+          ...(citar ? { citar } : {}),
+          ...(aguardar === true ? { aguardar: true } : {}),
+          ...(decorrido_s !== undefined ? { decorrido_s } : {}),
+          ...(latenciaMaxima_s !== undefined ? { latenciaMaxima_s } : {}),
         },
         { signal: extra.signal },
       );
@@ -906,10 +981,27 @@ server.registerTool(
         destino: label,
         jid,
         modo,
-        baloes: r.baloes,
+        baloes: r.baloes ?? (lista.length || 1),
         revisao: { score: rev.score, hits: rev.hits.map((h) => h.regra) },
         ...(escolhido !== undefined ? { escolhido, descartados } : {}),
       };
+      if (r.ticket && aguardar !== true) {
+        return ok(
+          {
+            ...campos,
+            ticket: r.ticket,
+            previsao_s: r.previsao_s,
+            estado: r.estado,
+            entregarEm: r.entregarEm,
+            regime: r.regime,
+            ...(r.substituiu ? { substituiu: r.substituiu } : {}),
+          },
+          `Entrega agendada pra "${label}": ticket ${r.ticket}, sai em ~${formatarPrevisao(r.previsao_s)} (regime ${r.regime ?? "?"}).` +
+            (r.substituiu ? ` Substituiu o ticket ${r.substituiu}.` : "") +
+            (escolhido !== undefined ? ` Candidato ${escolhido} escolhido (score ${rev.score}).` : "") +
+            " Acompanhe com status_envio; cancelar_envio cancela. Se o plantão avisar 'Entrega interrompida', releia o chat.",
+        );
+      }
       if (r.cancelado) {
         const enviados = r.enviados ?? 0;
         return ok(
@@ -967,24 +1059,65 @@ server.registerTool(
   "cancelar_envio",
   {
     description:
-      "Interrompe AGORA a entrega humanizada em andamento de um chat: o balão que ainda não saiu não sai; " +
-      "o que já saiu fica. Use na hora, SEM confirmar, quando o operador disser 'cancela'/'para'/'não manda' " +
-      "durante um envio, ou quando o Esc dele não tiver interrompido. Depois chame ler_mensagens no chat " +
-      "pra ver o que chegou a sair antes de reenviar.",
+      "Cancela uma entrega humanizada AGENDADA ou EM ANDAMENTO: o balão que ainda não saiu não sai; " +
+      "o que já saiu fica. Use na hora, SEM confirmar, quando o operador disser 'cancela'/'para'/'não manda'. " +
+      "Por chat (grupo) ou por ticket. Depois chame ler_mensagens no chat pra ver o que chegou a sair antes de reenviar.",
     inputSchema: {
-      grupo: z.string().describe("slug, nome exato ou jid do chat cujo envio deve parar"),
+      grupo: z.string().optional().describe("slug, nome exato ou jid do chat cujo envio deve parar"),
+      ticket: z.string().optional().describe("id do ticket devolvido pelo responder"),
     },
   },
-  async ({ grupo }) => {
+  async ({ grupo, ticket }) => {
     try {
-      const { jid, label } = await resolveDestino(grupo);
-      if (!jid) return fail(`destino não encontrado: ${grupo}`);
-      const r = await dsCancelarEnvio({ jid });
+      if (!grupo && !ticket) return fail("passe grupo ou ticket");
+      let jid: string | undefined;
+      let label = ticket ?? "";
+      if (grupo) {
+        const d = await resolveDestino(grupo);
+        if (!d.jid) return fail(`destino não encontrado: ${grupo}`);
+        jid = d.jid;
+        label = d.label;
+      }
+      const r = await dsCancelarEnvio(ticket ? { ticket } : { jid });
       return ok(
-        { destino: label, jid, cancelado: r.cancelado },
+        { destino: label, jid, cancelado: r.cancelado, ...(r.ticket ? { ticket: r.ticket } : {}), ...(r.enviados !== undefined ? { enviados: r.enviados } : {}) },
         r.cancelado
-          ? `Envio pra "${label}" cancelado — confira com ler_mensagens o que já tinha saído.`
-          : `Nenhum envio em andamento pra "${label}" (já terminou ou nem começou).`,
+          ? `Entrega ${r.ticket ?? ""} pra "${label}" cancelada (${r.enviados ?? 0} balão(ões) já tinham saído) — confira com ler_mensagens.`
+          : `Nenhuma entrega agendada ou em andamento pra "${label}" (já terminou ou nem começou).`,
+      );
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "coletor offline?");
+    }
+  },
+);
+
+server.registerTool(
+  "status_envio",
+  {
+    description:
+      "Estado de uma entrega humanizada: por chat (grupo) ou por ticket. Devolve estado (agendado/entregando/" +
+      "entregue/cancelado/interrompido), motivo, balões enviados/total e previsão.",
+    inputSchema: {
+      grupo: z.string().optional().describe("slug, nome exato ou jid"),
+      ticket: z.string().optional().describe("id do ticket devolvido pelo responder"),
+    },
+  },
+  async ({ grupo, ticket }) => {
+    try {
+      if (!grupo && !ticket) return fail("passe grupo ou ticket");
+      let jid: string | undefined;
+      if (!ticket && grupo) {
+        const d = await resolveDestino(grupo);
+        if (!d.jid) return fail(`destino não encontrado: ${grupo}`);
+        jid = d.jid;
+      }
+      const e = await dsStatusEntrega(ticket ? { ticket } : { jid });
+      if (!e) return ok({ entrega: null }, "Nenhuma entrega registrada pra esse chat/ticket.");
+      return ok(
+        { entrega: e },
+        `Ticket ${e.ticket}: ${e.estado}${e.motivo ? ` (${e.motivo})` : ""}, ${e.enviados}/${e.total} balões` +
+          (e.estado === "agendado" ? `, sai em ${e.entregarEm}` : "") +
+          ".",
       );
     } catch (e) {
       return fail(e instanceof Error ? e.message : "coletor offline?");
@@ -1232,8 +1365,15 @@ server.registerTool(
         .boolean()
         .optional()
         .describe(
-          "liga/desliga typo proposital (raro, ~3%) com correção via edição — humanização; default OFF",
+          "liga/desliga typo proposital (raro, ~3%) corrigido com um balão '*palavra' — humanização; default OFF",
         ),
+      latencia_maxima_s: z
+        .number()
+        .int()
+        .positive()
+        .nullable()
+        .optional()
+        .describe("teto (segundos) da latência humana das entregas desse chat; null = padrão (4 h)"),
       agente: z
         .enum(["off", "issue", "pr"])
         .optional()
@@ -1246,10 +1386,11 @@ server.registerTool(
         .describe("quem executa a issue aprovada; default claude"),
     },
   },
-  async ({ grupo, autonomo, typos, agente, executor }) => {
+  async ({ grupo, autonomo, typos, agente, executor, latencia_maxima_s }) => {
     try {
       if (autonomo !== undefined) await dsSetAutonomo(grupo, autonomo);
       if (typos !== undefined) await dsSetTypos(grupo, typos);
+      if (latencia_maxima_s !== undefined) await dsSetLatenciaMaxima(grupo, latencia_maxima_s);
       if (agente !== undefined) await dsSetAgente(grupo, agente);
       if (executor !== undefined) await dsSetExecutor(grupo, executor);
       const partes: string[] = [];
@@ -1257,8 +1398,9 @@ server.registerTool(
       if (agente !== undefined) partes.push(`agente ${agente}`);
       if (executor !== undefined) partes.push(`executor ${executor}`);
       if (typos !== undefined) partes.push(`typos ${typos ? "on" : "off"}`);
+      if (latencia_maxima_s !== undefined) partes.push(`latência máxima ${latencia_maxima_s === null ? "padrão" : `${latencia_maxima_s} s`}`);
       return ok(
-        { grupo, modo: autonomo === undefined ? undefined : autonomo ? "autonomo" : "confirmar", typos, agente, executor },
+        { grupo, modo: autonomo === undefined ? undefined : autonomo ? "autonomo" : "confirmar", typos, agente, executor, latencia_maxima_s },
         partes.length ? `"${grupo}": ${partes.join(", ")}.` : `"${grupo}": nada alterado.`,
       );
     } catch (e) {
