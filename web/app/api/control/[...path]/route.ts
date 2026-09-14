@@ -13,6 +13,9 @@ export const runtime = "nodejs";
  * Só repassa rotas de leitura/envio simples. `send-media-url` baixa a mídia de
  * uma URL (o `/send-media` cru, que aceita path de arquivo local, NÃO é exposto).
  * `messages/<slug>` lê uma conversa (prefixo, o slug é o último segmento).
+ * `send` com `humano: true` responde 202 com um ticket (a entrega sai depois,
+ * com latência humana); `entregas[/<ticket>]` consulta e `cancelar-envio`
+ * cancela por jid ou ticket.
  */
 const ALLOWED = new Set([
   "health",
@@ -21,6 +24,8 @@ const ALLOWED = new Set([
   "send-media-url",
   "react",
   "edit",
+  "entregas",
+  "cancelar-envio",
 ]);
 
 async function proxy(req: Request, path: string[]): Promise<NextResponse> {
@@ -41,7 +46,8 @@ async function proxy(req: Request, path: string[]): Promise<NextResponse> {
     return NextResponse.json({ error: "rota inválida" }, { status: 400 });
   }
   const isMessages = route.startsWith("messages/") && path.length === 2;
-  if (!ALLOWED.has(route) && !isMessages) {
+  const isEntrega = route.startsWith("entregas/") && path.length === 2;
+  if (!ALLOWED.has(route) && !isMessages && !isEntrega) {
     return NextResponse.json({ error: "rota não permitida" }, { status: 404 });
   }
 

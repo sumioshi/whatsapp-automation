@@ -129,3 +129,14 @@ describe('setAgente / setExecutor', () => {
     expect(t.executor).toEqual({});
   });
 });
+
+describe('setLatenciaMaxima', () => {
+  it('grava segundos inteiros; null ou 0 remove; leitura ignora lixo', async () => {
+    await mod.setLatenciaMaxima('dm-9', 900.4);
+    expect((await mod.readTriage()).latenciaMaxima).toEqual({ 'dm-9': 900 });
+    await mod.setLatenciaMaxima('dm-9', null);
+    expect((await mod.readTriage()).latenciaMaxima['dm-9']).toBeUndefined();
+    await writeFile(TRIAGE(), JSON.stringify({ latenciaMaxima: { a: -1, b: 'x', c: 30 } }));
+    expect((await mod.readTriage()).latenciaMaxima).toEqual({ c: 30 });
+  });
+});

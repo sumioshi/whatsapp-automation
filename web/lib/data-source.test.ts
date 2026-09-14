@@ -267,7 +267,7 @@ describe('cancelamento de envio', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ ok: true, cancelado: true }), { status: 200 }));
     const { dsCancelarEnvio } = await import('./data-source');
-    expect(await dsCancelarEnvio('x@g.us')).toEqual({ cancelado: true });
+    expect(await dsCancelarEnvio({ jid: 'x@g.us' })).toEqual({ cancelado: true });
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://nuvem.exemplo/api/cancelar-envio',
       expect.objectContaining({ method: 'POST', body: JSON.stringify({ jid: 'x@g.us' }) }),
@@ -281,7 +281,7 @@ describe('cancelamento de envio', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ ok: true, cancelado: false }), { status: 200 }));
     const { dsCancelarEnvio } = await import('./data-source');
-    expect(await dsCancelarEnvio('x@g.us')).toEqual({ cancelado: false });
+    expect(await dsCancelarEnvio({ jid: 'x@g.us' })).toEqual({ cancelado: false });
     expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/127\.0\.0\.1:\d+\/cancelar-envio$/);
   });
 });
@@ -299,5 +299,52 @@ describe('balões explícitos', () => {
     await dsSend('x@g.us', 'a\n\nb', { humano: true, baloes: ['a', 'b'] });
     const init = fetchSpy.mock.calls[0]?.[1] as { body: string };
     expect(JSON.parse(init.body)).toMatchObject({ baloes: ['a', 'b'] });
+  });
+});
+
+describe('ticket de entrega', () => {
+  it('REMOTO: dsSend devolve o ticket do 202 e repassa urgencia/citar/aguardar', async () => {
+    vi.stubEnv('WAC_MCP_REMOTE', '1');
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    vi.stubEnv('WAC_CLOUD_USER', 'u');
+    vi.stubEnv('WAC_CLOUD_PASS', 'p');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, ticket: 'abc', previsao_s: 42, estado: 'agendado', regime: 'ativa' }), {
+        status: 202,
+      }),
+    );
+    const { dsSend } = await import('./data-source');
+    const r = await dsSend('x@g.us', 'oi', { humano: true, urgencia: 'calma', citar: 'M1', decorrido_s: 3 });
+    expect(r).toEqual({ cancelado: false, ticket: 'abc', previsao_s: 42, estado: 'agendado', regime: 'ativa' });
+    const body = JSON.parse((fetchSpy.mock.calls[0]?.[1] as { body: string }).body) as Record<string, unknown>;
+    expect(body).toMatchObject({ urgencia: 'calma', citar: 'M1', decorrido_s: 3 });
+  });
+
+  it('REMOTO: dsStatusEntrega consulta /api/entregas por ticket; 404 vira null', async () => {
+    vi.stubEnv('WAC_MCP_REMOTE', '1');
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    vi.stubEnv('WAC_CLOUD_USER', 'u');
+    vi.stubEnv('WAC_CLOUD_PASS', 'p');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, entrega: { ticket: 'abc', estado: 'entregue' } }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'ticket não encontrado' }), { status: 404 }));
+    const { dsStatusEntrega } = await import('./data-source');
+    expect(await dsStatusEntrega({ ticket: 'abc' })).toMatchObject({ ticket: 'abc', estado: 'entregue' });
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe('https://nuvem.exemplo/api/entregas?ticket=abc');
+    expect(await dsStatusEntrega({ ticket: 'nope' })).toBeNull();
+  });
+
+  it('LOCAL: dsStatusEntrega por jid bate no control server', async () => {
+    vi.stubEnv('WAC_MCP_REMOTE', '');
+    vi.stubEnv('WAC_CLOUD_URL', '');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true, entrega: null }), { status: 200 }));
+    const { dsStatusEntrega } = await import('./data-source');
+    expect(await dsStatusEntrega({ jid: 'x@g.us' })).toBeNull();
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/127\.0\.0\.1:\d+\/entregas\?jid=x%40g\.us$/);
   });
 });

@@ -979,7 +979,7 @@ server.registerTool(
     try {
       const { jid, label } = await resolveDestino(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
-      const r = await dsCancelarEnvio(jid);
+      const r = await dsCancelarEnvio({ jid });
       return ok(
         { destino: label, jid, cancelado: r.cancelado },
         r.cancelado

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readTriage, setAlert, setAutonomo, setCopilot, setLastSeen, setMuted, setNote, setResolved, setTypos, setEtiquetas, setAgente, setExecutor } from "@/lib/triage";
+import { readTriage, setAlert, setAutonomo, setCopilot, setLastSeen, setMuted, setNote, setResolved, setTypos, setEtiquetas, setAgente, setExecutor, setLatenciaMaxima } from "@/lib/triage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,9 +9,9 @@ export async function GET() {
 }
 
 interface TriagePost {
-  action?: "resolved" | "muted" | "note" | "lastSeen" | "copilot" | "alertar" | "autonomo" | "typos" | "etiquetas" | "agente" | "executor";
+  action?: "resolved" | "muted" | "note" | "lastSeen" | "copilot" | "alertar" | "autonomo" | "typos" | "etiquetas" | "agente" | "executor" | "latenciaMaxima";
   slug?: string;
-  value?: string | boolean;
+  value?: string | boolean | number | null;
 }
 
 export async function POST(req: Request) {
@@ -69,6 +69,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "value deve ser boolean" }, { status: 400 });
       }
       await setAutonomo(slug, value);
+      break;
+    case "latenciaMaxima":
+      if (value !== null && (typeof value !== "number" || !(value > 0))) {
+        return NextResponse.json({ error: "value deve ser número > 0 ou null" }, { status: 400 });
+      }
+      await setLatenciaMaxima(slug, value);
       break;
     case "typos":
       if (typeof value !== "boolean") {

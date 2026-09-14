@@ -12,6 +12,12 @@ interface Body {
   umBalao?: boolean;
   /** Balões explícitos (um item = um balão); `text` vira opcional. */
   baloes?: string[];
+  urgencia?: "agora" | "normal" | "calma";
+  citar?: string;
+  /** true = segura até a entrega terminar (formato v1); default = 202 com ticket. */
+  aguardar?: boolean;
+  decorrido_s?: number;
+  latenciaMaxima_s?: number;
 }
 
 export async function POST(req: Request) {
@@ -42,30 +48,25 @@ export async function POST(req: Request) {
         typos: body.typos === true,
         umBalao: body.umBalao === true,
         ...(baloes.length ? { baloes } : {}),
+        ...(body.urgencia ? { urgencia: body.urgencia } : {}),
+        ...(body.citar ? { citar: body.citar } : {}),
+        ...(body.aguardar === true ? { aguardar: true } : {}),
+        ...(typeof body.decorrido_s === "number" ? { decorrido_s: body.decorrido_s } : {}),
+        ...(typeof body.latenciaMaxima_s === "number" ? { latenciaMaxima_s: body.latenciaMaxima_s } : {}),
       }),
       // Cliente que desconecta (Esc no agente) derruba esta chamada, e o control
       // server cancela a entrega entre passos.
       signal: req.signal,
     });
-    const data = (await res.json()) as {
-      ok?: boolean;
-      error?: string;
-      baloes?: number;
-      enviados?: number;
-      cancelado?: boolean;
-    };
+    const data = (await res.json()) as Record<string, unknown> & { ok?: boolean; error?: string };
     if (!res.ok || !data.ok) {
       return NextResponse.json(
         { error: data.error ?? "falha no envio" },
         { status: res.status || 502 },
       );
     }
-    return NextResponse.json({
-      ok: true,
-      baloes: data.baloes,
-      enviados: data.enviados,
-      ...(data.cancelado ? { cancelado: true } : {}),
-    });
+    // 202 = ticket agendado (entrega humanizada assíncrona); 200 = síncrono/aguardar.
+    return NextResponse.json(data, { status: res.status });
   } catch (err) {
     if (req.signal.aborted || (err instanceof Error && err.name === "AbortError")) {
       return NextResponse.json({ ok: false, cancelado: true }, { status: 499 });

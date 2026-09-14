@@ -25,10 +25,11 @@ export interface TriageState {
   etiquetas: Record<string, string[]>; // slug -> etiquetas do chat (empresa/contrato/pessoal)
   agente: Record<string, AgenteModo>; // slug -> modo do agente de triagem (ausente = off)
   executor: Record<string, AgenteExecutor>; // slug -> executor da issue (ausente = claude)
+  latenciaMaxima: Record<string, number>; // slug -> teto (s) da latência humana da entrega (ausente = padrão)
 }
 
 function emptyState(): TriageState {
-  return { resolved: {}, muted: {}, notes: {}, lastSeen: {}, copilot: {}, alertar: {}, autonomo: {}, typos: {}, memorySources: {}, etiquetas: {}, agente: {}, executor: {} };
+  return { resolved: {}, muted: {}, notes: {}, lastSeen: {}, copilot: {}, alertar: {}, autonomo: {}, typos: {}, memorySources: {}, etiquetas: {}, agente: {}, executor: {}, latenciaMaxima: {} };
 }
 
 /** Normaliza um objeto cru em Record<string, T>, descartando entradas do tipo errado. */
@@ -45,6 +46,7 @@ function pick<T>(raw: unknown, ok: (v: unknown) => v is T): Record<string, T> {
 const isString = (v: unknown): v is string => typeof v === 'string';
 const isBool = (v: unknown): v is boolean => typeof v === 'boolean';
 const isTrue = (v: unknown): v is true => v === true;
+const isPositivo = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
 const isAgenteModo = (v: unknown): v is AgenteModo => v === 'issue' || v === 'pr';
 const isExecutor = (v: unknown): v is AgenteExecutor => v === 'copilot';
 const isStringArray = (v: unknown): v is string[] =>
@@ -78,6 +80,7 @@ export async function readTriage(): Promise<TriageState> {
       etiquetas: pickArrays(parsed.etiquetas),
       agente: pick(parsed.agente, isAgenteModo),
       executor: pick(parsed.executor, isExecutor),
+      latenciaMaxima: pick(parsed.latenciaMaxima, isPositivo),
     };
   } catch {
     return emptyState();
@@ -140,6 +143,15 @@ export async function setTypos(slug: string, enabled: boolean): Promise<void> {
   const state = await readTriage();
   if (enabled) state.typos[key] = true;
   else delete state.typos[key];
+  await writeJsonAtomic(TRIAGE_FILE, state);
+}
+
+/** Teto (segundos) da latência humana das entregas do chat; null volta ao padrão. */
+export async function setLatenciaMaxima(slug: string, segundos: number | null): Promise<void> {
+  const key = slugify(slug);
+  const state = await readTriage();
+  if (segundos && segundos > 0) state.latenciaMaxima[key] = Math.round(segundos);
+  else delete state.latenciaMaxima[key];
   await writeJsonAtomic(TRIAGE_FILE, state);
 }
 

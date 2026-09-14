@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { cloudJson, cloudPost, cloudPostForm, mcpRemote } from './cloud';
+import { cloudFetch, cloudJson, cloudPost, cloudPostForm, mcpRemote } from './cloud';
 import type { Contacts } from './contacts';
 import { buildContacts } from './contacts';
 import type { GroupEntry } from './config';
@@ -8,7 +8,7 @@ import { readGroupsConfig } from './config';
 import type { GroupSummary, MessageView } from './data';
 import { listGroups, readGroupMessages } from './data';
 import type { AgenteExecutor, AgenteModo, TriageState } from './triage';
-import { readTriage, setAlert, setAutonomo, setMuted, setNote, setResolved, setTypos, setEtiquetas, setAgente, setExecutor } from './triage';
+import { readTriage, setAlert, setAutonomo, setMuted, setNote, setResolved, setTypos, setEtiquetas, setAgente, setExecutor, setLatenciaMaxima } from './triage';
 import { readAgentSeen, setAgentSeenMany } from './agent-seen';
 import type { Contrato } from './contratos';
 import { readContratos, setContrato } from './contratos';
@@ -104,6 +104,10 @@ export async function dsSetTypos(slug: string, value: boolean): Promise<void> {
   if (mcpRemote()) { await cloudPost('/api/triage', { action: 'typos', slug, value }); return; }
   return setTypos(slug, value);
 }
+export async function dsSetLatenciaMaxima(slug: string, value: number | null): Promise<void> {
+  if (mcpRemote()) { await cloudPost('/api/triage', { action: 'latenciaMaxima', slug, value }); return; }
+  return setLatenciaMaxima(slug, value);
+}
 export async function dsSetAgente(slug: string, value: AgenteModo): Promise<void> {
   if (mcpRemote()) { await cloudPost('/api/triage', { action: 'agente', slug, value }); return; }
   return setAgente(slug, value);
@@ -129,15 +133,49 @@ export interface SendOpts {
   umBalao?: boolean;
   /** Balões explícitos (um item = um balão, na ordem) — quem chama já decidiu a quebra. */
   baloes?: string[];
+  urgencia?: 'agora' | 'normal' | 'calma';
+  /** id de mensagem recebida a citar no 1º balão. */
+  citar?: string;
+  /** true = segura até a entrega terminar (formato v1). Default: ticket na hora. */
+  aguardar?: boolean;
+  /** Segundos que o agente já gastou desde que leu o chat (desconta da latência). */
+  decorrido_s?: number;
+  latenciaMaxima_s?: number;
 }
 
-/** Envio de texto: remoto via /api/send; local direto no control server. */
-/** Resultado de um envio: `cancelado` quando a entrega foi interrompida (Esc /
- *  cancelar_envio) — `enviados` diz quantos balões saíram antes; `baloes` é o total planejado. */
+/**
+ * Resultado de um envio humanizado. Por padrão vem um `ticket` (entrega
+ * agendada, sai com latência humana); com `aguardar` vem o resultado final:
+ * `cancelado` quando a entrega foi interrompida, `enviados` diz quantos
+ * balões saíram, `baloes` é o total planejado.
+ */
 export interface SendResult {
+  ticket?: string;
+  previsao_s?: number;
+  estado?: string;
+  entregarEm?: string;
+  regime?: string;
+  substituiu?: string;
   cancelado: boolean;
   enviados?: number;
   baloes?: number;
+  motivo?: string;
+}
+
+export interface EntregaResumo {
+  ticket: string;
+  jid: string;
+  slug: string;
+  estado: string;
+  motivo: string | null;
+  enviados: number;
+  total: number;
+  previsao_s: number;
+  entregarEm: string;
+  lerEm: string;
+  regime: string;
+  mensagensNovas: number;
+  origem: string;
 }
 
 export interface SendExtra {
@@ -163,29 +201,67 @@ export async function dsSend(
       signal: extra.signal,
     });
   }
-  const data = (await res.json()) as {
-    ok?: boolean;
-    error?: string;
-    cancelado?: boolean;
-    enviados?: number;
-    baloes?: number;
-  };
+  const data = (await res.json()) as Record<string, unknown> & { ok?: boolean; error?: string };
   if (!res.ok || !data.ok) throw new Error(data.error ?? 'falha no envio');
-  return { cancelado: data.cancelado === true, enviados: data.enviados, baloes: data.baloes };
+  const str = (k: string) => (typeof data[k] === 'string' ? { [k]: data[k] as string } : {});
+  const num = (k: string) => (typeof data[k] === 'number' ? { [k]: data[k] as number } : {});
+  return {
+    cancelado: data.cancelado === true,
+    ...str('ticket'),
+    ...num('previsao_s'),
+    ...str('estado'),
+    ...str('entregarEm'),
+    ...str('regime'),
+    ...str('substituiu'),
+    ...num('enviados'),
+    ...num('baloes'),
+    ...str('motivo'),
+  };
 }
 
-/** Cancela a entrega humanizada em andamento de um chat (o que já saiu fica). */
-export async function dsCancelarEnvio(jid: string): Promise<{ cancelado: boolean }> {
+/** Estado de uma entrega humanizada por ticket ou por chat (null = nenhuma registrada). */
+export async function dsStatusEntrega(ref: { jid?: string; ticket?: string }): Promise<EntregaResumo | null> {
+  const q = ref.ticket ? `ticket=${encodeURIComponent(ref.ticket)}` : `jid=${encodeURIComponent(ref.jid ?? '')}`;
+  let res: Response;
+  if (mcpRemote()) {
+    try {
+      res = await cloudFetch(`/api/entregas?${q}`);
+    } catch (e) {
+      // cloudFetch lança em qualquer status ≠ 2xx; 404 aqui é "ticket desconhecido".
+      if (e instanceof Error && /HTTP 404/.test(e.message)) return null;
+      throw e;
+    }
+  } else {
+    res = await fetch(
+      ref.ticket
+        ? `${CONTROL_URL}/entregas/${encodeURIComponent(ref.ticket)}`
+        : `${CONTROL_URL}/entregas?jid=${encodeURIComponent(ref.jid ?? '')}`,
+    );
+  }
+  if (res.status === 404) return null;
+  const data = (await res.json()) as { ok?: boolean; error?: string; entrega?: EntregaResumo | null };
+  if (!res.ok || !data.ok) throw new Error(data.error ?? 'falha ao consultar entrega');
+  return data.entrega ?? null;
+}
+
+/** Cancela a entrega humanizada agendada ou em andamento (o que já saiu fica). */
+export async function dsCancelarEnvio(
+  ref: { jid?: string; ticket?: string },
+): Promise<{ cancelado: boolean; ticket?: string; enviados?: number }> {
   const res = mcpRemote()
-    ? await cloudPost('/api/cancelar-envio', { jid })
+    ? await cloudPost('/api/cancelar-envio', ref)
     : await fetch(`${CONTROL_URL}/cancelar-envio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jid }),
+        body: JSON.stringify(ref),
       });
-  const data = (await res.json()) as { ok?: boolean; error?: string; cancelado?: boolean };
+  const data = (await res.json()) as { ok?: boolean; error?: string; cancelado?: boolean; ticket?: string; enviados?: number };
   if (!res.ok || !data.ok) throw new Error(data.error ?? 'falha ao cancelar');
-  return { cancelado: data.cancelado === true };
+  return {
+    cancelado: data.cancelado === true,
+    ...(data.ticket ? { ticket: data.ticket } : {}),
+    ...(typeof data.enviados === 'number' ? { enviados: data.enviados } : {}),
+  };
 }
 
 /** Edita mensagem PRÓPRIA já enviada. */
