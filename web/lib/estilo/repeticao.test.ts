@@ -1,0 +1,87 @@
+import { describe, expect, it } from "vitest";
+import { BASELINE_PADRAO } from "./baseline";
+import { assinaturaEsqueleto, scoreRepeticao, zBinomial } from "./repeticao";
+
+const base = { baseline: BASELINE_PADRAO, ultimasDoCliente: [] as string[] };
+const regras = (r: { hits: { regra: string }[] }) => r.hits.map((h) => h.regra);
+
+describe("abertura", () => {
+  it("tolera 2 e marca a partir da 3ª na janela", () => {
+    const duas = scoreRepeticao({ ...base, baloes: ["opa, subi"], ultimasMinhas: ["opa, vi", "beleza", "vou olhar", "fechou", "amanhã sai"] });
+    expect(regras(duas)).not.toContain("abertura");
+    const tres = scoreRepeticao({ ...base, baloes: ["opa, subi"], ultimasMinhas: ["opa, vi", "opa, beleza", "vou olhar", "fechou", "amanhã sai"] });
+    expect(regras(tres)).toContain("abertura");
+    expect(tres.hits.find((h) => h.regra === "abertura")?.peso).toBe(2);
+    const quatro = scoreRepeticao({ ...base, baloes: ["opa, subi"], ultimasMinhas: ["opa, vi", "opa, beleza", "opa, olha", "fechou", "amanhã sai"] });
+    expect(quatro.hits.find((h) => h.regra === "abertura")?.peso).toBe(3);
+  });
+});
+
+describe("palavra", () => {
+  it("marca palavra minha repetida e isenta vocabulário do cliente", () => {
+    const r = scoreRepeticao({ ...base, baloes: ["ajustei o filtro"], ultimasMinhas: ["ajustei o painel", "ajustei a conta", "subi", "ok", "vou ver"] });
+    expect(regras(r)).toContain("palavra");
+    const isento = scoreRepeticao({ ...base, baloes: ["o relatório saiu"], ultimasMinhas: ["o relatório tá quase", "relatório amanhã", "ok", "vou ver", "subi"], ultimasDoCliente: ["e o relatório?"] });
+    expect(regras(isento)).not.toContain("palavra");
+  });
+  it("peso 2 quando aparece em 3+ das últimas (nunca bloqueia sozinha)", () => {
+    const r = scoreRepeticao({ ...base, baloes: ["ajustei o filtro"], ultimasMinhas: ["ajustei o painel", "ajustei a conta", "ajustei o total", "ok", "vou ver"] });
+    expect(r.hits.find((h) => h.regra === "palavra")?.peso).toBe(2);
+  });
+});
+
+describe("parafrase", () => {
+  it("metade dos bigramas já vistos numa msg anterior", () => {
+    const r = scoreRepeticao({ ...base, baloes: ["subi tudo no ar, pode testar de novo quando puder"], ultimasMinhas: ["subi tudo no ar, pode testar de novo quando der", "ok", "boa", "vou ver", "fechou"] });
+    expect(regras(r)).toContain("parafrase");
+  });
+  it("ignora rascunho curto", () => {
+    const r = scoreRepeticao({ ...base, baloes: ["subi tudo"], ultimasMinhas: ["subi tudo", "ok", "boa", "vou ver", "fechou"] });
+    expect(regras(r)).not.toContain("parafrase");
+  });
+});
+
+describe("feature vs baseline", () => {
+  it("z-score binomial", () => {
+    expect(zBinomial(3, 6, 0.039)).toBeGreaterThan(3);
+    expect(zBinomial(0, 6, 0.039)).toBeLessThan(0);
+  });
+  it("dois-pontos em 3 de 6 vira hit; 1 de 6 não", () => {
+    const r = scoreRepeticao({ ...base, baloes: ["A segunda: alinhei"], ultimasMinhas: ["A primeira: corrigi", "Assim: fica", "ok", "boa", "vou ver"] });
+    expect(regras(r)).toContain("dois_pontos_intro");
+    const um = scoreRepeticao({ ...base, baloes: ["A segunda: alinhei"], ultimasMinhas: ["corrigi", "fica", "ok", "boa", "vou ver"] });
+    expect(regras(um)).not.toContain("dois_pontos_intro");
+  });
+  it("pergunta e emoji nunca viram hit", () => {
+    const r = scoreRepeticao({ ...base, baloes: ["pode ser? 👍"], ultimasMinhas: ["pode? 👍", "vai? 👍", "ok? 👍", "boa? 👍", "sim? 👍"] });
+    expect(regras(r)).not.toContain("pergunta");
+    expect(regras(r)).not.toContain("emoji");
+  });
+});
+
+describe("ritmo, esqueleto, saudação, resposta redonda", () => {
+  it("ritmo: todas com o mesmo tamanho", () => {
+    const iguais = Array(5).fill("subi o ajuste do painel hoje cedo");
+    const r = scoreRepeticao({ ...base, baloes: ["subi o ajuste do filtro hoje cedo"], ultimasMinhas: iguais });
+    expect(regras(r)).toContain("ritmo");
+  });
+  it("esqueleto: mesma assinatura em 3 seguidas", () => {
+    expect(assinaturaEsqueleto("Subi o ajuste. Pode testar?")).toBe(assinaturaEsqueleto("Corrigi o total. Consegue olhar?"));
+    const r = scoreRepeticao({ ...base, baloes: ["Alinhei a coluna. Dá pra conferir?"], ultimasMinhas: ["ok", "boa", "vou ver", "Subi o ajuste. Pode testar?", "Corrigi o total. Consegue olhar?"] });
+    expect(regras(r)).toContain("esqueleto");
+  });
+  it("saudação com menos de 1 h desde a minha última", () => {
+    const r = scoreRepeticao({ ...base, baloes: ["opa, subi"], ultimasMinhas: ["vou ver"], intervaloDesdeMinhaUltima_s: 600 });
+    expect(regras(r)).toContain("saudacao");
+    const fria = scoreRepeticao({ ...base, baloes: ["opa, subi"], ultimasMinhas: ["vou ver"], intervaloDesdeMinhaUltima_s: 90_000 });
+    expect(regras(fria)).not.toContain("saudacao");
+  });
+  it("resposta redonda: longa, sem pergunta, validação na abertura", () => {
+    const longo = "Ótimo ponto, fiz a conferência geral e encontrei três itens que já foram corrigidos e conferidos um por um no painel";
+    const r = scoreRepeticao({ ...base, baloes: [longo, `${longo} de novo`], ultimasMinhas: [] });
+    expect(regras(r)).toContain("resposta_redonda");
+  });
+  it("janela vazia e rascunho limpo dão score 0", () => {
+    expect(scoreRepeticao({ ...base, baloes: ["subi, pode testar?"], ultimasMinhas: [] }).score).toBe(0);
+  });
+});
