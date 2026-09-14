@@ -26,7 +26,6 @@ import { z } from "zod";
 // arquivo roda sob tsx (fora do Next), que não resolve os paths do tsconfig —
 // o alias passa no tsc e no next build e só quebra na hora de subir o MCP.
 import { compact } from "../lib/context";
-import { avisoDeTratamento, tratamentoErrado } from "../lib/voz-guard";
 import { type MessageView } from "../lib/data";
 import { ensureLocalMedia } from "../lib/cloud-media";
 import { extractDocumentText } from "../lib/documents";
@@ -41,7 +40,7 @@ import { ultimaMidiaPath } from "../lib/ultima-midia";
 import { selectNew } from "../lib/novidades";
 import { baselineDoChat, carregarBaselinePadrao, contextoDeEscrita, type ContextoEscrita } from "../lib/estilo/contexto";
 import { resumirEstilo } from "../lib/estilo/resumo";
-import { revisar } from "../lib/estilo/revisar";
+import { revisar, type Revisao } from "../lib/estilo/revisar";
 import { escolherCandidato } from "../lib/estilo/escolher";
 import { registrarRevisao } from "../lib/estilo/registro";
 import {
@@ -175,10 +174,13 @@ const INSTRUCTIONS = [
   "que o operador não quer que o cliente receba. Se ainda estiver com placeholders,",
   "ou não existir aqui, siga com cuidado normal e avise o operador.",
   "",
-  "Depois dela, `comunicacao-cliente` (conduta com cliente) quando o destinatário",
-  "for cliente ou parceiro. E `humanizer` quando o texto for LONGO (proposta,",
-  "changelog, update em parágrafos) — ela trabalha em prosa; num balão de conversa",
-  "não agrega e a skill de voz já cobre os tells.",
+  "Depois dela, `comunicacao-cliente` (conduta com cliente). `humanizer` só em texto",
+  "LONGO (proposta, changelog); num balão de conversa não agrega.",
+  "",
+  "ANTES DE REDIGIR: preparar_resposta(grupo) — devolve o que a conta já usou nas",
+  "últimas msgs do chat e o que o cliente deixou em aberto. O responder REVISA o",
+  "texto (repetição, dois-pontos, culpa, desculpa) e RECUSA o que estourar, com o",
+  "que trocar; mande 2-3 `candidatos` e o código escolhe o que menos destoa.",
   "",
   "MODO POR CHAT: cada chat tem um modo (estado_triagem / definir_modo). No modo",
   "'confirmar' (o default) MOSTRE o texto e espere o OK do operador antes de chamar",
@@ -754,7 +756,10 @@ server.registerTool(
       "'manda numa mensagem só'. Quando VOCÊ já decidiu a quebra (4, 5 balões…), passe `baloes` " +
       "(lista, um item = um balão, até 8) em UMA chamada — NUNCA chame responder várias vezes pra " +
       "simular balões: cada chamada é uma entrega separada com visto/digitando. Conversa curta e " +
-      "informal fica melhor em balões.",
+      "informal fica melhor em balões. " +
+      "REVISÃO: antes de enviar, o texto passa por revisão (repetição contra as últimas mensagens do chat, " +
+      "dois-pontos e tells, auto-incriminação, desculpa). Recusa devolve hits e sugestões; reescreva e " +
+      "chame de novo. Chame preparar_resposta ANTES de redigir.",
     inputSchema: {
       grupo: z
         .string()
@@ -779,24 +784,92 @@ server.registerTool(
           "true = envia o texto INTEIRO num único balão (sem fatiar), mantendo a entrega " +
             "humanizada (visto/digitando). Default false = quebra em até 3 balões.",
         ),
+      candidatos: z
+        .array(z.array(z.string().min(1)).min(1).max(8))
+        .min(2)
+        .max(3)
+        .optional()
+        .describe(
+          "2 ou 3 versões alternativas da MESMA resposta (cada uma = lista de balões). O código revisa todas e " +
+            "envia só a que menos destoa do operador. Exclusivo com texto/baloes. Use quando a mensagem " +
+            "for mais que um 'ok'.",
+        ),
+      revisao: z
+        .enum(["ignorar"])
+        .optional()
+        .describe(
+          "'ignorar' pula APENAS o score de estilo (nunca bloqueios de tratamento/culpa). Só quando o operador " +
+            "aprovou o texto exatamente assim e a revisão recusou.",
+        ),
     },
   },
-  async ({ grupo, texto: textoArg, baloes, um_balao }, extra) => {
+  async ({ grupo, texto: textoArg, baloes, um_balao, candidatos, revisao }, extra) => {
     try {
-      const lista = (baloes ?? []).map((b) => b.trim()).filter(Boolean);
-      const texto = lista.length ? lista.join("\n\n") : (textoArg ?? "").trim();
-      if (!texto) return fail("passe `texto` ou `baloes` (lista de balões)");
-      // Trava de tratamento: "tu" não é dele, e a automação já vazou isso em
-      // 30 chats. Recusar aqui é mais barato que corrigir depois no chat.
-      const pronomes = tratamentoErrado(texto);
-      if (pronomes.length) return fail(avisoDeTratamento(pronomes));
-      const destino = await resolveDestino(grupo);
-      const { jid, label } = destino;
+      const listaBase = (baloes ?? []).map((b) => b.trim()).filter(Boolean);
+      const textoBase = listaBase.length ? listaBase.join("\n\n") : (textoArg ?? "").trim();
+      if (!candidatos && !textoBase) return fail("passe `texto`, `baloes` ou `candidatos`");
+      if (candidatos && textoBase) return fail("`candidatos` é exclusivo com `texto`/`baloes`");
+
+      const { slug, label, jid, ctx, modo } = await contextoDoChat(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
+      const ignorarScore = revisao === "ignorar";
+
+      let lista = listaBase;
+      let texto = textoBase;
+      let rev: Revisao | undefined;
+      let escolhido: number | undefined;
+      let descartados: Array<{ indice: number; score: number; sugestao?: string }> | undefined;
+
+      if (candidatos) {
+        const cands = candidatos.map((c) => c.map((b) => b.trim()).filter(Boolean)).filter((c) => c.length);
+        const r = escolherCandidato(cands, { ...ctx, ignorarScore });
+        if (r.indice < 0) {
+          void registrarRevisao(DATA_DIR, {
+            ts: new Date().toISOString(),
+            slug,
+            tool: "responder",
+            score: Math.min(...r.todas.map((t) => t.score)),
+            hits: [],
+            bloqueios: r.todas.flatMap((t) => t.bloqueios.map((b) => b.regra)),
+            enviado: false,
+            candidatos: cands.length,
+          });
+          return fail(
+            `nenhum candidato passou; nada foi enviado. ${r.todas.map((t, i) => `[${i}] ${t.resumo}`).join(" | ")}. ` +
+              `Sugestões: ${[...new Set(r.todas.flatMap((t) => t.sugestoes))].join("; ")}. Reescreva e chame de novo.`,
+          );
+        }
+        escolhido = r.indice;
+        rev = r.revisao!;
+        lista = cands[r.indice]!;
+        texto = lista.join("\n\n");
+        descartados = r.todas
+          .map((t, i) => ({ indice: i, score: t.score, sugestao: t.sugestoes[0] }))
+          .filter((d) => d.indice !== r.indice);
+      } else {
+        const baloesRascunho = lista.length ? lista : [texto];
+        rev = revisar({ ...ctx, baloes: baloesRascunho, ignorarScore });
+        if (!rev.ok) {
+          void registrarRevisao(DATA_DIR, {
+            ts: new Date().toISOString(),
+            slug,
+            tool: "responder",
+            score: rev.score,
+            hits: rev.hits.map((h) => h.regra),
+            bloqueios: rev.bloqueios.map((b) => b.regra),
+            enviado: false,
+          });
+          return fail(
+            `revisão recusou (${rev.resumo}); nada foi enviado. ` +
+              `${[...rev.bloqueios, ...rev.hits].map((h) => `${h.regra}: ${h.motivo}`).join(" | ")}. ` +
+              `Sugestões: ${rev.sugestoes.join("; ")}. Reescreva seguindo as sugestões e chame de novo.`,
+          );
+        }
+      }
+
+      if (!rev) return fail("revisão não produzida");
+
       const t = await dsTriage();
-      // Slug canônico do destino — modo/typos/perfil ficam no diretório certo
-      // mesmo quando o agente passa o nome novo de um grupo renomeado.
-      const slug = destino.slug ?? slugify(grupo);
       // extra.signal aborta quando o cliente cancela a tool (Esc do operador):
       // viaja até o coletor, que segura o próximo balão.
       const r = await dsSend(
@@ -811,16 +884,35 @@ server.registerTool(
         },
         { signal: extra.signal },
       );
-      const modo = t.autonomo[slug] === true ? "autonomo" : "confirmar";
+      void registrarRevisao(DATA_DIR, {
+        ts: new Date().toISOString(),
+        slug,
+        tool: "responder",
+        score: rev.score,
+        hits: rev.hits.map((h) => h.regra),
+        bloqueios: [],
+        enviado: !r.cancelado,
+        ...(candidatos ? { candidatos: candidatos.length, escolhido } : {}),
+      });
+      const campos = {
+        destino: label,
+        jid,
+        modo,
+        baloes: r.baloes,
+        revisao: { score: rev.score, hits: rev.hits.map((h) => h.regra) },
+        ...(escolhido !== undefined ? { escolhido, descartados } : {}),
+      };
       if (r.cancelado) {
         const enviados = r.enviados ?? 0;
         return ok(
-          { destino: label, jid, modo, cancelado: true, enviados, baloes: r.baloes },
-          `Envio CANCELADO: ${enviados} de ${r.baloes ?? "?"} balões saíram antes. ` +
-            "Confira com ler_mensagens o que chegou no chat antes de reenviar.",
+          { ...campos, cancelado: true, enviados },
+          `Envio CANCELADO: ${enviados} de ${r.baloes ?? "?"} balões saíram antes. Confira com ler_mensagens o que chegou no chat antes de reenviar.`,
         );
       }
-      return ok({ destino: label, jid, modo, baloes: r.baloes }, `Mensagem enviada para "${label}".`);
+      return ok(
+        campos,
+        `Mensagem enviada para "${label}".${escolhido !== undefined ? ` Candidato ${escolhido} escolhido (score ${rev.score}).` : ""}`,
+      );
     } catch (e) {
       return fail(e instanceof Error ? e.message : "coletor offline?");
     }
@@ -844,9 +936,10 @@ server.registerTool(
     },
   },
   async ({ grupo, kind, path, caption, fileName, mimetype }, extra) => {
-    if (caption) {
-      const pronomes = tratamentoErrado(caption);
-      if (pronomes.length) return fail(avisoDeTratamento(pronomes));
+    if (caption?.trim()) {
+      const { ctx } = await contextoDoChat(grupo);
+      const rev = revisar({ ...ctx, baloes: [caption.trim()] });
+      if (!rev.ok) return fail(`revisão recusou a legenda (${rev.resumo}); nada foi enviado. Sugestões: ${rev.sugestoes.join("; ")}.`);
     }
     try {
       const { jid, label } = await resolveDestino(grupo);
@@ -909,8 +1002,9 @@ server.registerTool(
     },
   },
   async ({ grupo, msgId, texto }) => {
-    const pronomes = tratamentoErrado(texto);
-    if (pronomes.length) return fail(avisoDeTratamento(pronomes));
+    const { ctx } = await contextoDoChat(grupo);
+    const rev = revisar({ ...ctx, baloes: [texto.trim()] });
+    if (!rev.ok) return fail(`revisão recusou (${rev.resumo}); nada foi editado. Sugestões: ${rev.sugestoes.join("; ")}.`);
     try {
       const { jid, label } = await resolveDestino(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
