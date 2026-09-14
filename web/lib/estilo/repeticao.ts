@@ -76,7 +76,7 @@ export function scoreRepeticao(e: EntradaRepeticao): { score: number; hits: Hit[
       const bm = bigramas(m);
       if (bm.size < 5) continue;
       const inter = [...bd].filter((x) => bm.has(x)).length / bd.size;
-      if (inter >= 0.5) {
+      if (inter >= 0.7) {
         hits.push({ regra: "parafrase", peso: 3, motivo: `${Math.round(inter * 100)}% dos pares de palavras já estavam numa mensagem anterior`, sugestao: "diz só o que é novo, ou reage em vez de repetir" });
         break;
       }
