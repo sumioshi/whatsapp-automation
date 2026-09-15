@@ -214,6 +214,8 @@ export class BaileysGateway implements WhatsAppGateway {
   private readonly recebidasRecentes = new Map<string, WAMessage[]>();
   /** Intervalo de renovação do "digitando…" (o WhatsApp expira o indicador em ~10 s). */
   private renovarComposingMs = 8000;
+  /** Quanto uma entrega espera a reconexão trocar o socket antes de desistir do balão. */
+  private esperaSocketMs = 15_000;
   /**
    * Resolve quando o 1º `refreshGroups()` (carregamento dos nomes de grupo)
    * completa. As mensagens só são processadas depois disso: na janela inicial do
@@ -417,14 +419,15 @@ export class BaileysGateway implements WhatsAppGateway {
     aoEnviar?: (enviados: number) => void,
   ): Promise<{ enviados: number; total: number; cancelado: boolean }> {
     if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
-    const sock = this.sock;
     const total = plano.filter((p) => p.tipo === 'enviar').length;
     let enviados = 0;
     let cancelado = false;
     const dormir = (ms: number) => dormirAbortavel(ms, signal);
-    const bestEffort = async (fn: () => Promise<unknown>) => {
+    // Uma entrega dura minutos e a reconexão troca `this.sock` no meio: cada
+    // passo resolve o socket na hora, nunca guarda o do início.
+    const presenca = async (p: 'composing' | 'paused') => {
       try {
-        await fn();
+        await this.sock?.sendPresenceUpdate(p, jid);
       } catch {
         /* presença falhando não pode impedir o texto */
       }
@@ -440,14 +443,14 @@ export class BaileysGateway implements WhatsAppGateway {
         }
         switch (passo.tipo) {
           case 'pausa':
-            await bestEffort(() => sock.sendPresenceUpdate('paused', jid));
+            await presenca('paused');
             await dormir(passo.ms);
             break;
           case 'digitando': {
             // O indicador expira sozinho: renova enquanto o passo durar.
             let restante = passo.ms;
             while (restante > 0 && !signal?.aborted) {
-              await bestEffort(() => sock.sendPresenceUpdate('composing', jid));
+              await presenca('composing');
               const fatia = Math.min(restante, this.renovarComposingMs);
               await dormir(fatia);
               restante -= fatia;
@@ -463,11 +466,11 @@ export class BaileysGateway implements WhatsAppGateway {
               const quoted = passo.citar
                 ? this.recebidasRecentes.get(jid)?.find((m) => m.key.id === passo.citar)
                 : undefined;
-              const sent = await sock.sendMessage(
-                jid,
-                { text: passo.texto },
-                quoted ? { quoted } : undefined,
-              );
+              const sent = await this.enviarBalao(jid, passo.texto, quoted, signal);
+              if (!sent) {
+                cancelado = true;
+                break;
+              }
               this.echoSent(jid, sent);
               enviados += 1;
               aoEnviar?.(enviados);
@@ -483,9 +486,53 @@ export class BaileysGateway implements WhatsAppGateway {
         if (cancelado) break;
       }
     } finally {
-      await bestEffort(() => sock.sendPresenceUpdate('paused', jid));
+      await presenca('paused');
     }
     return { enviados, total, cancelado };
+  }
+
+  /**
+   * Socket pronto pra enviar. Sem socket (ou com o que acabou de falhar,
+   * `diferenteDe`), espera a reconexão trocar o objeto por até
+   * `esperaSocketMs`. `null` = o sinal abortou enquanto esperava.
+   */
+  private async socketAtual(
+    signal?: AbortSignal,
+    diferenteDe?: WASocket | null,
+  ): Promise<WASocket | null> {
+    const limite = Date.now() + this.esperaSocketMs;
+    for (;;) {
+      if (signal?.aborted) return null;
+      const s = this.sock;
+      if (s && s !== diferenteDe) return s;
+      const resta = limite - Date.now();
+      if (resta <= 0) throw new Error('Coletor não está conectado ao WhatsApp.');
+      await dormirAbortavel(Math.min(100, resta), signal);
+    }
+  }
+
+  /**
+   * Manda um balão pelo socket atual. "Connection Closed" o Baileys lança
+   * ANTES de escrever no websocket, então nada saiu: espera o socket novo e
+   * tenta uma segunda vez. Qualquer outro erro sobe. `null` = abortado sem enviar.
+   */
+  private async enviarBalao(
+    jid: string,
+    texto: string,
+    quoted: WAMessage | undefined,
+    signal?: AbortSignal,
+  ): Promise<WAMessage | null> {
+    const sock = await this.socketAtual(signal);
+    if (!sock) return null;
+    const opts = quoted ? { quoted } : undefined;
+    try {
+      return (await sock.sendMessage(jid, { text: texto }, opts)) ?? null;
+    } catch (e) {
+      if (!(e instanceof Error && e.message === 'Connection Closed')) throw e;
+      const novo = await this.socketAtual(signal, sock);
+      if (!novo) return null;
+      return (await novo.sendMessage(jid, { text: texto }, opts)) ?? null;
+    }
   }
 
   /**

@@ -11,6 +11,9 @@ type SockFake = {
   quotes: unknown[];
   presencas: string[];
   lidas: number;
+  /** Simula o websocket fechado: sendMessage lança 'Connection Closed' como o Baileys, antes de mandar. */
+  fechado: boolean;
+  tentativasFechado: number;
   sendMessage(
     jid: string,
     c: { text: string },
@@ -20,18 +23,20 @@ type SockFake = {
   readMessages(): Promise<void>;
 };
 
-async function makeGateway() {
-  const base = await mkdtemp(join(tmpdir(), 'wac-gw-entrega-'));
-  await mkdir(join(base, 'auth'));
-  await mkdir(join(base, 'data'));
-  const gw = new BaileysGateway(join(base, 'auth'), join(base, 'data'));
-  const sock: SockFake = {
+function sockFake(): SockFake {
+  return {
     user: { id: '5511888888888:2@s.whatsapp.net' },
     enviadas: [],
     quotes: [],
     presencas: [],
     lidas: 0,
+    fechado: false,
+    tentativasFechado: 0,
     async sendMessage(jid, c, o) {
+      if (this.fechado) {
+        this.tentativasFechado += 1;
+        throw new Error('Connection Closed');
+      }
       this.enviadas.push(c.text);
       this.quotes.push(o?.quoted);
       return {
@@ -49,8 +54,23 @@ async function makeGateway() {
       this.lidas += 1;
     },
   };
+}
+
+async function makeGateway() {
+  const base = await mkdtemp(join(tmpdir(), 'wac-gw-entrega-'));
+  await mkdir(join(base, 'auth'));
+  await mkdir(join(base, 'data'));
+  const gw = new BaileysGateway(join(base, 'auth'), join(base, 'data'));
+  const sock = sockFake();
   (gw as unknown as { sock: unknown }).sock = sock;
   return { gw, sock };
+}
+
+/** Simula a reconexão do Baileys: o gateway passa a apontar pra um socket novo. */
+function trocarSocket(gw: BaileysGateway): SockFake {
+  const novo = sockFake();
+  (gw as unknown as { sock: unknown }).sock = novo;
+  return novo;
 }
 
 const JID = '5511999999999@s.whatsapp.net';
@@ -97,6 +117,47 @@ describe('entregarHumano — cancelamento', () => {
     const r = await gw.entregarHumano(JID, plano, AbortSignal.abort());
     expect(r.cancelado).toBe(true);
     expect(sock.enviadas).toEqual([]);
+  });
+
+  it('reconexão no meio da entrega: o balão seguinte sai pelo socket novo, não pelo antigo', async () => {
+    const { gw, sock } = await makeGateway();
+    let novo: SockFake | undefined;
+    // 1º balão sai em ~300 ms; a reconexão troca o socket antes do 2º (~600 ms)
+    setTimeout(() => {
+      sock.fechado = true;
+      novo = trocarSocket(gw);
+    }, 400);
+    const r = await gw.entregarHumano(JID, plano);
+    expect(r).toEqual({ enviados: 2, total: 2, cancelado: false });
+    expect(sock.enviadas).toEqual(['primeiro']);
+    expect(novo?.enviadas).toEqual(['segundo']);
+    expect(sock.tentativasFechado).toBe(0);
+  });
+
+  it('conexão cai na hora do balão (Connection Closed) e volta: espera o socket novo e manda o mesmo balão uma vez', async () => {
+    const { gw, sock } = await makeGateway();
+    let novo: SockFake | undefined;
+    setTimeout(() => {
+      sock.fechado = true;
+    }, 400);
+    setTimeout(() => {
+      novo = trocarSocket(gw);
+    }, 900);
+    const r = await gw.entregarHumano(JID, plano);
+    expect(r).toEqual({ enviados: 2, total: 2, cancelado: false });
+    expect(sock.enviadas).toEqual(['primeiro']);
+    expect(sock.tentativasFechado).toBe(1);
+    expect(novo?.enviadas).toEqual(['segundo']);
+  });
+
+  it('conexão cai e não volta dentro da espera: falha dizendo quantos balões saíram', async () => {
+    const { gw, sock } = await makeGateway();
+    (gw as unknown as { esperaSocketMs: number }).esperaSocketMs = 300;
+    setTimeout(() => {
+      sock.fechado = true;
+    }, 400);
+    await expect(gw.entregarHumano(JID, plano)).rejects.toThrow(/balão 2\/2 \(1 enviado/);
+    expect(sock.enviadas).toEqual(['primeiro']);
   });
 
   it('aoEnviar recebe a contagem acumulada logo depois de cada balão sair', async () => {
