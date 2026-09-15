@@ -414,6 +414,7 @@ export class BaileysGateway implements WhatsAppGateway {
     jid: string,
     plano: Passo[],
     signal?: AbortSignal,
+    aoEnviar?: (enviados: number) => void,
   ): Promise<{ enviados: number; total: number; cancelado: boolean }> {
     if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
     const sock = this.sock;
@@ -469,6 +470,7 @@ export class BaileysGateway implements WhatsAppGateway {
               );
               this.echoSent(jid, sent);
               enviados += 1;
+              aoEnviar?.(enviados);
             } catch (e) {
               const msg = e instanceof Error ? e.message : String(e);
               throw new Error(

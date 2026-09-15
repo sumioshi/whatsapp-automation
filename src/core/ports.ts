@@ -78,12 +78,15 @@ export interface WhatsAppGateway {
    * Entrega humanizada: toca a partitura (pausas → digitando → balões).
    * Presença é best-effort; falha de um balão aborta o resto. O `signal`
    * cancela entre passos (nunca corta um envio já disparado): `cancelado: true`
-   * e `enviados` diz quantos balões saíram antes.
+   * e `enviados` diz quantos balões saíram antes. `aoEnviar` é chamado logo
+   * depois de cada balão sair, com a contagem acumulada, para quem acompanha
+   * a entrega saber o progresso antes de ela terminar.
    */
   entregarHumano(
     jid: string,
     plano: import('../humano/plano.js').Passo[],
     signal?: AbortSignal,
+    aoEnviar?: (enviados: number) => void,
   ): Promise<{ enviados: number; total: number; cancelado: boolean }>;
   /** Marca como lida a última mensagem recebida do chat (o "visto"). Best-effort. */
   marcarLido(jid: string): Promise<void>;

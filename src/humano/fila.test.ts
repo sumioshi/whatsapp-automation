@@ -11,7 +11,12 @@ let dataDir: string;
 function gatewayFalso(opts: { falhar?: boolean; demoraMs?: number } = {}) {
   const log: string[] = [];
   const gw = {
-    async entregarHumano(_jid: string, plano: Passo[], signal?: AbortSignal) {
+    async entregarHumano(
+      _jid: string,
+      plano: Passo[],
+      signal?: AbortSignal,
+      aoEnviar?: (enviados: number) => void,
+    ) {
       log.push('entregar');
       const textos = plano.filter((p) => p.tipo === 'enviar');
       if (opts.falhar) throw new Error('socket fechado');
@@ -22,6 +27,7 @@ function gatewayFalso(opts: { falhar?: boolean; demoraMs?: number } = {}) {
         if (signal?.aborted) return { enviados, total: textos.length, cancelado: true };
         enviados += 1;
         log.push(`balao${enviados}`);
+        aoEnviar?.(enviados);
       }
       return { enviados, total: textos.length, cancelado: false };
     },
@@ -125,6 +131,36 @@ describe('FilaEnvio', () => {
     expect(s?.estado).toBe('interrompido');
     expect(s?.enviados).toBeGreaterThanOrEqual(1);
     expect(s?.enviados).toBeLessThan(3);
+    await f.parar();
+  });
+
+  it('cancelar no meio da entrega já devolve os balões que saíram e fecha o ticket uma vez só', async () => {
+    const { gw, log } = gatewayFalso({ demoraMs: 1000 });
+    const f = await fila(gw);
+    const fechamentos: Array<{ id: string; estado: string; enviados: number }> = [];
+    f.on('entrega', (t) => {
+      if (t.estado === 'cancelado' || t.estado === 'interrompido' || t.estado === 'entregue') {
+        fechamentos.push({ id: t.id, estado: t.estado, enviados: t.enviados });
+      }
+    });
+    const { ticket } = await f.enfileirar({
+      jid: JID,
+      baloes: ['a', 'b', 'c'],
+      origem: 'mcp',
+      urgencia: 'agora',
+    });
+    // janela (5 s) + 1º balão (1 s) + metade do 2º: o gateway falso ignora as pausas do plano
+    await avancar(6500);
+    expect(log).toContain('balao1');
+    expect(f.status({ ticket: ticket.id })?.enviados).toBe(1);
+
+    const cancelado = f.cancelar({ jid: JID });
+    expect(cancelado).toMatchObject({ id: ticket.id, estado: 'cancelado', enviados: 1 });
+
+    await avancar(5000);
+    expect(log).not.toContain('balao2');
+    expect(f.status({ ticket: ticket.id })).toMatchObject({ estado: 'cancelado', enviados: 1 });
+    expect(fechamentos).toEqual([{ id: ticket.id, estado: 'cancelado', enviados: 1 }]);
     await f.parar();
   });
 

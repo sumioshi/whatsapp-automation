@@ -98,6 +98,19 @@ describe('entregarHumano — cancelamento', () => {
     expect(r.cancelado).toBe(true);
     expect(sock.enviadas).toEqual([]);
   });
+
+  it('aoEnviar recebe a contagem acumulada logo depois de cada balão sair', async () => {
+    const { gw, sock } = await makeGateway();
+    const vistos: Array<{ enviados: number; jaNoSock: number }> = [];
+    const r = await gw.entregarHumano(JID, plano, undefined, (enviados) =>
+      vistos.push({ enviados, jaNoSock: sock.enviadas.length }),
+    );
+    expect(r.enviados).toBe(2);
+    expect(vistos).toEqual([
+      { enviados: 1, jaNoSock: 1 },
+      { enviados: 2, jaNoSock: 2 },
+    ]);
+  });
 });
 
 describe('entregarHumano — v2', () => {

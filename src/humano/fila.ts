@@ -27,6 +27,7 @@ import {
   marcarEntregue,
   marcarFalha,
   marcarLido,
+  marcarProgresso,
   novoEstado,
   novoTicket,
   type OrigemTicket,
@@ -351,6 +352,7 @@ export class FilaEnvio extends EventEmitter {
   private async executar(t: Ticket): Promise<void> {
     const ac = new AbortController();
     this.controllers.set(t.id, ac);
+    let fechadoFora = false;
     try {
       const perfil = await loadPerfilEnvio(t.slug, this.deps.dataDir);
       const ultima = ultimaDoCliente(
@@ -364,7 +366,13 @@ export class FilaEnvio extends EventEmitter {
         rng: this.rng,
       });
       this.presenca.aoEntregar();
-      const r = await this.deps.gateway.entregarHumano(t.jid, plano, ac.signal);
+      // Contagem atualizada a cada balão: quem cancela ou interrompe no meio
+      // (e o status) vê o que já saiu, sem esperar a entrega terminar.
+      const r = await this.deps.gateway.entregarHumano(t.jid, plano, ac.signal, (enviados) => {
+        marcarProgresso(this.estado, t.id, enviados, this.agora());
+        void this.persistir();
+      });
+      fechadoFora = terminal(t);
       marcarEntregue(this.estado, t.id, r.enviados, this.agora());
       logger.info(
         { ticket: t.id, jid: t.jid, enviados: r.enviados, total: r.total, estado: t.estado },
@@ -372,12 +380,15 @@ export class FilaEnvio extends EventEmitter {
       );
     } catch (err) {
       const m = /\((\d+) enviado/.exec(err instanceof Error ? err.message : '');
+      fechadoFora = terminal(t);
       marcarFalha(this.estado, t.id, m ? Number(m[1]) : 0, this.agora());
       logger.warn({ err, ticket: t.id, jid: t.jid, estado: t.estado }, '⚠️ Entrega falhou.');
     } finally {
       this.controllers.delete(t.id);
       this.presenca.aoTerminar();
-      this.emitir(t);
+      // Fechado por fora (cancelar/interromper) já foi emitido na hora, com a
+      // contagem certa; repetir aqui daria dois fechamentos pro mesmo ticket.
+      if (!fechadoFora) this.emitir(t);
       await this.persistir();
       this.reagendar();
     }

@@ -239,6 +239,14 @@ export function marcarEntregando(e: EstadoFila, id: string, agora: number): Tick
   return t;
 }
 
+/** Um balão saiu: a contagem fica certa mesmo se o ticket for fechado antes do fim. */
+export function marcarProgresso(e: EstadoFila, id: string, enviados: number, agora: number): void {
+  const t = e.tickets.find((x) => x.id === id);
+  if (!t) return;
+  t.enviados = enviados;
+  t.atualizadoEm = agora;
+}
+
 export function marcarEntregue(e: EstadoFila, id: string, enviados: number, agora: number): void {
   const t = e.tickets.find((x) => x.id === id);
   if (!t) return;
