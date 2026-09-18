@@ -180,6 +180,85 @@ describe('FilaEnvio', () => {
     await f.parar();
   });
 
+  it('balão igual a uma mensagem minha dos últimos 30 min no histórico é descartado', async () => {
+    const { gw, log } = gatewayFalso();
+    const f = await fila(gw);
+    const agora = Date.now();
+    await mkdir(join(dataDir, 'chat'), { recursive: true });
+    const linhas = [
+      JSON.stringify({
+        id: '1',
+        fromMe: true,
+        type: 'text',
+        text: 'bom dia irmão',
+        timestamp: new Date(agora - 2 * 60_000).toISOString(),
+        origem: 'coletor',
+      }),
+      JSON.stringify({
+        id: '2',
+        fromMe: true,
+        type: 'text',
+        text: 'oi de ontem',
+        timestamp: new Date(agora - 25 * 3600_000).toISOString(),
+        origem: 'coletor',
+      }),
+    ];
+    await writeFile(join(dataDir, 'chat', 'messages.jsonl'), `${linhas.join('\n')}\n`);
+    const r = await f.enfileirar({
+      jid: JID,
+      slug: 'chat',
+      baloes: ['Bom dia irmão', 'oi de ontem', 'novidade de hoje'],
+      origem: 'mcp',
+      urgencia: 'agora',
+    });
+    expect(r.descartados).toEqual(['Bom dia irmão']);
+    expect(r.ticket.baloes).toEqual(['oi de ontem', 'novidade de hoje']);
+    expect(r.ticket.total).toBe(2);
+    await avancar(8000);
+    expect(log.filter((l) => l.startsWith('balao'))).toHaveLength(2);
+    await f.parar();
+  });
+
+  it('todos os balões repetidos: recusa sem criar ticket', async () => {
+    const { gw } = gatewayFalso();
+    const f = await fila(gw);
+    await mkdir(join(dataDir, 'chat'), { recursive: true });
+    await writeFile(
+      join(dataDir, 'chat', 'messages.jsonl'),
+      `${JSON.stringify({ id: '1', fromMe: true, type: 'text', text: 'já saiu', timestamp: new Date().toISOString() })}\n`,
+    );
+    await expect(
+      f.enfileirar({ jid: JID, slug: 'chat', baloes: ['já saiu'], origem: 'mcp' }),
+    ).rejects.toThrow(/repet/);
+    expect(f.status({ jid: JID })).toBeNull();
+    await f.parar();
+  });
+
+  it('substituição: balão já enviado pelo ticket anterior não sai de novo, e o retorno diz o que já saiu', async () => {
+    const { gw, log } = gatewayFalso({ demoraMs: 1000 });
+    const f = await fila(gw);
+    const a = await f.enfileirar({
+      jid: JID,
+      baloes: ['primeiro', 'segundo', 'terceiro'],
+      origem: 'mcp',
+      urgencia: 'agora',
+    });
+    await avancar(6500); // janela 5 s + 1º balão
+    expect(log).toContain('balao1');
+    const b = await f.enfileirar({
+      jid: JID,
+      baloes: ['primeiro', 'quarto'],
+      origem: 'mcp',
+      urgencia: 'agora',
+    });
+    expect(b.substituiu).toBe(a.ticket.id);
+    expect(b.substituiu_enviados).toBe(1);
+    expect(b.substituiu_baloes_enviados).toEqual(['primeiro']);
+    expect(b.descartados).toEqual(['primeiro']);
+    expect(b.ticket.baloes).toEqual(['quarto']);
+    await f.parar();
+  });
+
   it('novo ticket no mesmo chat substitui o anterior', async () => {
     const { gw } = gatewayFalso();
     const f = await fila(gw);

@@ -97,6 +97,7 @@ describe('control /send humano — ticket', () => {
       estado: string;
     };
     expect(body).toMatchObject({ ok: true, estado: 'agendado', previsao_s: 5 });
+    expect((body as { duracao_s?: number }).duracao_s).toBeGreaterThan(0);
     expect(estado.chamadas).toBe(0);
     const st = await (await fetch(`${base}/entregas/${body.ticket}`)).json();
     expect(st).toMatchObject({
@@ -115,8 +116,12 @@ describe('control /send humano — ticket', () => {
     };
     const b = (await (await post(base, '/send', { jid: JID, humano: true, text: 'b' })).json()) as {
       substituiu?: string;
+      substituiu_enviados?: number;
+      substituiu_baloes_enviados?: string[];
     };
     expect(b.substituiu).toBe(a.ticket);
+    expect(b.substituiu_enviados).toBe(0);
+    expect(b.substituiu_baloes_enviados).toEqual([]);
     const lista = (await (await fetch(`${base}/entregas`)).json()) as { entregas: unknown[] };
     expect(lista.entregas).toHaveLength(1);
   });

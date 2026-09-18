@@ -26,6 +26,18 @@ describe("contextoDeEscrita", () => {
     expect(c.intervaloDesdeMinhaUltima_s).toBeGreaterThan(0);
     expect(c.baseline).toBe(BASELINE_PADRAO);
   });
+  it("minhasRecentes: só as minhas dos últimos 30 min, qualquer origem", () => {
+    const agora = new Date(Date.UTC(2026, 8, 14, 12, 40));
+    const msgs = [
+      msg("eu", "velha", T(0)), // 40 min antes
+      msg("eu", "recente celular", new Date(Date.UTC(2026, 8, 14, 12, 15)).toISOString(), { origem: "celular" }),
+      msg("eu", "recente coletor", new Date(Date.UTC(2026, 8, 14, 12, 38)).toISOString(), { origem: "coletor" }),
+      msg("cliente", "do cliente", new Date(Date.UTC(2026, 8, 14, 12, 39)).toISOString()),
+    ];
+    const c = contextoDeEscrita(msgs, contatos, agora, BASELINE_PADRAO);
+    expect(c.minhasRecentes).toEqual(["recente celular", "recente coletor"]);
+  });
+
   it("sem mensagens minhas: intervalo indefinido", () => {
     const c = contextoDeEscrita([msg("cliente", "oi", T(1))], contatos, new Date(), BASELINE_PADRAO);
     expect(c.ultimasMinhas).toEqual([]);

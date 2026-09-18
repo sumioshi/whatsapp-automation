@@ -21,8 +21,10 @@ import {
   cancelar as cancelarCore,
   type EstadoFila,
   enfileirar as enfileirarNoEstado,
+  filtrarRepetidos,
   haPendenteVencido,
   interromper,
+  JANELA_REPETIDO_MS,
   marcarEntregando,
   marcarEntregue,
   marcarFalha,
@@ -35,6 +37,7 @@ import {
   proximo,
   proximoDisparo,
   proximosParaLer,
+  RecusaEnvio,
   type RefTicket,
   type Ticket,
   terminal,
@@ -85,8 +88,10 @@ export function resumoTicket(t: Ticket) {
     enviados: t.enviados,
     total: t.total,
     previsao_s: t.previsao_s,
+    duracao_s: t.duracao_s,
     entregarEm: new Date(t.entregarEm).toISOString(),
     lerEm: new Date(t.lerEm).toISOString(),
+    iniciadoEm: t.iniciadoEm ? new Date(t.iniciadoEm).toISOString() : null,
     regime: t.regime,
     mensagensNovas: t.mensagensNovas,
     origem: t.origem,
@@ -94,6 +99,15 @@ export function resumoTicket(t: Ticket) {
 }
 
 export type ResumoTicket = ReturnType<typeof resumoTicket>;
+
+export interface ResultadoEnfileirar {
+  ticket: Ticket;
+  /** Balões do pedido que repetiam mensagem recente e não entraram no ticket. */
+  descartados: string[];
+  substituiu?: string;
+  substituiu_enviados?: number;
+  substituiu_baloes_enviados?: string[];
+}
 
 export class FilaEnvio extends EventEmitter {
   private estado: EstadoFila = novoEstado();
@@ -147,20 +161,38 @@ export class FilaEnvio extends EventEmitter {
     return acharTicket(this.estado, ref) ?? null;
   }
 
-  async enfileirar(p: PedidoEnvio): Promise<{ ticket: Ticket; substituiu?: string }> {
+  async enfileirar(p: PedidoEnvio): Promise<ResultadoEnfileirar> {
     const agora = this.agora();
     const slug = p.slug ?? p.jid.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
     const perfil = await loadPerfilEnvio(p.slug, this.deps.dataDir);
     const explicitos = (p.baloes ?? []).map((b) => b.trim()).filter(Boolean);
     const texto = (p.texto ?? '').trim();
-    const baloes = explicitos.length
+    const rascunho = explicitos.length
       ? explicitos
       : p.umBalao
         ? [texto]
         : quebrarEmBaloes(texto, perfil);
-    if (!baloes.length) throw new Error('nada a enviar');
+    if (!rascunho.length) throw new RecusaEnvio('nada a enviar');
 
     const historico = p.slug ? await lerHistorico(this.deps.dataDir, p.slug) : [];
+    // Trava contra a mesma mensagem duas vezes: o que a conta já mandou há pouco
+    // (histórico) e o que o ticket vivo deste chat já entregou (o eco pode ainda
+    // não estar gravado) não saem de novo, venha o pedido de onde vier.
+    const vivo = ticketVivo(this.estado, p.jid);
+    const recentes = [
+      ...historico
+        .filter(
+          (m) => m.fromMe && m.text && agora - new Date(m.timestamp).getTime() < JANELA_REPETIDO_MS,
+        )
+        .map((m) => m.text as string),
+      ...(vivo ? vivo.baloes.slice(0, vivo.enviados) : []),
+    ];
+    const { mantidos: baloes, descartados } = filtrarRepetidos(rascunho, recentes);
+    if (!baloes.length) {
+      throw new RecusaEnvio(
+        `nada novo a enviar: ${descartados.length} balão(ões) repetem mensagem já enviada neste chat nos últimos 30 min`,
+      );
+    }
     const ultima = ultimaDoCliente(historico, await this.lerEquipe());
     const cfg = await lerExpediente(this.deps.dataDir);
     const agoraDate = new Date(agora);
@@ -199,21 +231,38 @@ export class FilaEnvio extends EventEmitter {
       lerEm: agora + Math.round(lat.esperaAteLer_s * 1000),
       entregarEm: agora + Math.round(lat.esperaAteDigitar_s * 1000),
       regime: lat.regime,
+      ...(perfil.charsPorSegundo ? { cps: perfil.charsPorSegundo } : {}),
     });
     const r = enfileirarNoEstado(this.estado, ticket, agora);
-    if (r.substituiu) {
-      this.abortar(r.substituiu);
-      const anterior = this.estado.tickets.find((t) => t.id === r.substituiu);
-      if (anterior) this.emitir(anterior);
+    if (r.anterior) {
+      this.abortar(r.anterior.id);
+      this.emitir(r.anterior);
     }
     this.emitir(ticket);
     await this.persistir();
     this.reagendar();
     logger.info(
-      { ticket: ticket.id, jid: p.jid, previsao_s: ticket.previsao_s, regime: ticket.regime },
+      {
+        ticket: ticket.id,
+        jid: p.jid,
+        previsao_s: ticket.previsao_s,
+        duracao_s: ticket.duracao_s,
+        regime: ticket.regime,
+        ...(descartados.length ? { descartados: descartados.length } : {}),
+      },
       '🎫 Entrega agendada.',
     );
-    return { ticket, ...(r.substituiu ? { substituiu: r.substituiu } : {}) };
+    return {
+      ticket,
+      descartados,
+      ...(r.anterior
+        ? {
+            substituiu: r.anterior.id,
+            substituiu_enviados: r.anterior.enviados,
+            substituiu_baloes_enviados: r.anterior.baloes.slice(0, r.anterior.enviados),
+          }
+        : {}),
+    };
   }
 
   cancelar(ref: RefTicket): Ticket | null {

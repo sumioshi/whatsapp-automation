@@ -14,6 +14,8 @@ import { ehDoCliente, estadoDaConversa } from "./conversa";
 
 export interface ContextoEscrita {
   ultimasMinhas: string[];
+  /** Tudo que a conta mandou nos últimos 30 min: balão igual a um destes não sai de novo. */
+  minhasRecentes: string[];
   ultimasDoCliente: string[];
   estado: EstadoConversa;
   intervaloDesdeMinhaUltima_s?: number;
@@ -21,6 +23,7 @@ export interface ContextoEscrita {
 }
 
 export const MIN_MSGS_BASELINE = 100;
+export const JANELA_RECENTES_MS = 30 * 60 * 1000;
 const N_MINHAS = 5;
 const N_CLIENTE = 10;
 const TTL_MS = 60 * 60 * 1000;
@@ -34,8 +37,10 @@ export function contextoDeEscrita(msgs: MessageView[], contatos: Contacts, agora
   const minhas = ordem.filter((m) => m.fromMe);
   const cliente = ordem.filter((m) => ehDoCliente(m, contatos));
   const ultimaMinha = minhas[minhas.length - 1];
+  const limiteRecentes = agora.getTime() - JANELA_RECENTES_MS;
   return {
     ultimasMinhas: minhas.slice(-N_MINHAS).map((m) => m.text),
+    minhasRecentes: minhas.filter((m) => new Date(m.timestamp).getTime() >= limiteRecentes).map((m) => m.text),
     ultimasDoCliente: cliente.slice(-N_CLIENTE).map((m) => m.text),
     estado: estadoDaConversa(msgs, contatos, agora),
     ...(ultimaMinha ? { intervaloDesdeMinhaUltima_s: Math.max(0, Math.round((agora.getTime() - new Date(ultimaMinha.timestamp).getTime()) / 1000)) } : {}),

@@ -102,7 +102,14 @@ recusadas (orçamento de 6%).
 
 `responder` NÃO envia na hora: devolve um `ticket` e a mensagem sai depois, com latência humana
 (conversa ativa: mediana ~30 s; conversa fria: minutos a horas, teto 4 h; hora do dia, expediente
-e ritmo do cliente entram na conta). O visto sai antes do "digitando", na hora certa, e a
+e ritmo do cliente entram na conta). `previsao_s` é quando COMEÇA a digitar; `duracao_s` é quanto
+a digitação leva depois disso (3 balões longos = ~2 min). `status_envio` em `entregando 0/N` no
+meio desse tempo é o ritmo humano, não travamento: nunca conclua que o serviço caiu nem reenvie
+antes de `duracao_s` passar. **Balão repetido não sai:** balão idêntico a uma mensagem da conta
+enviada nos últimos 30 min é bloqueio na revisão (`repetido`) e, se chegar ao coletor, é
+descartado lá (`descartados` no retorno; todos repetidos = recusa). Ao substituir um ticket, o
+retorno diz `substituiu_enviados` e `substituiu_baloes_enviados`: o cliente já recebeu esses,
+não repita. O visto sai antes do "digitando", na hora certa, e a
 digitação anda na velocidade medida do operador. Se o cliente escrever antes do 1º balão, o
 ticket é interrompido e o plantão imprime `Entrega interrompida (mensagem nova, 0/3 saiu)` —
 releia o chat e responda de novo. Se o operador responder na mão (celular/web), idem. Novo

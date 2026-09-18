@@ -11,6 +11,17 @@ import { detectarTells, type TellId } from "./tells";
 
 export interface EntradaRevisao extends EntradaRepeticao {
   ignorarScore?: boolean;
+  /** Mensagens da conta nos últimos minutos: balão idêntico a uma delas é bloqueio. */
+  minhasRecentes?: string[];
+}
+
+/** Compara balões ignorando caixa, espaços e pontuação final (mesma regra do coletor). */
+export function normalizarBalao(t: string): string {
+  return t
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[\s.!?…]+$/u, "");
 }
 
 export interface Revisao {
@@ -33,6 +44,18 @@ export function revisar(e: EntradaRevisao): Revisao {
   const texto = e.baloes.join("\n");
   const bloqueios: Hit[] = [];
   const hits: Hit[] = [];
+
+  // O cliente já recebeu: mandar de novo é o erro mais visível que existe.
+  const recentes = new Set((e.minhasRecentes ?? []).map(normalizarBalao).filter(Boolean));
+  const repetidos = e.baloes.filter((b) => recentes.has(normalizarBalao(b)));
+  if (repetidos.length) {
+    bloqueios.push({
+      regra: "repetido",
+      peso: 0,
+      motivo: `balão idêntico a mensagem sua enviada há menos de 30 min: ${repetidos.map((b) => `"${b}"`).join(", ")}`,
+      sugestao: "tira esse balão; o cliente já recebeu. Se for retomar, diz só o que é novo",
+    });
+  }
 
   const pron = tratamentoErrado(texto);
   if (pron.length) bloqueios.push({ regra: "tratamento", peso: 0, motivo: avisoDeTratamento(pron), sugestao: "você/vc, seu/sua" });

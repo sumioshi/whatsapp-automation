@@ -7,6 +7,8 @@ import {
   clienteDigitando,
   clienteParou,
   enfileirar,
+  estimarDuracao,
+  filtrarRepetidos,
   interromper,
   marcarEntregando,
   marcarEntregue,
@@ -42,13 +44,43 @@ function ticket(jid: string, over: Partial<Parameters<typeof novoTicket>[0]> = {
   });
 }
 
+describe('fila-core — balão repetido e duração', () => {
+  it('filtrarRepetidos descarta balão igual a texto recente, ignorando caixa, espaços e pontuação final', () => {
+    const r = filtrarRepetidos(
+      ['Bom dia irmão!', 'vi o vídeo', 'novidade'],
+      ['bom dia  irmão', 'Vi o vídeo.'],
+    );
+    expect(r.mantidos).toEqual(['novidade']);
+    expect(r.descartados).toEqual(['Bom dia irmão!', 'vi o vídeo']);
+  });
+
+  it('filtrarRepetidos sem recentes mantém tudo', () => {
+    expect(filtrarRepetidos(['a', 'b'], []).mantidos).toEqual(['a', 'b']);
+  });
+
+  it('estimarDuracao soma a digitação a 3 chars/s e uma pausa por balão', () => {
+    // 30 chars a 3 c/s = 10 s, + 2 balões × 3 s de pausa = 16 s
+    expect(estimarDuracao(['a'.repeat(12), 'b'.repeat(18)], 3)).toBe(16);
+  });
+
+  it('novoTicket carrega duracao_s e marcarEntregando grava iniciadoEm', () => {
+    const e = novoEstado();
+    const t = ticket(JID_A, { baloes: ['a'.repeat(30)] });
+    expect(t.duracao_s).toBe(13);
+    enfileirar(e, t, T0);
+    marcarEntregando(e, t.id, T0 + 30_000);
+    expect(t.iniciadoEm).toBe(T0 + 30_000);
+  });
+});
+
 describe('fila-core — enfileirar e substituir', () => {
-  it('um ticket por chat: o novo cancela o anterior com motivo substituido', () => {
+  it('um ticket por chat: o novo cancela o anterior com motivo substituido e devolve o anterior', () => {
     const e = novoEstado();
     const a = ticket(JID_A);
     enfileirar(e, a, T0);
     const r = enfileirar(e, ticket(JID_A, { id: 'novo' }), T0 + 1000);
     expect(r.substituiu).toBe(a.id);
+    expect(r.anterior).toBe(a);
     expect(a.estado).toBe('cancelado');
     expect(a.motivo).toBe('substituido');
     expect(ticketVivo(e, JID_A)?.id).toBe('novo');

@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
+// Primeiro de todos: fixa WAC_DATA_DIR e carrega o .env antes de `../lib/paths` avaliar.
+import "./env";
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { extname, join, resolve } from "node:path";
+import { extname, join } from "node:path";
 import { promisify } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -71,17 +73,12 @@ import {
   dsSetContrato,
   dsRegistrarFeature,
   dsDashboard } from "../lib/data-source";
+import type { EntregaResumo } from "../lib/data-source";
 import { numberFromJid, roleOf, sendableDmJid } from "../lib/contacts";
 import { explicarSinal } from "../lib/dashboard";
 
-// O MCP server é lançado pelo Claude Code (não pelo `npm run dev`), então não herda o
-// .env. Carregamos o .env da raiz aqui pra ter o WAC_CLOUD_* (mídia sob demanda da
-// nuvem). loadEnvFile NÃO sobrescreve o que já veio do registro do MCP (ex.: WAC_DATA_DIR).
-try {
-  process.loadEnvFile(resolve(__dirname, "../../.env"));
-} catch {
-  // Sem .env (ou Node < 20.12): segue sem nuvem, comportamento de antes.
-}
+// Ambiente (.env da raiz, WAC_DATA_DIR fixo neste repo) é resolvido em ./env, importado
+// antes de qualquer lib pra chegar em `paths` já definido.
 
 /**
  * contacts() varre TODOS os messages.jsonl pra montar o índice de ~18k
@@ -171,6 +168,29 @@ function formatarPrevisao(s: number | undefined): string {
   if (s < 90) return `${Math.round(s)} s`;
   if (s < 5400) return `${Math.round(s / 60)} min`;
   return `${(s / 3600).toFixed(1).replace(/\.0$/, "")} h`;
+}
+
+/**
+ * Frase de status pro agente com o tempo que a entrega de fato leva: "0/3" no
+ * meio da digitação é normal, não travamento — sem isso o agente conclui que o
+ * serviço caiu e reenvia.
+ */
+export function descreverEntrega(e: EntregaResumo, agora: number = Date.now()): string {
+  const base = `Ticket ${e.ticket}: ${e.estado}${e.motivo ? ` (${e.motivo})` : ""}, ${e.enviados}/${e.total} balões`;
+  if (e.estado === "agendado") {
+    const falta = Math.max(0, (new Date(e.entregarEm).getTime() - agora) / 1000);
+    return `${base}. Começa a digitar em ~${formatarPrevisao(falta)}` + (e.duracao_s !== undefined ? ` e leva mais ~${formatarPrevisao(e.duracao_s)} pra sair inteira.` : ".");
+  }
+  if (e.estado === "entregando") {
+    const ha = e.iniciadoEm ? Math.max(0, (agora - new Date(e.iniciadoEm).getTime()) / 1000) : undefined;
+    const resta = e.duracao_s !== undefined && ha !== undefined ? Math.max(0, e.duracao_s - ha) : undefined;
+    return (
+      `${base}. Digitando${ha !== undefined ? ` há ${formatarPrevisao(ha)}` : ""}` +
+      (resta !== undefined ? `, deve terminar em ~${formatarPrevisao(resta)}` : "") +
+      ". É o ritmo humano da entrega, não travamento; espere antes de reenviar."
+    );
+  }
+  return `${base}.`;
 }
 
 function pendingMedia(msgs: MessageView[]): string[] {
@@ -748,7 +768,7 @@ server.registerTool(
         pendente && (pendente.estado === "agendado" || pendente.estado === "entregando") ? pendente : null;
       if (entrega_pendente) {
         instrucoes.push(
-          `já existe uma entrega ${entrega_pendente.estado} pra esse chat (ticket ${entrega_pendente.ticket}, sai em ~${formatarPrevisao(entrega_pendente.previsao_s)}): um novo responder substitui ela`,
+          `já existe uma entrega ${entrega_pendente.estado} pra esse chat (ticket ${entrega_pendente.ticket}, ${entrega_pendente.enviados}/${entrega_pendente.total} balões já saíram): um novo responder cancela só o que falta; não repita os que saíram`,
         );
       }
       ultimaLeitura.set(slug, Date.now());
@@ -995,10 +1015,27 @@ server.registerTool(
             estado: r.estado,
             entregarEm: r.entregarEm,
             regime: r.regime,
-            ...(r.substituiu ? { substituiu: r.substituiu } : {}),
+            ...(r.duracao_s !== undefined ? { duracao_s: r.duracao_s } : {}),
+            ...(r.substituiu
+              ? {
+                  substituiu: r.substituiu,
+                  substituiu_enviados: r.substituiu_enviados ?? 0,
+                  substituiu_baloes_enviados: r.substituiu_baloes_enviados ?? [],
+                }
+              : {}),
+            ...(r.descartados?.length ? { descartados: r.descartados } : {}),
           },
-          `Entrega agendada pra "${label}": ticket ${r.ticket}, sai em ~${formatarPrevisao(r.previsao_s)} (regime ${r.regime ?? "?"}).` +
-            (r.substituiu ? ` Substituiu o ticket ${r.substituiu}.` : "") +
+          `Entrega agendada pra "${label}": ticket ${r.ticket}, começa a digitar em ~${formatarPrevisao(r.previsao_s)} (regime ${r.regime ?? "?"})` +
+            (r.duracao_s !== undefined
+              ? ` e leva mais ~${formatarPrevisao(r.duracao_s)} pra sair inteira (${r.baloes ?? (lista.length || 1)} balão(ões), no ritmo de digitação do operador). Não conclua que travou antes disso.`
+              : ".") +
+            (r.substituiu
+              ? ` Substituiu o ticket ${r.substituiu}, que JÁ TINHA ENVIADO ${r.substituiu_enviados ?? 0} balão(ões)` +
+                (r.substituiu_baloes_enviados?.length ? `: ${r.substituiu_baloes_enviados.map((b) => `«${b}»`).join(" | ")}. O cliente já recebeu esses; não repita.` : ".")
+              : "") +
+            (r.descartados?.length
+              ? ` ${r.descartados.length} balão(ões) do seu pedido NÃO entraram por repetir mensagem já enviada há pouco: ${r.descartados.map((b) => `«${b}»`).join(" | ")}.`
+              : "") +
             (escolhido !== undefined ? ` Candidato ${escolhido} escolhido (score ${rev.score}).` : "") +
             " Acompanhe com status_envio; cancelar_envio cancela. Se o plantão avisar 'Entrega interrompida', releia o chat.",
         );
@@ -1114,12 +1151,7 @@ server.registerTool(
       }
       const e = await dsStatusEntrega(ticket ? { ticket } : { jid });
       if (!e) return ok({ entrega: null }, "Nenhuma entrega registrada pra esse chat/ticket.");
-      return ok(
-        { entrega: e },
-        `Ticket ${e.ticket}: ${e.estado}${e.motivo ? ` (${e.motivo})` : ""}, ${e.enviados}/${e.total} balões` +
-          (e.estado === "agendado" ? `, sai em ${e.entregarEm}` : "") +
-          ".",
-      );
+      return ok({ entrega: e }, descreverEntrega(e));
     } catch (e) {
       return fail(e instanceof Error ? e.message : "coletor offline?");
     }

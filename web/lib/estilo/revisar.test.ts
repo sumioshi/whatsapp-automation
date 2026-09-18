@@ -13,6 +13,16 @@ describe("revisar — bloqueios", () => {
     expect(culpa.ok).toBe(false);
     expect(culpa.bloqueios.map((b) => b.regra)).toContain("culpa");
   });
+
+  it("balão idêntico a uma mensagem minha recente bloqueia, mesmo com ignorarScore, e diz qual", () => {
+    const r = revisar({ ...ctx, minhasRecentes: ["Bom dia irmão", "vi o vídeo"], baloes: ["bom dia irmão!", "novidade"], ignorarScore: true });
+    expect(r.ok).toBe(false);
+    expect(r.bloqueios.map((b) => b.regra)).toEqual(["repetido"]);
+    expect(r.bloqueios[0]?.motivo).toContain("bom dia irmão");
+    // só os últimos 30 min contam: o mesmo texto fora de `minhasRecentes` passa
+    const antigo = revisar({ ...ctx, ultimasMinhas: ["bom dia irmão"], baloes: ["bom dia irmão"] });
+    expect(antigo.bloqueios).toEqual([]);
+  });
 });
 
 describe("revisar — score", () => {

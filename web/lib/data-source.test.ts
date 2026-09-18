@@ -258,6 +258,39 @@ describe('cancelamento de envio', () => {
     expect(init.signal.aborted).toBe(true);
   });
 
+  it('REMOTO: dsSend repassa duração, substituição (com os balões já enviados) e descartados', async () => {
+    vi.stubEnv('WAC_MCP_REMOTE', '1');
+    vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+    vi.stubEnv('WAC_CLOUD_USER', 'u');
+    vi.stubEnv('WAC_CLOUD_PASS', 'p');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          ticket: 'novo1',
+          estado: 'agendado',
+          previsao_s: 5,
+          duracao_s: 42,
+          substituiu: 'velho1',
+          substituiu_enviados: 2,
+          substituiu_baloes_enviados: ['bom dia', 'vi o vídeo'],
+          descartados: ['bom dia'],
+        }),
+        { status: 202 },
+      ),
+    );
+    const { dsSend } = await import('./data-source');
+    const r = await dsSend('x@g.us', 'oi', { humano: true, baloes: ['bom dia', 'novo'] });
+    expect(r).toMatchObject({
+      ticket: 'novo1',
+      duracao_s: 42,
+      substituiu: 'velho1',
+      substituiu_enviados: 2,
+      substituiu_baloes_enviados: ['bom dia', 'vi o vídeo'],
+      descartados: ['bom dia'],
+    });
+  });
+
   it('REMOTO: dsCancelarEnvio faz POST /api/cancelar-envio {jid}', async () => {
     vi.stubEnv('WAC_MCP_REMOTE', '1');
     vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');

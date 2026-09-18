@@ -155,7 +155,14 @@ export interface SendResult {
   estado?: string;
   entregarEm?: string;
   regime?: string;
+  /** Estimativa de quanto a entrega leva depois que começa a digitar (s). */
+  duracao_s?: number;
   substituiu?: string;
+  /** Do ticket substituído: quantos balões já tinham saído, e quais. */
+  substituiu_enviados?: number;
+  substituiu_baloes_enviados?: string[];
+  /** Balões do pedido descartados por repetir mensagem recente da conta. */
+  descartados?: string[];
   cancelado: boolean;
   enviados?: number;
   baloes?: number;
@@ -176,6 +183,9 @@ export interface EntregaResumo {
   regime: string;
   mensagensNovas: number;
   origem: string;
+  /** Estimativa de duração da digitação (s) e quando ela começou (null se ainda agendado). */
+  duracao_s?: number;
+  iniciadoEm?: string | null;
 }
 
 export interface SendExtra {
@@ -205,14 +215,20 @@ export async function dsSend(
   if (!res.ok || !data.ok) throw new Error(data.error ?? 'falha no envio');
   const str = (k: string) => (typeof data[k] === 'string' ? { [k]: data[k] as string } : {});
   const num = (k: string) => (typeof data[k] === 'number' ? { [k]: data[k] as number } : {});
+  const lista = (k: string) =>
+    Array.isArray(data[k]) ? { [k]: (data[k] as unknown[]).filter((x): x is string => typeof x === 'string') } : {};
   return {
     cancelado: data.cancelado === true,
     ...str('ticket'),
     ...num('previsao_s'),
+    ...num('duracao_s'),
     ...str('estado'),
     ...str('entregarEm'),
     ...str('regime'),
     ...str('substituiu'),
+    ...num('substituiu_enviados'),
+    ...lista('substituiu_baloes_enviados'),
+    ...lista('descartados'),
     ...num('enviados'),
     ...num('baloes'),
     ...str('motivo'),

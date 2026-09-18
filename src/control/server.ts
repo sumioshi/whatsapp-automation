@@ -8,6 +8,7 @@ import { env } from '../config/env.js';
 import type { OutboundMedia } from '../core/message.js';
 import type { WhatsAppGateway } from '../core/ports.js';
 import { type FilaEnvio, resumoTicket } from '../humano/fila.js';
+import { RecusaEnvio } from '../humano/fila-core.js';
 import { logger } from '../logger.js';
 import { slugify } from '../storage/paths.js';
 import { assertPublicHttpUrl } from './safe-url.js';
@@ -346,7 +347,7 @@ export function startControlServer(
             }
             const urgencia =
               body.urgencia === 'agora' || body.urgencia === 'calma' ? body.urgencia : 'normal';
-            const { ticket, substituiu } = await fila.enfileirar({
+            const { ticket, descartados, ...substituicao } = await fila.enfileirar({
               jid,
               slug,
               texto: text,
@@ -379,14 +380,23 @@ export function startControlServer(
               });
               return;
             }
-            json(202, { ok: true, ...resumoTicket(ticket), ...(substituiu ? { substituiu } : {}) });
+            json(202, {
+              ok: true,
+              ...resumoTicket(ticket),
+              ...substituicao,
+              ...(descartados.length ? { descartados } : {}),
+            });
             return;
           }
           await gateway.sendText(jid, text, Array.isArray(mentions) ? mentions : undefined);
           logger.info({ jid }, '📤 Mensagem enviada via API de controle.');
           json(200, { ok: true });
         })
-        .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));
+        .catch((err) =>
+          json(err instanceof RecusaEnvio ? 400 : 500, {
+            error: err instanceof Error ? err.message : 'erro',
+          }),
+        );
       return;
     }
 

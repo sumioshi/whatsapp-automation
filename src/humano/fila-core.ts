@@ -41,10 +41,55 @@ export interface Ticket {
   previsao_s: number;
   enviados: number;
   total: number;
+  /** Estimativa de quanto a entrega leva depois que começa a digitar (s). */
+  duracao_s: number;
+  /** Quando começou a digitar (ms epoch); ausente enquanto agendado. */
+  iniciadoEm?: number;
   mensagensNovas: number;
   tentativas: number;
   lido: boolean;
   atualizadoEm: number;
+}
+
+/** Pedido recusado antes de virar ticket (nada a enviar, tudo repetido): erro do chamador, não do coletor. */
+export class RecusaEnvio extends Error {
+  override name = 'RecusaEnvio';
+}
+
+/** Balão igual a uma mensagem da conta enviada há menos que isso não sai de novo. */
+export const JANELA_REPETIDO_MS = 30 * 60_000;
+const CPS_ESTIMATIVA = 3;
+const PAUSA_ESTIMADA_S = 3;
+
+/** Compara balões ignorando caixa, espaços e pontuação final. */
+export function normalizarBalao(t: string): string {
+  return t
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[\s.!?…]+$/u, '');
+}
+
+/**
+ * Separa o que ainda não foi dito: balão idêntico (normalizado) a um texto
+ * recente da conta é descartado, para nenhum chamador conseguir mandar a
+ * mesma mensagem duas vezes.
+ */
+export function filtrarRepetidos(
+  baloes: string[],
+  recentes: string[],
+): { mantidos: string[]; descartados: string[] } {
+  const vistos = new Set(recentes.map(normalizarBalao).filter(Boolean));
+  const mantidos: string[] = [];
+  const descartados: string[] = [];
+  for (const b of baloes) (vistos.has(normalizarBalao(b)) ? descartados : mantidos).push(b);
+  return { mantidos, descartados };
+}
+
+/** Digitação no ritmo dado mais uma pausa por balão, em segundos inteiros. */
+export function estimarDuracao(baloes: string[], cps: number = CPS_ESTIMATIVA): number {
+  const chars = baloes.reduce((a, b) => a + b.length, 0);
+  return Math.round(chars / Math.max(cps, 0.5) + baloes.length * PAUSA_ESTIMADA_S);
 }
 
 export interface EstadoFila {
@@ -87,14 +132,18 @@ export function novoTicket(p: {
   lerEm: number;
   entregarEm: number;
   regime: Regime;
+  /** Ritmo de digitação do perfil do chat, pra estimativa de duração. */
+  cps?: number;
 }): Ticket {
+  const { cps, ...resto } = p;
   return {
-    ...p,
+    ...resto,
     texto: p.baloes.join('\n\n'),
     estado: 'agendado',
     previsao_s: Math.max(0, Math.round((p.entregarEm - p.criadoEm) / 1000)),
     enviados: 0,
     total: p.baloes.length,
+    duracao_s: estimarDuracao(p.baloes, cps),
     mensagensNovas: 0,
     tentativas: 0,
     lido: false,
@@ -116,15 +165,15 @@ export function acharTicket(e: EstadoFila, ref: RefTicket): Ticket | undefined {
   return ticketVivo(e, ref.jid) ?? [...e.tickets].reverse().find((t) => t.jid === ref.jid);
 }
 
-export function enfileirar(e: EstadoFila, t: Ticket, agora: number): { substituiu?: string } {
+export function enfileirar(
+  e: EstadoFila,
+  t: Ticket,
+  agora: number,
+): { substituiu?: string; anterior?: Ticket } {
   const vivo = ticketVivo(e, t.jid);
-  let substituiu: string | undefined;
-  if (vivo) {
-    fechar(vivo, 'cancelado', 'substituido', agora);
-    substituiu = vivo.id;
-  }
+  if (vivo) fechar(vivo, 'cancelado', 'substituido', agora);
   e.tickets.push(t);
-  return substituiu ? { substituiu } : {};
+  return vivo ? { substituiu: vivo.id, anterior: vivo } : {};
 }
 
 function fechar(
@@ -233,6 +282,7 @@ export function marcarEntregando(e: EstadoFila, id: string, agora: number): Tick
   const t = e.tickets.find((x) => x.id === id);
   if (!t || t.estado !== 'agendado') return null;
   t.estado = 'entregando';
+  t.iniciadoEm = agora;
   t.tentativas += 1;
   t.atualizadoEm = agora;
   e.ultimoInicio = agora;
