@@ -11,6 +11,7 @@ import { type FilaEnvio, resumoTicket } from '../humano/fila.js';
 import { RecusaEnvio } from '../humano/fila-core.js';
 import { logger } from '../logger.js';
 import { slugify } from '../storage/paths.js';
+import { criarResolvedorDeJid, NumeroInexistente } from '../whatsapp/jid-canonico.js';
 import { assertPublicHttpUrl } from './safe-url.js';
 
 /** Teto de download do /send-media-url (16 MB) — evita estourar a RAM do container. */
@@ -199,6 +200,7 @@ export function startControlServer(
   fila?: FilaEnvio,
 ): import('node:http').Server {
   const allowed = allowedDirs.map((d) => resolve(d));
+  const resolverJid = criarResolvedorDeJid((numero) => gateway.checkNumber(numero));
   const server = createServer((req, res) => {
     const json = (code: number, body: unknown) => {
       res.writeHead(code, { 'content-type': 'application/json' });
@@ -330,15 +332,36 @@ export function startControlServer(
     if (req.method === 'POST' && req.url === '/send') {
       readJson(req)
         .then(async (parsed) => {
-          const { jid, mentions, humano, slug, typos, umBalao } = (parsed ?? {}) as SendBody;
+          const {
+            jid: jidPedido,
+            mentions,
+            humano,
+            slug: slugPedido,
+            typos,
+            umBalao,
+          } = (parsed ?? {}) as SendBody;
           const body = (parsed ?? {}) as SendBody;
           const baloes = Array.isArray(body.baloes)
             ? body.baloes.filter((b): b is string => typeof b === 'string' && b.trim() !== '')
             : [];
           const text = body.text?.trim() || baloes.join('\n\n');
-          if (!jid || !text) {
+          if (!jidPedido || !text) {
             json(400, { error: 'jid e text (ou baloes) são obrigatórios' });
             return;
+          }
+          // Número de telefone vira o JID que o WhatsApp reconhece (o digitado pode
+          // nem existir); o slug de DM acompanha, pra cair no mesmo histórico.
+          const destino = await resolverJid(jidPedido);
+          const jid = destino.jid;
+          const slug =
+            destino.corrigidoDe && slugPedido && /^dm-\d+$/.test(slugPedido)
+              ? `dm-${jid.split('@')[0]}`
+              : slugPedido;
+          if (destino.corrigidoDe) {
+            logger.info(
+              { pedido: destino.corrigidoDe, jid },
+              '🔎 JID de envio corrigido pelo WhatsApp.',
+            );
           }
           if (humano) {
             if (!fila) {
@@ -385,6 +408,7 @@ export function startControlServer(
               ...resumoTicket(ticket),
               ...substituicao,
               ...(descartados.length ? { descartados } : {}),
+              ...(destino.corrigidoDe ? { jid_corrigido_de: destino.corrigidoDe } : {}),
             });
             return;
           }
@@ -393,7 +417,7 @@ export function startControlServer(
           json(200, { ok: true });
         })
         .catch((err) =>
-          json(err instanceof RecusaEnvio ? 400 : 500, {
+          json(err instanceof RecusaEnvio || err instanceof NumeroInexistente ? 400 : 500, {
             error: err instanceof Error ? err.message : 'erro',
           }),
         );
@@ -461,11 +485,19 @@ export function startControlServer(
             return;
           }
           const { media } = result;
-          await gateway.sendMedia((parsed as SendMediaBody).jid as string, media);
+          const destino = await resolverJid((parsed as SendMediaBody).jid as string);
+          await gateway.sendMedia(destino.jid, media);
           logger.info({ kind: media.kind }, '📎 Mídia enviada via API de controle.');
-          json(200, { ok: true });
+          json(200, {
+            ok: true,
+            ...(destino.corrigidoDe ? { jid_corrigido_de: destino.corrigidoDe } : {}),
+          });
         })
-        .catch((err) => json(500, { error: err instanceof Error ? err.message : 'erro' }));
+        .catch((err) =>
+          json(err instanceof NumeroInexistente ? 400 : 500, {
+            error: err instanceof Error ? err.message : 'erro',
+          }),
+        );
       return;
     }
 

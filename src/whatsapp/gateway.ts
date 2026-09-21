@@ -108,6 +108,8 @@ const MAX_RECEIPTS = 1000;
  * history pode despejar meses de conversa; sem dedup, reprocessar duplicaria.
  */
 const MAX_SEEN_IDS = 50_000;
+/** Reenvio é pedido segundos ou minutos depois do envio: guardar o recente basta. */
+const MAX_ENVIADAS_RECENTES = 1000;
 /** Mensagens recebidas lembradas por chat (pra citar no envio). */
 const MAX_RECEBIDAS_POR_CHAT = 50;
 /** Reconexão: backoff exponencial com teto. */
@@ -212,6 +214,8 @@ export class BaileysGateway implements WhatsAppGateway {
   private readonly lastIncomingKey = new Map<string, WAMessageKey>();
   /** Últimas mensagens RECEBIDAS por chat (WAMessage cru) — para citar (`quoted`) no envio. */
   private readonly recebidasRecentes = new Map<string, WAMessage[]>();
+  /** Conteúdo das últimas mensagens ENVIADAS, por id — responde o `getMessage` do Baileys. */
+  private readonly enviadasRecentes = new Map<string, NonNullable<WAMessage['message']>>();
   /** Intervalo de renovação do "digitando…" (o WhatsApp expira o indicador em ~10 s). */
   private renovarComposingMs = 8000;
   /** Quanto uma entrega espera a reconexão trocar o socket antes de desistir do balão. */
@@ -560,7 +564,28 @@ export class BaileysGateway implements WhatsAppGateway {
    * upsert). Então mapeamos e emitimos nós mesmos, pelo fluxo normal, para o
    * balão "Você" aparecer no painel.
    */
+  /**
+   * Conteúdo de uma mensagem enviada por este processo, pelo id. É o que o
+   * Baileys pede (`getMessage`) quando o aparelho do destinatário solicita
+   * reenvio — comum no primeiro contato, em que a sessão de criptografia ainda
+   * não existia. Sem isso a mensagem fica em "aguardando mensagem".
+   */
+  mensagemEnviada(key: { id?: string | null }): NonNullable<WAMessage['message']> | undefined {
+    return key.id ? this.enviadasRecentes.get(key.id) : undefined;
+  }
+
+  private lembrarEnviada(sent: WAMessage | undefined): void {
+    const id = sent?.key?.id;
+    if (!id || !sent?.message) return;
+    this.enviadasRecentes.set(id, sent.message);
+    if (this.enviadasRecentes.size > MAX_ENVIADAS_RECENTES) {
+      const maisAntiga = this.enviadasRecentes.keys().next().value;
+      if (maisAntiga !== undefined) this.enviadasRecentes.delete(maisAntiga);
+    }
+  }
+
   private echoSent(jid: string, sent: WAMessage | undefined): void {
+    this.lembrarEnviada(sent);
     if (!sent || !this.sock) return;
     const groupName = this.groups.get(jid) ?? jid;
     const mapped = mapMessage(sent, this.sock, groupName);
@@ -622,6 +647,8 @@ export class BaileysGateway implements WhatsAppGateway {
       auth: state,
       logger: baileysLogger,
       markOnlineOnConnect: false,
+      // Reenvio pedido pelo destinatário: o Baileys recriptografa o original.
+      getMessage: async (key) => this.mensagemEnviada(key),
     });
     this.sock = sock;
 

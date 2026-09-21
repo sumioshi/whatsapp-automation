@@ -178,6 +178,12 @@ Contratos de tool que já confundiram agentes (leia o retorno, não chute parâm
 - **DM por número**: se você JÁ TEM o telefone, a DM é `dm-<55DDDnúmero>` (só dígitos) em
   `ler_mensagens`/`responder`. Telefone e LID da mesma pessoa são fundidos na leitura (o retorno
   avisa em `nota_fusao`). Não use `listar_contatos` pra "achar" um número que você já tem.
+- **Primeiro contato (número com quem a conta nunca falou)**: funciona. O coletor pergunta ao
+  WhatsApp qual é o JID da conta antes de enviar, porque o número digitado pode não ser o
+  registrado (no Brasil, muita conta existe SEM o nono dígito, e mandar pro JID "errado" dá um
+  tique e nunca entrega). Se o retorno trouxer `jid_corrigido_de`, passe a usar o `slug_correto`.
+  Número que não está no WhatsApp = recusa com motivo, nada sai. Abordagem fria em volume por
+  cliente não oficial é o principal gatilho de banimento: primeiro contato é pra lead que pediu.
 - **`listar_contatos`**: SEMPRE com `busca` (nome ou número, com ou sem o nono dígito). Sem filtro a
   conta pode ter milhares de contatos e só vêm os 100 primeiros. O retorno traz `slug` da DM.
 

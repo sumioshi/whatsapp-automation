@@ -1024,6 +1024,9 @@ server.registerTool(
                 }
               : {}),
             ...(r.descartados?.length ? { descartados: r.descartados } : {}),
+            ...(r.jid_corrigido_de && r.jid
+              ? { jid: r.jid, jid_corrigido_de: r.jid_corrigido_de, slug_correto: `dm-${r.jid.split("@")[0]}` }
+              : {}),
           },
           `Entrega agendada pra "${label}": ticket ${r.ticket}, começa a digitar em ~${formatarPrevisao(r.previsao_s)} (regime ${r.regime ?? "?"})` +
             (r.duracao_s !== undefined
@@ -1035,6 +1038,9 @@ server.registerTool(
               : "") +
             (r.descartados?.length
               ? ` ${r.descartados.length} balão(ões) do seu pedido NÃO entraram por repetir mensagem já enviada há pouco: ${r.descartados.map((b) => `«${b}»`).join(" | ")}.`
+              : "") +
+            (r.jid_corrigido_de && r.jid
+              ? ` O WhatsApp corrigiu o destino: a conta desse número é ${r.jid} (o pedido foi ${r.jid_corrigido_de}). Daqui pra frente use o chat \`dm-${r.jid.split("@")[0]}\` pra ler e responder.`
               : "") +
             (escolhido !== undefined ? ` Candidato ${escolhido} escolhido (score ${rev.score}).` : "") +
             " Acompanhe com status_envio; cancelar_envio cancela. Se o plantão avisar 'Entrega interrompida', releia o chat.",

@@ -13,11 +13,26 @@ const servers: import('node:http').Server[] = [];
 const filas: FilaEnvio[] = [];
 let dataDir: string;
 
-function gatewayFalso(demoraMs = 0) {
-  const estado = { abortado: false, chamadas: 0, textos: [] as string[] };
+function gatewayFalso(
+  demoraMs = 0,
+  numeros: Record<string, { exists: boolean; jid: string | null }> = {},
+) {
+  const estado = {
+    abortado: false,
+    chamadas: 0,
+    textos: [] as string[],
+    jids: [] as string[],
+    textosDiretos: [] as Array<{ jid: string; text: string }>,
+  };
   const gw = {
-    async entregarHumano(_jid: string, plano: Passo[], signal?: AbortSignal) {
+    async checkNumber(n: string) {
+      const r = numeros[n];
+      if (!r) throw new Error('sem resposta');
+      return r;
+    },
+    async entregarHumano(jid: string, plano: Passo[], signal?: AbortSignal) {
       estado.chamadas += 1;
+      estado.jids.push(jid);
       const textos = plano.flatMap((p) => (p.tipo === 'enviar' ? [p.texto] : []));
       estado.textos = textos;
       await new Promise<void>((resolve) => {
@@ -40,7 +55,9 @@ function gatewayFalso(demoraMs = 0) {
     },
     async marcarLido() {},
     async sendPresence() {},
-    async sendText() {},
+    async sendText(jid: string, text: string) {
+      estado.textosDiretos.push({ jid, text });
+    },
   } as unknown as WhatsAppGateway;
   return { gw, estado };
 }
@@ -77,6 +94,59 @@ afterEach(async () => {
   for (const f of filas.splice(0)) await f.parar();
   for (const s of servers.splice(0)) await new Promise<void>((r) => s.close(() => r()));
   await rm(dataDir, { recursive: true, force: true });
+});
+
+describe('control /send — JID canônico no primeiro contato', () => {
+  const DIGITADO = '5544991111111@s.whatsapp.net';
+  const CANONICO = '554491111111@s.whatsapp.net';
+  const numeros = {
+    '5544991111111': { exists: true, jid: CANONICO },
+    '5511000000000': { exists: false, jid: null },
+  };
+
+  it('humano: número digitado com o nono dígito entrega no JID que o WhatsApp devolve, e o slug acompanha', async () => {
+    const { gw, estado } = gatewayFalso(0, numeros);
+    const base = await subir(gw);
+    const res = await post(base, '/send', {
+      jid: DIGITADO,
+      slug: 'dm-5544991111111',
+      humano: true,
+      text: 'oi, tudo bem?',
+      urgencia: 'agora',
+    });
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { jid: string; slug: string; jid_corrigido_de?: string };
+    expect(body).toMatchObject({
+      jid: CANONICO,
+      slug: 'dm-554491111111',
+      jid_corrigido_de: DIGITADO,
+    });
+    await espera(() => estado.chamadas === 1);
+    expect(estado.jids).toEqual([CANONICO]);
+  });
+
+  it('número que não está no WhatsApp: 400 com motivo claro e nenhum ticket', async () => {
+    const { gw, estado } = gatewayFalso(0, numeros);
+    const base = await subir(gw);
+    const res = await post(base, '/send', {
+      jid: '5511000000000@s.whatsapp.net',
+      humano: true,
+      text: 'oi',
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toMatch(/não está no WhatsApp/);
+    const lista = (await (await fetch(`${base}/entregas`)).json()) as { entregas: unknown[] };
+    expect(lista.entregas).toHaveLength(0);
+    expect(estado.chamadas).toBe(0);
+  });
+
+  it('envio direto (sem humano) também usa o JID canônico', async () => {
+    const { gw, estado } = gatewayFalso(0, numeros);
+    const base = await subir(gw);
+    const res = await post(base, '/send', { jid: DIGITADO, text: 'direto' });
+    expect(res.status).toBe(200);
+    expect(estado.textosDiretos).toEqual([{ jid: CANONICO, text: 'direto' }]);
+  });
 });
 
 describe('control /send humano — ticket', () => {

@@ -163,6 +163,9 @@ export interface SendResult {
   substituiu_baloes_enviados?: string[];
   /** Balões do pedido descartados por repetir mensagem recente da conta. */
   descartados?: string[];
+  /** JID em que a entrega foi de fato agendada, e o pedido quando o WhatsApp corrigiu (ex.: nono dígito). */
+  jid?: string;
+  jid_corrigido_de?: string;
   cancelado: boolean;
   enviados?: number;
   baloes?: number;
@@ -229,6 +232,8 @@ export async function dsSend(
     ...num('substituiu_enviados'),
     ...lista('substituiu_baloes_enviados'),
     ...lista('descartados'),
+    ...str('jid'),
+    ...str('jid_corrigido_de'),
     ...num('enviados'),
     ...num('baloes'),
     ...str('motivo'),

@@ -18,7 +18,11 @@ type SockFake = {
     jid: string,
     c: { text: string },
     o?: { quoted?: unknown },
-  ): Promise<{ key: { remoteJid: string; fromMe: true; id: string } }>;
+  ): Promise<{
+    key: { remoteJid: string; fromMe: true; id: string };
+    message: { conversation: string };
+    messageTimestamp: number;
+  }>;
   sendPresenceUpdate(p: string): Promise<void>;
   readMessages(): Promise<void>;
 };
@@ -45,6 +49,8 @@ function sockFake(): SockFake {
           fromMe: true,
           id: `3EB0${String(this.enviadas.length).padStart(18, '0')}`,
         },
+        message: { conversation: c.text },
+        messageTimestamp: 1_700_000_000,
       };
     },
     async sendPresenceUpdate(p) {
@@ -158,6 +164,17 @@ describe('entregarHumano — cancelamento', () => {
     }, 400);
     await expect(gw.entregarHumano(JID, plano)).rejects.toThrow(/balão 2\/2 \(1 enviado/);
     expect(sock.enviadas).toEqual(['primeiro']);
+  });
+
+  it('guarda o conteúdo do que enviou pra atender pedido de reenvio do WhatsApp (getMessage)', async () => {
+    const { gw } = await makeGateway();
+    await gw.entregarHumano(JID, plano);
+    const id1 = `3EB0${'1'.padStart(18, '0')}`;
+    const id2 = `3EB0${'2'.padStart(18, '0')}`;
+    expect(gw.mensagemEnviada({ id: id1 })).toEqual({ conversation: 'primeiro' });
+    expect(gw.mensagemEnviada({ id: id2 })).toEqual({ conversation: 'segundo' });
+    expect(gw.mensagemEnviada({ id: 'desconhecido' })).toBeUndefined();
+    expect(gw.mensagemEnviada({ id: null })).toBeUndefined();
   });
 
   it('aoEnviar recebe a contagem acumulada logo depois de cada balão sair', async () => {
