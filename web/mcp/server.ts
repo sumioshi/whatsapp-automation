@@ -814,7 +814,12 @@ server.registerTool(
   {
     description:
       "Envia uma mensagem de texto no WhatsApp — para um GRUPO (slug/nome/jid) ou um CONTATO em DM " +
-      "(jid '<numero>@s.whatsapp.net', de listar_contatos). " +
+      "(`dm-<55DDDnúmero>`). PRIMEIRO CONTATO funciona: o número NÃO precisa estar em listar_contatos nem ter " +
+      "conversa anterior — passe `dm-<55DDDnúmero>` do jeito que o número veio (com ou sem o nono dígito) e o " +
+      "coletor confirma no WhatsApp qual é a conta antes de enviar. Se o retorno trouxer `jid_corrigido_de`, " +
+      "use o `slug_correto` dali em diante; número fora do WhatsApp é recusado com motivo, nada sai. " +
+      "Primeiro contato SEMPRE passa pelo OK do operador no texto, mesmo se outros chats rodam em modo autônomo " +
+      "(conduta na skill `comunicacao-cliente`). " +
       "VOZ: carregue a skill de voz do operador (`voz-do-operador` ou a preenchida desta máquina) " +
       "ANTES de redigir — ela define grafia, registro e a camada " +
       "de venda do operador, medidos no texto real dele. Depois `comunicacao-cliente` (conduta: o que " +
@@ -841,8 +846,9 @@ server.registerTool(
       grupo: z
         .string()
         .describe(
-          "slug do grupo (o mesmo de ler_mensagens/listar_grupos), nome exato, OU um jid " +
-            "(grupo @g.us / DM '<numero>@s.whatsapp.net'). Slug é o jeito mais seguro.",
+          "slug do grupo (o mesmo de ler_mensagens/listar_grupos), nome exato, `dm-<55DDDnúmero>` pra DM " +
+            "(vale pra número novo, sem conversa anterior), OU um jid (grupo @g.us / DM " +
+            "'<numero>@s.whatsapp.net'). Slug é o jeito mais seguro.",
         ),
       texto: z.string().optional().describe("mensagem a enviar (obrigatório se não passar `baloes`)"),
       baloes: z

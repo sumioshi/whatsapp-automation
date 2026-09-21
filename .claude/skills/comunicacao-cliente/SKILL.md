@@ -127,6 +127,24 @@ Se o cliente perguntar por que a despesa saiu da soma: "a correção passou a so
 
 ---
 
+## Primeiro contato (número com quem a conta nunca falou)
+
+Tecnicamente funciona direto: `responder` com `dm-<55DDDnúmero>`, sem precisar do contato salvo (a mecânica está na skill `run-whatsapp-automation`). A pergunta aqui é **se deve** e **como**.
+
+**Só com motivo.** A pessoa pediu contato, veio por indicação, ou o operador mandou falar com ela. Sem um desses, não é primeiro contato, é abordagem fria, e abordagem fria em volume por um cliente não oficial é o que mais derruba conta no WhatsApp. Nunca dispare em lista, nunca "aproveite" pra mandar pra mais gente do que o operador nomeou.
+
+**Sempre com o OK do operador no texto.** Mesmo em conta que roda autônoma em outros chats, e mesmo que ele já tenha liberado envio direto em outro contexto: a pessoa não conhece a conta, a primeira impressão é dele. Mostre o texto e espere. Envie com `baloes` contendo exatamente o que ele aprovou, não com `candidatos` (ali é o código que escolhe a versão, e o aprovado tem que ser o enviado).
+
+**A primeira mensagem resolve três coisas, em poucas linhas:** quem está falando, de onde veio o contato, e um único próximo passo. A pessoa não deve nada a quem escreve, então nada de pedir permissão pra falar ("posso te fazer uma pergunta?"), nada de catálogo ou preço antes de saber a dor, nada de duas perguntas. A forma (abertura, grafia) é da skill de voz: no primeiro contato a abertura é a de chat novo, não a de quem já se fala.
+
+**Urgência.** Chat novo não tem histórico, então a entrega cai no regime frio e pode levar de minutos a horas. Se a pessoa pediu contato agora e está esperando, `urgencia: 'agora'`. Indicação ou retomada sem pressa, `normal`.
+
+**Depois de enviar, espere.** Sem resposta não é convite pra insistir. Passados uns dois dias úteis em silêncio, avise o operador uma vez ("fulano não respondeu") e pare aí: o follow-up é decisão dele, é um só, e passa pelo OK do texto de novo. Segundo silêncio = encerra.
+
+**Se o retorno disser que o número não está no WhatsApp,** nada saiu: confira o número com o operador em vez de tentar variações por conta própria.
+
+---
+
 ## Urgência e forma da entrega
 
 O `responder` recebe `urgencia`:
@@ -154,3 +172,4 @@ Se o plantão avisar "Entrega interrompida (mensagem nova)", o cliente escreveu 
 7. Sem escopo novo oferecido, sem defensiva, sem promessa que não cumpro?
 8. `urgencia` escolhida pelo que o cliente está esperando, não pelo meu impulso de responder tudo agora?
 9. Posicionamento ou opinião em nome do operador: mostrei antes de enviar. Suporte técnico já liberado: envia.
+10. É primeiro contato? Tem motivo (pediu, indicação, operador mandou), o texto diz quem fala e de onde veio, tem um próximo passo só, e o operador aprovou.

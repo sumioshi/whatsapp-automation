@@ -32,7 +32,7 @@ grupo" abaixo.
   "meu WhatsApp pessoal", ou o chat não existir no principal. Contas diferentes → slugs diferentes;
   `listar_grupos` em cada um. Plantão no pessoal: `PLANTAO_CLOUD=pessoal` no `plantao-stream.sh`.
 
-## ⚠️ Regra: enviar mensagem no grupo → humanizar SEMPRE
+## ⚠️ Regra: enviar mensagem (grupo ou DM) → humanizar SEMPRE
 
 Sempre que o usuário pedir para **enviar, responder ou redigir uma mensagem** num
 grupo (via `responder`, `responder_midia` com legenda, pelo painel, ou pela API de controle `:4310`):
@@ -53,7 +53,8 @@ sem OK explícito do operador.
    (isso o `responder` recusa em código). `humanizer` só em prosa longa, se o operador pedir.
 4. **Confirme antes de enviar** (mostre texto + grupo), EXCETO quando o usuário já
    liberou envio direto pra aquele contexto (ex: suporte técnico onde ele autorizou
-   responder o cliente na hora). No modo `confirmar`, rode `revisar_texto` primeiro e
+   responder o cliente na hora). A exceção NÃO cobre primeiro contato: mensagem pra quem a
+   conta nunca falou sempre passa pelo OK do texto. No modo `confirmar`, rode `revisar_texto` primeiro e
    mostre ao operador o texto já revisado (fica mais fácil aprovar sabendo que passou).
 5. Só então envie: `responder` aceita `candidatos` (2-3 versões — o código envia a que
    menos destoa do chat) ou `baloes` (já decidida a quebra). A revisão de estilo (`web/lib/estilo/`)
@@ -70,7 +71,7 @@ sem OK explícito do operador.
    qualquer cancelamento ou interrupção, `ler_mensagens` antes de reenviar — parte pode ter
    saído. `urgencia: 'agora'` só quando o cliente espera um ok imediato.
 
-Isso vale para qualquer envio a grupo — é uma regra fixa, não opcional.
+Isso vale para qualquer envio, a grupo ou a DM (primeiro contato incluído) — é uma regra fixa, não opcional.
 
 ## 🚨 Regras duras de envio
 
@@ -203,6 +204,26 @@ Três coisas distintas — não confunda (é onde os agentes mais se perdem):
 > escrever", ligue `alertar_chat`; o `wa-notifier` te notifica e você puxa com `novidades`.
 > (Lembrete técnico: não há push que acorde uma sessão Claude ociosa — a notificação é pro
 > humano, que então te aciona; daí você chama `novidades`.)
+
+> Pedido típico: "manda mensagem pro fulano, o número é X" e a conta NUNCA falou com esse número.
+> **Funciona, e não precisa de nada antes**: não procure em `listar_contatos`, não procure pasta
+> `dm-<id>` (ela só nasce depois da 1ª mensagem), não conclua que "não dá". Chame
+> `responder { grupo: "dm-<55DDDnúmero>" }`: só dígitos, prefixe `55` + DDD se o operador passou
+> sem ("11 99999-9999" vira `dm-5511900000512`), e deixe o nono dígito COMO VEIO, sem testar
+> variações. `preparar_resposta`, `revisar_texto` e `estado_triagem` funcionam nesse slug mesmo
+> com o chat ainda vazio (modo `confirmar`, conversa fria), então o fluxo de redação é o de sempre.
+> O coletor pergunta ao WhatsApp qual é a conta desse número antes de enviar:
+> no Brasil muita conta é registrada SEM o nono dígito, e mandar pro número digitado dá um tique
+> e nunca entrega. Três desfechos:
+> - **entregou no mesmo número** → segue normal.
+> - **retorno com `jid_corrigido_de`** → a conta é outra grafia do número; passe a usar o
+>   `slug_correto` do retorno pra ler e responder (é lá que a resposta da pessoa vai cair).
+> - **recusa "não está no WhatsApp"** → nada saiu; confira o número com o operador.
+>
+> Latência: chat sem histórico cai no regime FRIO (a mensagem pode levar de minutos a horas pra
+> sair). Se a pessoa acabou de pedir contato e está esperando, passe `urgencia: "agora"`.
+>
+> Conduta de primeiro contato (quem, o quê, quanto): skill `comunicacao-cliente`.
 
 ## Linkar um projeto a uma conversa
 
