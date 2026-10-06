@@ -8,6 +8,7 @@ import { CmdkButton } from "./CmdkButton";
 import { ConnectionDot } from "./ConnectionDot";
 import { SidebarGroups } from "./SidebarGroups";
 import { InstallButton } from "./InstallButton";
+import { SairButton } from "./SairButton";
 import { ThemeToggle } from "./ThemeToggle";
 
 const CHAVE_RECOLHIDA = "wac-sidebar-recolhida";
@@ -81,6 +82,18 @@ const NAV: Array<{ href: string; rotulo: string; icone: React.ReactNode }> = [
       </svg>
     ),
   },
+  {
+    href: "/equipe",
+    rotulo: "Equipe",
+    icone: (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
 ];
 
 function IconeRecolher({ recolhida }: { recolhida: boolean }) {
@@ -133,6 +146,7 @@ export function Sidebar({ groups }: { groups: GroupSummary[] }) {
         </nav>
         <div className="mt-auto flex flex-col items-center gap-1">
           <ThemeToggle compacto />
+          <SairButton />
           <Link
             href="/config"
             title="Configurações"
@@ -179,6 +193,7 @@ export function Sidebar({ groups }: { groups: GroupSummary[] }) {
             </svg>
           </Link>
           <ThemeToggle />
+          <SairButton className="mono px-1.5 text-xs text-fg-faint transition-colors hover:text-fg" />
           <button
             type="button"
             onClick={alternar}
