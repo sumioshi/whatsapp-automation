@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRotas } from "./RotasPainel";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { corDoPonto } from "./Etiqueta";
@@ -11,6 +12,7 @@ import type { GroupSummary } from "@/lib/data";
  * (leve, 5s) — evita N requisições. Sem sinal de digitação/gravação, some.
  */
 function useActiveTyping(slug: string, active: boolean): "typing" | "recording" | null {
+  const rotas = useRotas();
   const [typing, setTyping] = useState<"typing" | "recording" | null>(null);
   useEffect(() => {
     if (!active) {
@@ -20,7 +22,7 @@ function useActiveTyping(slug: string, active: boolean): "typing" | "recording" 
     let alive = true;
     async function poll() {
       try {
-        const res = await fetch(`/api/presence?slug=${encodeURIComponent(slug)}`, {
+        const res = await fetch(rotas.presenca(slug), {
           cache: "no-store",
         });
         if (!res.ok) return;
@@ -39,7 +41,7 @@ function useActiveTyping(slug: string, active: boolean): "typing" | "recording" 
       alive = false;
       clearInterval(id);
     };
-  }, [slug, active]);
+  }, [slug, active, rotas]);
   return typing;
 }
 
@@ -84,7 +86,8 @@ interface SidebarLinkProps {
 
 export function SidebarLink({ group, isNav = false, onNavEnter }: SidebarLinkProps) {
   const pathname = usePathname();
-  const active = pathname === `/g/${group.slug}`;
+  const rotas = useRotas();
+  const active = pathname === rotas.chat(group.slug);
   const { prefix, body } = parsePreview(group);
   const typing = useActiveTyping(group.slug, active);
 
@@ -104,7 +107,7 @@ export function SidebarLink({ group, isNav = false, onNavEnter }: SidebarLinkPro
 
   return (
     <Link
-      href={`/g/${group.slug}`}
+      href={rotas.chat(group.slug)}
       data-nav-item
       onMouseMove={onNavEnter}
       className={containerClass}
@@ -112,7 +115,7 @@ export function SidebarLink({ group, isNav = false, onNavEnter }: SidebarLinkPro
       {group.avatarPath ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={`/api/media/${group.avatarPath.split("/").map(encodeURIComponent).join("/")}`}
+          src={rotas.midia(group.avatarPath)}
           alt=""
           className="h-10 w-10 shrink-0 rounded-[10px] border border-line object-cover"
         />

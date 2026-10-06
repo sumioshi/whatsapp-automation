@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRotas } from "../RotasPainel";
 import type { MessageView, PollView } from "@/lib/data";
 import { LiveAudio } from "../LiveAudio";
 import { Button, cn, IconButton, ScanShimmer } from "../ui";
@@ -8,7 +9,6 @@ import {
   baseName,
   type Contacts,
   formatTime,
-  mediaUrl,
   numberFromJid,
   renderMentions,
   senderColor,
@@ -21,19 +21,15 @@ import {
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🙏", "✅"];
 
 /** Toolbar de ações que aparece no hover do balão: reagir rápido + copiar. */
-function MessageActions({ m }: { m: MessageView }) {
+function MessageActions({ slug, m }: { slug: string; m: MessageView }) {
+  const rotas = useRotas();
   async function react(emoji: string) {
     try {
-      await fetch("/api/react", {
+      const p = rotas.reagir(slug, m, emoji);
+      await fetch(p.url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jid: m.groupJid,
-          msgId: m.id,
-          participant: m.sender,
-          fromMe: m.fromMe,
-          emoji,
-        }),
+        body: JSON.stringify(p.body),
       });
     } catch {
       /* coletor offline — ignora */
@@ -328,7 +324,7 @@ export function Bubble({
             : "rounded-[14px] rounded-bl-[4px] bg-bubble-their hover:brightness-110"
         }`}
       >
-        <MessageActions m={m} />
+        <MessageActions slug={slug} m={m} />
         <div className="mb-1 flex items-baseline gap-2">
           {!mine && (
             <span className={`text-sm font-medium ${senderColor(m.sender)}`}>
@@ -338,6 +334,11 @@ export function Bubble({
           {!mine && contacts.team.has(numberFromJid(m.sender)) && (
             <span className="mono rounded border border-accent/30 px-1 text-[10px] font-medium uppercase tracking-wide text-accent">
               time
+            </span>
+          )}
+          {mine && m.usuario && (
+            <span className="mono text-[10px] font-medium text-fg-dim" title="enviado pelo painel">
+              {m.usuario}
             </span>
           )}
           <span className="mono text-[10px] text-fg-faint">{formatTime(m.timestamp)}</span>
@@ -410,7 +411,8 @@ export function Bubble({
 
 function Media({ slug, m }: { slug: string; m: MessageView }) {
   if (!m.mediaPath) return null;
-  const src = mediaUrl(m.mediaPath);
+  const rotas = useRotas();
+  const src = rotas.midia(m.mediaPath);
 
   switch (m.type) {
     case "audio":
@@ -480,7 +482,7 @@ function Media({ slug, m }: { slug: string; m: MessageView }) {
             </svg>
             <span className="truncate text-info">{baseName(m.mediaPath)}</span>
           </a>
-          <ReadDoc mediaPath={m.mediaPath} />
+          <ReadDoc slug={slug} mediaPath={m.mediaPath} />
         </div>
       );
     default:
@@ -488,7 +490,8 @@ function Media({ slug, m }: { slug: string; m: MessageView }) {
   }
 }
 
-function ReadDoc({ mediaPath }: { mediaPath: string }) {
+function ReadDoc({ slug, mediaPath }: { slug: string; mediaPath: string }) {
+  const rotas = useRotas();
   const [doc, setDoc] = useState<{ text: string; pages?: number; note?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -497,10 +500,11 @@ function ReadDoc({ mediaPath }: { mediaPath: string }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/document", {
+      const p = rotas.documento(slug, mediaPath);
+      const res = await fetch(p.url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mediaPath }),
+        body: JSON.stringify(p.body),
       });
       const data = (await res.json()) as { text?: string; pages?: number; note?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? "falha ao ler documento");
@@ -565,6 +569,7 @@ function Transcribe({
   mediaPath: string;
   initial: string | null;
 }) {
+  const rotas = useRotas();
   const [transcript, setTranscript] = useState<string | null>(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -573,10 +578,11 @@ function Transcribe({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/transcribe", {
+      const p = rotas.transcrever(slug, mediaPath);
+      const res = await fetch(p.url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, mediaPath }),
+        body: JSON.stringify(p.body),
       });
       const data = (await res.json()) as { text?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? "falha na transcrição");

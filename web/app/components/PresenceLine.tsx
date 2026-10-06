@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect, useState } from "react";
+import { useRotas } from "./RotasPainel";
 
 type Status = "typing" | "recording" | "online" | "offline";
 interface Presence {
@@ -39,12 +40,13 @@ function TypingDots() {
 export function PresenceLine({ slug, fallback = null }: { slug: string; fallback?: ReactNode }) {
   const [presence, setPresence] = useState<Presence | null>(null);
 
+  const rotas = useRotas();
   useEffect(() => {
     let alive = true;
     setPresence(null); // limpa ao trocar de conversa
     async function poll() {
       try {
-        const res = await fetch(`/api/presence?slug=${encodeURIComponent(slug)}`, {
+        const res = await fetch(rotas.presenca(slug), {
           cache: "no-store",
         });
         if (!res.ok) return;
@@ -60,7 +62,7 @@ export function PresenceLine({ slug, fallback = null }: { slug: string; fallback
       alive = false;
       clearInterval(id);
     };
-  }, [slug]);
+  }, [slug, rotas]);
 
   if (!presence) return <>{fallback}</>;
 

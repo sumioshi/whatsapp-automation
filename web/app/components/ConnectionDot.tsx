@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRotas } from "./RotasPainel";
 
 type Status = { connection?: string; qr?: string | null };
 
 /** Bolinha de status da conexão do coletor (verde = aberto, âmbar = pareando, vermelho = offline). */
 export function ConnectionDot() {
+  const rotas = useRotas();
   const [status, setStatus] = useState<Status | null>(null);
   const [reachable, setReachable] = useState(true);
 
@@ -13,7 +15,7 @@ export function ConnectionDot() {
     let alive = true;
     const tick = async () => {
       try {
-        const res = await fetch("/api/status", { cache: "no-store" });
+        const res = await fetch(rotas.status, { cache: "no-store" });
         const data = (await res.json()) as Status;
         if (alive) {
           setStatus(data);
@@ -29,7 +31,7 @@ export function ConnectionDot() {
       alive = false;
       clearInterval(id);
     };
-  }, []);
+  }, [rotas]);
 
   const open = reachable && status?.connection === "open";
   const pairing = reachable && (status?.qr || status?.connection === "connecting");

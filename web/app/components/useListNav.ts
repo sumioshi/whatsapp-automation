@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRotas } from "./RotasPainel";
 import { useRouter } from "next/navigation";
 import type { GroupSummary } from "@/lib/data";
 
@@ -23,6 +24,7 @@ export function useListNav(
   containerRef: React.RefObject<HTMLElement | null>,
 ) {
   const router = useRouter();
+  const rotas = useRotas();
   const [navIndex, setNavIndex] = useState<number>(-1);
   // Track last groups length to reset when filter changes
   const prevLenRef = useRef(groups.length);
@@ -103,9 +105,9 @@ export function useListNav(
       if (navIndex < 0 || navIndex >= groups.length) return;
       e.preventDefault();
       const g = groups[navIndex];
-      if (g) router.push(`/g/${g.slug}`);
+      if (g) router.push(rotas.chat(g.slug));
     },
-    [shouldBlock, navIndex, groups, router],
+    [shouldBlock, navIndex, groups, router, rotas],
   );
 
   const jumpNextUnread = useCallback(
