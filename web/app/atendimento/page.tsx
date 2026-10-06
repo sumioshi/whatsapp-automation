@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 export default async function AtendimentoInicio() {
   const a = await atendenteDaPagina();
   if (!a) notFound();
-  const items = (await buildInbox()).filter((i) => a.chats.has(i.slug));
+  // Só os chats dele; o "silenciado" é organização do dono e não tira ninguém da fila.
+  const items = await buildInbox({ slugs: a.chats, ignorarSilenciados: true });
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="border-b border-line bg-surface px-5 py-3">

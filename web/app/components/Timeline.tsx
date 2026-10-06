@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRotas } from "./RotasPainel";
+import { checarSessao, useRotas } from "./RotasPainel";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MessageView, PollView } from "@/lib/data";
 import { LiveAudio } from "./LiveAudio";
@@ -193,9 +193,10 @@ export function Timeline({
     if (!first || loadingOlder) return;
     setLoadingOlder(true);
     try {
-      const res = await fetch(rotas.mensagens(slug, { before: first.id, limit: 150 }), {
-        cache: "no-store",
-      });
+      const res = checarSessao(
+        await fetch(rotas.mensagens(slug, { before: first.id, limit: 150 }), { cache: "no-store" }),
+        rotas,
+      );
       if (!res.ok) return;
       const older = (await res.json()) as MessageView[];
       if (older.length === 0) {
@@ -255,7 +256,10 @@ export function Timeline({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(v.body),
     })
-      .then(() => router.refresh())
+      .then((r) => {
+        checarSessao(r, rotas);
+        router.refresh();
+      })
       .catch(() => {});
   }, [slug, router, rotas]);
 
@@ -302,9 +306,7 @@ export function Timeline({
   const lastBodyRef = useRef<string>("");
   const poll = useCallback(async () => {
     try {
-      const res = await fetch(rotas.mensagens(slug), {
-        cache: "no-store",
-      });
+      const res = checarSessao(await fetch(rotas.mensagens(slug), { cache: "no-store" }), rotas);
       if (!res.ok) return;
       const body = await res.text();
       if (body === lastBodyRef.current) return; // nada mudou → não mexe no estado

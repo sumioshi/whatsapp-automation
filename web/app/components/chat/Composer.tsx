@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRotas } from "../RotasPainel";
+import { checarSessao, useRotas } from "../RotasPainel";
 import { Button, IconButton } from "../ui";
 
 /* Composer do chat: campo de resposta, anexos (imagem/vídeo/áudio/doc) e envio.
@@ -86,12 +86,16 @@ export function Composer({
     setSending(true);
     setError(null);
     try {
-      const res = await fetch(pedido.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pedido.body),
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const res = checarSessao(
+        await fetch(pedido.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pedido.body),
+        }),
+        rotas,
+      );
+      // Corpo que não é JSON (proxy, página de erro) não vira erro de parse na tela.
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? "falha no envio");
       setText("");
       // Atualiza assim que o coletor registrar a própria mensagem.
@@ -114,8 +118,8 @@ export function Composer({
       form.set("kind", kindOf(file));
       form.set("file", file);
       if (text.trim()) form.set("caption", text.trim());
-      const res = await fetch(alvo.url, { method: "POST", body: form });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const res = checarSessao(await fetch(alvo.url, { method: "POST", body: form }), rotas);
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? "falha no envio");
       setText("");
       setTimeout(onSent, 1200);

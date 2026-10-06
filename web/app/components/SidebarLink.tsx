@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRotas } from "./RotasPainel";
+import { checarSessao, useRotas } from "./RotasPainel";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { corDoPonto } from "./Etiqueta";
@@ -22,9 +22,7 @@ function useActiveTyping(slug: string, active: boolean): "typing" | "recording" 
     let alive = true;
     async function poll() {
       try {
-        const res = await fetch(rotas.presenca(slug), {
-          cache: "no-store",
-        });
+        const res = checarSessao(await fetch(rotas.presenca(slug), { cache: "no-store" }), rotas);
         if (!res.ok) return;
         const data = (await res.json()) as {
           presence: { status?: string } | null;

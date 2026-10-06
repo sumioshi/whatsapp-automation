@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rotasPainel } from './rotas-painel';
+import { destinoSemSessao, rotasPainel } from './rotas-painel';
 
 const msg = { id: 'M1', groupJid: '120363000000000000@g.us', sender: '5511999999999@s.whatsapp.net', fromMe: false };
 
@@ -28,6 +28,7 @@ describe('rotas do dono = as de hoje (sem mudança de comportamento)', () => {
       url: '/api/triage', body: { action: 'lastSeen', slug: 'g', value: '2026-10-06T00:00:00.000Z' },
     });
     expect(r.recursos).toEqual({ copiloto: true, time: true });
+    expect(r.aoNaoAutenticado).toBe(false);
   });
 });
 
@@ -47,5 +48,18 @@ describe('rotas do atendimento', () => {
     expect(r.enviarMidia('g', null)).toEqual({ url: '/api/atendimento/enviar-midia', campos: { slug: 'g' } });
     expect(r.visto('g', 'X')).toEqual({ url: '/api/atendimento/visto', body: { slug: 'g' } });
     expect(r.recursos).toEqual({ copiloto: false, time: false });
+    expect(r.aoNaoAutenticado).toBe(true);
+  });
+});
+
+describe('destinoSemSessao', () => {
+  it('atendimento: 401 leva ao login voltando pra onde estava', () => {
+    expect(destinoSemSessao(rotasPainel('atendimento'), 401, '/atendimento/g/grupo-a')).toBe('/login?next=%2Fatendimento%2Fg%2Fgrupo-a');
+  });
+  it('atendimento: outros status não mexem na navegação', () => {
+    for (const s of [200, 403, 404, 422, 500]) expect(destinoSemSessao(rotasPainel('atendimento'), s, '/atendimento')).toBeNull();
+  });
+  it('dono: nunca redireciona (comportamento de sempre)', () => {
+    expect(destinoSemSessao(rotasPainel('dono'), 401, '/g/grupo-a')).toBeNull();
   });
 });

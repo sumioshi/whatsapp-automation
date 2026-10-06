@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRotas } from "../RotasPainel";
+import { checarSessao, useRotas } from "../RotasPainel";
 import type { MessageView, PollView } from "@/lib/data";
 import { LiveAudio } from "../LiveAudio";
 import { Button, cn, IconButton, ScanShimmer } from "../ui";
@@ -26,11 +26,14 @@ function MessageActions({ slug, m }: { slug: string; m: MessageView }) {
   async function react(emoji: string) {
     try {
       const p = rotas.reagir(slug, m, emoji);
-      await fetch(p.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(p.body),
-      });
+      checarSessao(
+        await fetch(p.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(p.body),
+        }),
+        rotas,
+      );
     } catch {
       /* coletor offline — ignora */
     }
@@ -501,11 +504,14 @@ function ReadDoc({ slug, mediaPath }: { slug: string; mediaPath: string }) {
     setError(null);
     try {
       const p = rotas.documento(slug, mediaPath);
-      const res = await fetch(p.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(p.body),
-      });
+      const res = checarSessao(
+        await fetch(p.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(p.body),
+        }),
+        rotas,
+      );
       const data = (await res.json()) as { text?: string; pages?: number; note?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? "falha ao ler documento");
       setDoc({ text: data.text ?? "", pages: data.pages, note: data.note });
@@ -579,11 +585,14 @@ function Transcribe({
     setError(null);
     try {
       const p = rotas.transcrever(slug, mediaPath);
-      const res = await fetch(p.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(p.body),
-      });
+      const res = checarSessao(
+        await fetch(p.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(p.body),
+        }),
+        rotas,
+      );
       const data = (await res.json()) as { text?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? "falha na transcrição");
       setTranscript(data.text ?? "");

@@ -1,5 +1,5 @@
 import { type Contacts, buildContacts, displayNameOf, numberFromJid, roleOf } from "./contacts";
-import { type GroupSummary, type MessageView, listGroups, readGroupRecords } from "./data";
+import { type MessageView, listGroups, readGroupRecords } from "./data";
 import { readTriage } from "./triage";
 import { type SlaBand, aguardandoValido, buildSlaInfo } from "./sla";
 
@@ -170,7 +170,25 @@ export function evaluateGroup(
  * Isso inverte a ordenação anterior (mais-recente primeiro), que colocava o
  * cliente mais recente no topo e afundava o mais antigo — urgência invertida.
  */
-export async function buildInbox(): Promise<InboxItem[]> {
+export interface OpcoesInbox {
+  /** Só estes chats entram (os demais nem são lidos). */
+  slugs?: ReadonlySet<string>;
+  /** Não aplica o "silenciado" do dono (a fila de quem atende não some por ele). */
+  ignorarSilenciados?: boolean;
+}
+
+/** Chats que a fila avalia: o recorte pedido, menos os silenciados (salvo se ignorados). */
+export function candidatosDoInbox<T extends { slug: string }>(
+  groups: T[],
+  muted: Record<string, boolean | undefined>,
+  opts: OpcoesInbox = {},
+): T[] {
+  return groups.filter(
+    (g) => (!opts.slugs || opts.slugs.has(g.slug)) && (opts.ignorarSilenciados || !muted[g.slug]),
+  );
+}
+
+export async function buildInbox(opts: OpcoesInbox = {}): Promise<InboxItem[]> {
   const now = Date.now(); // calculado uma vez, server-side
   const [groups, contacts, triage] = await Promise.all([
     listGroups(),
@@ -178,7 +196,7 @@ export async function buildInbox(): Promise<InboxItem[]> {
     readTriage(),
   ]);
 
-  const candidates = groups.filter((g: GroupSummary) => !triage.muted[g.slug]);
+  const candidates = candidatosDoInbox(groups, triage.muted, opts);
 
   const items = await Promise.all(
     candidates.map(async (g) => {

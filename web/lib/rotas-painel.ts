@@ -32,6 +32,8 @@ export interface RotasPainel {
   enviarMidia(slug: string, jid: string | null): { url: string; campos: Record<string, string> } | null;
   visto(slug: string, iso: string): Pedido;
   recursos: { copiloto: boolean; time: boolean };
+  /** Resposta 401 de uma rota da área manda pro login (sessão vencida ou conta desativada). */
+  aoNaoAutenticado: boolean;
 }
 
 const enc = encodeURIComponent;
@@ -62,6 +64,7 @@ const DONO: RotasPainel = {
   enviarMidia: (_slug, jid) => (jid ? { url: '/api/send-media', campos: { jid } } : null),
   visto: (slug, iso) => ({ url: '/api/triage', body: { action: 'lastSeen', slug, value: iso } }),
   recursos: { copiloto: true, time: true },
+  aoNaoAutenticado: false,
 };
 
 const BASE = '/api/atendimento';
@@ -81,8 +84,15 @@ const ATENDIMENTO: RotasPainel = {
   enviarMidia: (slug) => ({ url: `${BASE}/enviar-midia`, campos: { slug } }),
   visto: (slug) => ({ url: `${BASE}/visto`, body: { slug } }),
   recursos: { copiloto: false, time: false },
+  aoNaoAutenticado: true,
 };
 
 export function rotasPainel(modo: ModoPainel): RotasPainel {
   return modo === 'atendimento' ? ATENDIMENTO : DONO;
+}
+
+/** Pra onde ir quando uma rota responde `status`; null = fica onde está. */
+export function destinoSemSessao(rotas: RotasPainel, status: number, caminhoAtual: string): string | null {
+  if (status !== 401 || !rotas.aoNaoAutenticado) return null;
+  return `/login?next=${enc(caminhoAtual)}`;
 }
