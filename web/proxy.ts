@@ -58,6 +58,6 @@ export const config = {
   // fluxo de login/saída, o manifest e os ícones (o fetch do manifest é sem
   // cookies; sem ele o "Instalar app" não aparece).
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/control|api/v1|api/login|api/logout|login|manifest.webmanifest|icon-192.png|icon-512.png|apple-touch-icon.png).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/control(?:/|$)|api/v1(?:/|$)|api/login$|api/logout$|login$|manifest.webmanifest|icon-192.png|icon-512.png|apple-touch-icon.png).*)",
   ],
 };

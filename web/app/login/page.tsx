@@ -3,10 +3,11 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Button, Input } from "@/app/components/ui";
+import { caminhoInterno } from "@/lib/equipe/destino-login";
 
 /** Só caminhos internos — evita open redirect via ?next=. */
 function safeNext(raw: string | null): string {
-  return raw?.startsWith("/") && !raw.startsWith("//") ? raw : "/";
+  return caminhoInterno(raw);
 }
 
 function LoginForm() {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { caminhoInterno } from "@/lib/equipe/destino-login";
 import { credenciaisDoDono, igualSeguro } from "@/lib/equipe/autenticar";
-import { verificarSenha } from "@/lib/equipe/senha";
+import { hashSenha, verificarSenha } from "@/lib/equipe/senha";
 import { assinarSessao, chaveDeSessao, novaSessao, SESSION_COOKIE, VALIDADE_S, type Papel } from "@/lib/equipe/sessao";
 import { alterarUsuarios, acharUsuario } from "@/lib/equipe/usuarios";
 
@@ -12,9 +13,12 @@ const FAIL_DELAY_MS = 800;
 /** Senha maior que isso é falha direta, sem gastar scrypt. */
 const SENHA_MAX = 256;
 
+/** Hash fixo pra gastar o mesmo tempo quando o login não existe. */
+let hashFalso: Promise<string> | null = null;
+
 /** Destino depois de entrar: atendente só vai pra dentro da própria área. */
 function destino(papel: Papel, next: unknown): string {
-  const n = typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  const n = caminhoInterno(next);
   if (papel === "dono") return n;
   return n === "/atendimento" || n.startsWith("/atendimento/") ? n : "/atendimento";
 }
@@ -25,33 +29,44 @@ export async function POST(req: Request) {
   // Sem credenciais configuradas (dev local) o painel já é aberto — nada a fazer.
   if (!cred || !chave) return NextResponse.json({ ok: true, destino: "/" });
 
-  let given: { user?: string; pass?: string; next?: string };
+  let given: { user?: unknown; pass?: unknown; next?: unknown } | null;
   try {
     given = (await req.json()) as typeof given;
   } catch {
     return NextResponse.json({ ok: false, error: "corpo inválido" }, { status: 400 });
   }
-  const user = (given.user ?? "").trim();
-  const pass = given.pass ?? "";
+  const valido = !!given && typeof given === "object" && typeof given.user === "string" && typeof given.pass === "string";
+  const user = valido ? (given!.user as string).trim() : "";
+  const pass = valido ? (given!.pass as string) : "";
 
   let sessao: ReturnType<typeof novaSessao> | null = null;
-  if (pass.length <= SENHA_MAX) {
+  if (valido && pass.length <= SENHA_MAX) {
     if (igualSeguro(user, cred.user) && igualSeguro(pass, cred.pass)) {
       sessao = novaSessao(cred.user, "dono", 0);
     } else {
-      const login = user.toLowerCase();
-      const u = await acharUsuario(login);
-      if (u?.ativo && (await verificarSenha(pass, u.senha))) {
-        sessao = novaSessao(u.login, "atendente", u.versao);
-        const agora = new Date().toISOString();
-        try {
-          await alterarUsuarios((lista) => {
-            const alvo = lista.find((x) => x.login === u.login);
-            if (alvo) alvo.ultimoAcesso = agora;
-          });
-        } catch {
-          // Registrar o último acesso nunca bloqueia um login válido.
+      try {
+        const u = await acharUsuario(user.toLowerCase());
+        if (u?.ativo) {
+          if (await verificarSenha(pass, u.senha)) {
+            sessao = novaSessao(u.login, "atendente", u.versao);
+          }
+        } else {
+          hashFalso ??= hashSenha("x");
+          await verificarSenha(pass, await hashFalso);
         }
+        if (sessao) {
+          const agora = new Date().toISOString();
+          try {
+            await alterarUsuarios((lista) => {
+              const alvo = lista.find((x) => x.login === u!.login);
+              if (alvo) alvo.ultimoAcesso = agora;
+            });
+          } catch {
+            // Registrar o último acesso nunca bloqueia um login válido.
+          }
+        }
+      } catch {
+        sessao = null;
       }
     }
   }
@@ -61,7 +76,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "usuário ou senha incorretos" }, { status: 401 });
   }
 
-  const res = NextResponse.json({ ok: true, destino: destino(sessao.p, given.next) });
+  const res = NextResponse.json({ ok: true, destino: destino(sessao.p, given?.next) });
   res.cookies.set(SESSION_COOKIE, assinarSessao(sessao, chave), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
