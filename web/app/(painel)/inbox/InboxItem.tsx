@@ -9,14 +9,14 @@ const REASON: Record<InboxReason, { label: string; variant: "danger" | "info" }>
 };
 
 /** Uma linha da caixa de entrada: clicável pro grupo, com motivo, prévia, horário e urgência. */
-export function InboxItem({ item }: { item: Item }) {
+export function InboxItem({ item, href }: { item: Item; href?: string }) {
   const r = REASON[item.reason];
   const labelClass = BAND_LABEL_CLASS[item.band];
   const borderClass = BAND_BORDER_CLASS[item.band];
 
   return (
     <Link
-      href={`/g/${item.slug}`}
+      href={href ?? `/g/${item.slug}`}
       className={[
         "group block rounded-card border border-line bg-surface px-4 py-3",
         "border-l-2 transition-colors hover:border-line-2",
