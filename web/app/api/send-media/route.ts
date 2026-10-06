@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
@@ -12,7 +12,7 @@ const KINDS = new Set(["image", "document", "audio", "video"]);
 /**
  * Recebe um arquivo (multipart) do painel, grava num temp e manda pro coletor
  * via /send-media (que envia pelo WhatsApp). O coletor re-salva a própria mídia
- * em data/<grupo>/, então o temp é descartável.
+ * em data/<grupo>/, então o temp é apagado depois do envio, deu certo ou não.
  */
 export async function POST(req: Request) {
   let form: FormData;
@@ -69,5 +69,7 @@ export async function POST(req: Request) {
       { error: "Coletor offline — inicie o coletor para enviar." },
       { status: 502 },
     );
+  } finally {
+    await unlink(abs).catch(() => {});
   }
 }
