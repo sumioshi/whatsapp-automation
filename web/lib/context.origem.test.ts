@@ -43,6 +43,20 @@ describe('compact — origem', () => {
     expect('origem' in compact(view({}), contatos)).toBe(false);
   });
 
+  it('envio de pessoa pelo painel vira "<login> (painel)" e expõe ator/usuario', () => {
+    const c = compact(view({ origem: 'coletor', ator: 'painel', usuario: 'ana' }), contatos);
+    expect(c.de).toBe('ana (painel)');
+    expect(c.ator).toBe('painel');
+    expect(c.usuario).toBe('ana');
+  });
+
+  it('sem ator mantém o remetente e as chaves ausentes', () => {
+    const c = compact(view({ origem: 'coletor' }), contatos);
+    expect(c.de).toBe('Você');
+    expect('ator' in c).toBe(false);
+    expect('usuario' in c).toBe(false);
+  });
+
   it('ia_meta troca o remetente por "IA da Meta"', () => {
     const c = compact(view({ origem: 'ia_meta' }), contatos);
     expect(c.de).toBe('IA da Meta');

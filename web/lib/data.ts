@@ -34,6 +34,9 @@ export interface MessageRecord {
   mediaPath: string | null;
   /** Só em mensagem da própria conta (ou de bot). Ver `Origem`. */
   origem?: Origem;
+  /** Envio feito por uma pessoa no painel; `usuario` é o login dela. */
+  ator?: 'painel';
+  usuario?: string;
 }
 
 /**
