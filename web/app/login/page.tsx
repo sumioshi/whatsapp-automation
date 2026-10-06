@@ -24,13 +24,14 @@ function LoginForm() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user, pass }),
+        body: JSON.stringify({ user, pass, next }),
       });
       if (res.ok) {
         // Navegação completa (não client-side): o navegador mostra o progresso
         // nativo enquanto a home renderiza no servidor — sem "clique morto" —
         // e o documento já chega com o cookie novo pro proxy.
-        window.location.assign(next);
+        const data = (await res.json().catch(() => null)) as { destino?: string } | null;
+        window.location.assign(data?.destino ?? next);
         return; // mantém "Entrando…" até a página trocar
       }
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
