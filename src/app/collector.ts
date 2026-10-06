@@ -72,6 +72,8 @@ export class Collector {
       quotedSender: msg.quotedSender,
       mediaPath,
       ...(msg.origem ? { origem: msg.origem } : {}),
+      ...(msg.ator ? { ator: msg.ator } : {}),
+      ...(msg.usuario ? { usuario: msg.usuario } : {}),
     };
 
     try {

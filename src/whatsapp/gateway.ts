@@ -54,6 +54,7 @@ import type {
   InboundPresence,
   InboundReaction,
   InboundReceipt,
+  MetaEnvio,
   OutboundMedia,
   ReceiptStatus,
 } from '../core/message.js';
@@ -336,11 +337,11 @@ export class BaileysGateway implements WhatsAppGateway {
     return this.sock?.user?.id ? jidNormalizedUser(this.sock.user.id) : null;
   }
 
-  async sendText(jid: string, text: string, mentions?: string[]): Promise<void> {
+  async sendText(jid: string, text: string, mentions?: string[], meta?: MetaEnvio): Promise<void> {
     if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
     const content = mentions?.length ? { text, mentions } : { text };
     const sent = await this.sock.sendMessage(jid, content);
-    this.echoSent(jid, sent);
+    this.echoSent(jid, sent, meta);
   }
 
   async checkNumber(number: string): Promise<{ exists: boolean; jid: string | null }> {
@@ -349,17 +350,17 @@ export class BaileysGateway implements WhatsAppGateway {
     return result?.exists ? { exists: true, jid: result.jid } : { exists: false, jid: null };
   }
 
-  async sendMedia(jid: string, media: OutboundMedia): Promise<void> {
+  async sendMedia(jid: string, media: OutboundMedia, meta?: MetaEnvio): Promise<void> {
     if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
     if (media.kind !== 'audio') {
       const sent = await this.sock.sendMessage(jid, toMessageContent(media));
-      this.echoSent(jid, sent);
+      this.echoSent(jid, sent, meta);
       return;
     }
     const oggPath = await toOggOpus(media.path);
     try {
       const sent = await this.sock.sendMessage(jid, toMessageContent({ ...media, path: oggPath }));
-      this.echoSent(jid, sent);
+      this.echoSent(jid, sent, meta);
     } finally {
       await unlink(oggPath).catch(() => {});
     }
@@ -584,13 +585,13 @@ export class BaileysGateway implements WhatsAppGateway {
     }
   }
 
-  private echoSent(jid: string, sent: WAMessage | undefined): void {
+  private echoSent(jid: string, sent: WAMessage | undefined, meta?: MetaEnvio): void {
     this.lembrarEnviada(sent);
     if (!sent || !this.sock) return;
     const groupName = this.groups.get(jid) ?? jid;
     const mapped = mapMessage(sent, this.sock, groupName);
     // Só aqui se sabe que o envio foi deste processo — marca antes do dedup/emissão.
-    if (mapped) this.emitMessageDeduped({ ...mapped, origem: 'coletor' });
+    if (mapped) this.emitMessageDeduped({ ...mapped, origem: 'coletor', ...(meta ?? {}) });
   }
 
   /**

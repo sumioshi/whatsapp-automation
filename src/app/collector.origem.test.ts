@@ -47,4 +47,10 @@ describe('Collector grava origem', () => {
     await collector(gravadas).handle(msg({ fromMe: false, origem: undefined }));
     expect('origem' in (gravadas[0] ?? {})).toBe(false);
   });
+
+  it('ator e usuario vão pro registro quando presentes', async () => {
+    const gravadas: MessageRecord[] = [];
+    await collector(gravadas).handle(msg({ origem: 'coletor', ator: 'painel', usuario: 'ana' }));
+    expect(gravadas[0]).toMatchObject({ origem: 'coletor', ator: 'painel', usuario: 'ana' });
+  });
 });

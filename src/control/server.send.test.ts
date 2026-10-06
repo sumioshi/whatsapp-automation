@@ -22,7 +22,7 @@ function gatewayFalso(
     chamadas: 0,
     textos: [] as string[],
     jids: [] as string[],
-    textosDiretos: [] as Array<{ jid: string; text: string }>,
+    textosDiretos: [] as Array<{ jid: string; text: string; meta?: unknown }>,
   };
   const gw = {
     async checkNumber(n: string) {
@@ -55,8 +55,8 @@ function gatewayFalso(
     },
     async marcarLido() {},
     async sendPresence() {},
-    async sendText(jid: string, text: string) {
-      estado.textosDiretos.push({ jid, text });
+    async sendText(jid: string, text: string, _m?: string[], meta?: unknown) {
+      estado.textosDiretos.push({ jid, text, meta });
     },
   } as unknown as WhatsAppGateway;
   return { gw, estado };
@@ -146,6 +146,19 @@ describe('control /send — JID canônico no primeiro contato', () => {
     const res = await post(base, '/send', { jid: DIGITADO, text: 'direto' });
     expect(res.status).toBe(200);
     expect(estado.textosDiretos).toEqual([{ jid: CANONICO, text: 'direto' }]);
+  });
+
+  it('/send direto repassa ator e usuario do painel; sem eles, nada', async () => {
+    const { gw, estado } = gatewayFalso(0, numeros);
+    const base = await subir(gw);
+    await post(base, '/send', { jid: DIGITADO, text: 'oi', ator: 'painel', usuario: 'ana' });
+    await post(base, '/send', { jid: DIGITADO, text: 'sem carimbo' });
+    await post(base, '/send', { jid: DIGITADO, text: 'ator estranho', ator: 'mcp', usuario: 'x' });
+    expect(estado.textosDiretos.map((t) => t.meta)).toEqual([
+      { ator: 'painel', usuario: 'ana' },
+      undefined,
+      undefined,
+    ]);
   });
 });
 

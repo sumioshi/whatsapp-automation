@@ -16,6 +16,7 @@ import type {
   InboundReceipt,
   MediaKind,
   MessageRecord,
+  MetaEnvio,
   OutboundMedia,
   PollRecord,
   PollVoteRecord,
@@ -55,9 +56,9 @@ export interface WhatsAppGateway {
   /** Registra handler para revogação ("apagada para todos") de mensagem recebida. */
   onDelete(handler: (del: InboundDelete) => void): void;
   /** Envia uma mensagem de texto para um grupo/contato (jid). `mentions` = jids a marcar (@). */
-  sendText(jid: string, text: string, mentions?: string[]): Promise<void>;
+  sendText(jid: string, text: string, mentions?: string[], meta?: MetaEnvio): Promise<void>;
   /** Envia uma mídia (imagem, documento, áudio ou vídeo) para um grupo/contato (jid). */
-  sendMedia(jid: string, media: OutboundMedia): Promise<void>;
+  sendMedia(jid: string, media: OutboundMedia, meta?: MetaEnvio): Promise<void>;
   /**
    * Verifica se um número (só dígitos, com DDI, ex: 5511999999999) tem conta
    * de WhatsApp. Retorna o jid canônico se existir, null caso contrário.
