@@ -13,6 +13,14 @@ export function recentesDaConta(
 }
 
 /**
+ * Registros de todos os slugs da mesma conversa (DM partida em telefone × LID):
+ * o balão mandado por um dos lados também conta como repetição no outro.
+ */
+export async function registrosDaConversa<T>(slugs: string[], ler: (slug: string) => Promise<T[]>): Promise<T[]> {
+  return (await Promise.all(slugs.map(ler))).flat();
+}
+
+/**
  * O atendente escreve como o operador: valem os bloqueios da revisão, não o
  * score (calibrado pra IA). Devolve a mensagem pro composer, ou null se passa.
  */

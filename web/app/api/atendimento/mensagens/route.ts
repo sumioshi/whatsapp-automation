@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { readGroupMessages } from "@/lib/data";
-import { atendenteDoPedido, exigirChat, respostaDeErro } from "@/lib/equipe/acesso";
+import { atendenteDoPedido, exigirChat, irmaosLiberados, respostaDeErro } from "@/lib/equipe/acesso";
+import { janelaDaConversa } from "@/lib/equipe/conversa";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +20,8 @@ export async function GET(req: Request) {
     }
     const pedido = Number(url.searchParams.get("limit"));
     const limit = Number.isFinite(pedido) && pedido > 0 ? Math.min(pedido, LIMITE_MAX) : LIMITE_PADRAO;
-    return NextResponse.json(await readGroupMessages(slug, { limit, before }));
+    // DM partida em telefone × LID: os irmãos liberados entram fundidos na mesma janela.
+    return NextResponse.json(await janelaDaConversa(await irmaosLiberados(a, slug), { limit, before }));
   } catch (e) {
     return respostaDeErro(e);
   }

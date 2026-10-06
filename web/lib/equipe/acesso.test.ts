@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Contacts } from '../contacts';
-import { chatsEfetivos, ErroHttp, exigirChat } from './acesso';
+import { chatsEfetivos, ErroHttp, exigirChat, irmaosPermitidos } from './acesso';
 
 function contatos(phones: Array<[string, string]>): Contacts {
   return {
@@ -26,11 +26,37 @@ describe('chatsEfetivos', () => {
     expect(s.has('dm-5511888888888')).toBe(false);
     expect(s.has('grupo-a')).toBe(false);
   });
+  it('dois LIDs de pessoas diferentes: liberar o telefone de uma não abre o LID da outra', () => {
+    const dois = contatos([
+      ['98200000000001', '5511999999999'],
+      ['98200000000002', '5511888888888'],
+    ]);
+    const todos = new Set(['dm-5511999999999', 'dm-98200000000001', 'dm-5511888888888', 'dm-98200000000002']);
+    const s = chatsEfetivos(['dm-5511999999999'], dois, todos);
+    expect(s).toEqual(new Set(['dm-5511999999999', 'dm-98200000000001']));
+    expect(s.has('dm-98200000000002')).toBe(false);
+  });
   it('grupo é ele mesmo', () => {
     expect(chatsEfetivos(['grupo-a'], c, existentes)).toEqual(new Set(['grupo-a']));
   });
   it('irmão que não existe no coletor não entra; o slug liberado sempre fica', () => {
     expect(chatsEfetivos(['dm-5511999999999'], c, new Set())).toEqual(new Set(['dm-5511999999999']));
+  });
+});
+
+describe('irmaosPermitidos', () => {
+  const c = contatos([['98200000000001', '5511999999999']]);
+  const existentes = new Set(['dm-5511999999999', 'dm-98200000000001', 'grupo-a']);
+
+  it('DM: o próprio slug e o irmão liberado (telefone primeiro)', () => {
+    const chats = new Set(['dm-5511999999999', 'dm-98200000000001']);
+    expect(irmaosPermitidos(chats, 'dm-98200000000001', c, existentes)).toEqual(['dm-5511999999999', 'dm-98200000000001']);
+  });
+  it('irmão fora da lista liberada não entra', () => {
+    expect(irmaosPermitidos(new Set(['dm-98200000000001']), 'dm-98200000000001', c, existentes)).toEqual(['dm-98200000000001']);
+  });
+  it('grupo é só ele', () => {
+    expect(irmaosPermitidos(new Set(['grupo-a']), 'grupo-a', c, existentes)).toEqual(['grupo-a']);
   });
 });
 

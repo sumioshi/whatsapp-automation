@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
 import { readGroupRecords } from "@/lib/data";
-import { atendenteDoPedido, exigirChat, respostaDeErro } from "@/lib/equipe/acesso";
+import { atendenteDoPedido, exigirChat, irmaosLiberados, respostaDeErro } from "@/lib/equipe/acesso";
 import { destinoDoSlug } from "@/lib/equipe/destino";
-import { motivoDeRecusa, recentesDaConta } from "@/lib/equipe/envio";
+import { motivoDeRecusa, recentesDaConta, registrosDaConversa } from "@/lib/equipe/envio";
 import { nomeSeguro } from "@/lib/nome-arquivo";
 import { CONTROL_URL } from "@/lib/paths";
 
@@ -30,7 +30,8 @@ export async function POST(req: Request) {
     if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: "arquivo ausente" }, { status: 400 });
     if (file.size > TETO_BYTES) return NextResponse.json({ error: "arquivo maior que 64 MB" }, { status: 413 });
     if (caption) {
-      const recusa = motivoDeRecusa(caption, recentesDaConta(await readGroupRecords(slug), Date.now()));
+      const registros = await registrosDaConversa(await irmaosLiberados(a, slug), readGroupRecords);
+      const recusa = motivoDeRecusa(caption, recentesDaConta(registros, Date.now()));
       if (recusa) return NextResponse.json({ error: recusa }, { status: 422 });
     }
     const jid = await destinoDoSlug(slug);

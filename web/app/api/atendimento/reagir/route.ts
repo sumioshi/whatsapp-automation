@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { readGroupRecords } from "@/lib/data";
-import { atendenteDoPedido, ErroHttp, exigirChat, respostaDeErro } from "@/lib/equipe/acesso";
+import { atendenteDoPedido, ErroHttp, exigirChat, irmaosLiberados, respostaDeErro } from "@/lib/equipe/acesso";
+import { registrosDaConversa } from "@/lib/equipe/envio";
 import { CONTROL_URL } from "@/lib/paths";
 
 export const runtime = "nodejs";
 
-/** A chave da reação sai do histórico do próprio chat — o atendente só manda o id. */
+/** A chave da reação sai do histórico da conversa (com o irmão de DM) — o atendente só manda o id. */
 export async function POST(req: Request) {
   try {
     const a = await atendenteDoPedido(req);
@@ -14,7 +15,8 @@ export async function POST(req: Request) {
     exigirChat(a, slug);
     if (typeof body.emoji !== "string") return NextResponse.json({ error: "emoji é obrigatório" }, { status: 400 });
     if (typeof body.msgId !== "string") return NextResponse.json({ error: "msgId é obrigatório" }, { status: 400 });
-    const alvo = (await readGroupRecords(slug)).find((r) => r.id === body.msgId);
+    const registros = await registrosDaConversa(await irmaosLiberados(a, slug), readGroupRecords);
+    const alvo = registros.find((r) => r.id === body.msgId);
     if (!alvo) throw new ErroHttp(404, "mensagem não encontrada neste chat");
     const res = await fetch(`${CONTROL_URL}/react`, {
       method: "POST",

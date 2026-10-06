@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { readGroupRecords } from "@/lib/data";
-import { atendenteDoPedido, exigirChat, respostaDeErro } from "@/lib/equipe/acesso";
+import { atendenteDoPedido, exigirChat, irmaosLiberados, respostaDeErro } from "@/lib/equipe/acesso";
 import { destinoDoSlug } from "@/lib/equipe/destino";
-import { motivoDeRecusa, recentesDaConta } from "@/lib/equipe/envio";
+import { motivoDeRecusa, recentesDaConta, registrosDaConversa } from "@/lib/equipe/envio";
 import { CONTROL_URL } from "@/lib/paths";
 
 export const runtime = "nodejs";
@@ -19,7 +19,8 @@ export async function POST(req: Request) {
     if (!texto) return NextResponse.json({ error: "texto vazio" }, { status: 400 });
     const jid = await destinoDoSlug(slug);
     if (!jid) return NextResponse.json({ error: "não achei o destino deste chat" }, { status: 409 });
-    const recusa = motivoDeRecusa(texto, recentesDaConta(await readGroupRecords(slug), Date.now()));
+    const registros = await registrosDaConversa(await irmaosLiberados(a, slug), readGroupRecords);
+    const recusa = motivoDeRecusa(texto, recentesDaConta(registros, Date.now()));
     if (recusa) return NextResponse.json({ error: recusa }, { status: 422 });
     const res = await fetch(`${CONTROL_URL}/send`, {
       method: "POST",

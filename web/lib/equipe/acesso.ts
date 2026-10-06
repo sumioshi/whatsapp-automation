@@ -30,6 +30,17 @@ export function chatsEfetivos(chats: string[], c: Contacts, existentes: Readonly
   return out;
 }
 
+/** Slugs da mesma conversa (DM partida em telefone × LID) que o atendente pode ver, o próprio incluído. */
+export function irmaosPermitidos(
+  chats: ReadonlySet<string>,
+  slug: string,
+  c: Contacts,
+  existentes: ReadonlySet<string>,
+): string[] {
+  const out = slugsIrmaosDeDm(slug, c, existentes).filter((s) => s === slug || chats.has(s));
+  return out.includes(slug) ? out : [slug, ...out];
+}
+
 async function slugsExistentes(): Promise<Set<string>> {
   try {
     const entries = await readdir(DATA_DIR, { withFileTypes: true });
@@ -63,6 +74,12 @@ export async function atendenteDoPedido(req: Request): Promise<Atendente> {
 
 export async function atendenteDaPagina(): Promise<Atendente | null> {
   return atendentePeloToken((await cookies()).get(SESSION_COOKIE)?.value);
+}
+
+/** `irmaosPermitidos` com contatos e diretórios do coletor; grupo não paga a leitura. */
+export async function irmaosLiberados(a: Atendente, slug: string): Promise<string[]> {
+  if (!/^dm-\d+$/.test(slug)) return [slug];
+  return irmaosPermitidos(a.chats, slug, await buildContacts(), await slugsExistentes());
 }
 
 /** Chat fora da lista responde como inexistente. */

@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { Timeline } from "@/app/components/Timeline";
-import { conversationName, countGroupMessages, listGroups, readGroupMessages } from "@/lib/data";
-import { atendenteDaPagina } from "@/lib/equipe/acesso";
+import { conversationName, listGroups } from "@/lib/data";
+import { atendenteDaPagina, irmaosLiberados } from "@/lib/equipe/acesso";
+import { janelaDaConversa, totalDaConversa } from "@/lib/equipe/conversa";
 import { lerVisto } from "@/lib/equipe/visto";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +12,10 @@ export default async function AtendimentoChat({ params }: { params: Promise<{ sl
   const { slug } = await params;
   const a = await atendenteDaPagina();
   if (!a || !a.chats.has(slug)) notFound();
+  const irmaos = await irmaosLiberados(a, slug);
   const [messages, total, groups] = await Promise.all([
-    readGroupMessages(slug, { limit: 150 }),
-    countGroupMessages(slug),
+    janelaDaConversa(irmaos, { limit: 150 }),
+    totalDaConversa(irmaos),
     listGroups({ lastSeen: await lerVisto(a.usuario.login) }),
   ]);
   const fallback = conversationName(slug, messages.at(-1)?.group ?? slug, messages);
