@@ -410,8 +410,8 @@ export function Bubble({
 }
 
 function Media({ slug, m }: { slug: string; m: MessageView }) {
-  if (!m.mediaPath) return null;
   const rotas = useRotas();
+  if (!m.mediaPath) return null;
   const src = rotas.midia(m.mediaPath);
 
   switch (m.type) {
