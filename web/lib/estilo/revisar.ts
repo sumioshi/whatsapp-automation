@@ -40,14 +40,12 @@ export const CONFIG_REVISAO = { limiar: LIMIAR };
 const PESO_TELL: Partial<Record<TellId, number>> = { dois_pontos_intro: 2, travessao: 2, nao_so_mas: 2, markdown: 2, bullets: 2 };
 const TETO_MINIMIZADOR = 3;
 
-export function revisar(e: EntradaRevisao): Revisao {
-  const texto = e.baloes.join("\n");
+/** Só o que nunca passa: balão repetido, tratamento errado e confissão de culpa. */
+export function bloqueiosDe(baloes: string[], minhasRecentes: string[] = []): Hit[] {
+  const texto = baloes.join("\n");
   const bloqueios: Hit[] = [];
-  const hits: Hit[] = [];
-
-  // O cliente já recebeu: mandar de novo é o erro mais visível que existe.
-  const recentes = new Set((e.minhasRecentes ?? []).map(normalizarBalao).filter(Boolean));
-  const repetidos = e.baloes.filter((b) => recentes.has(normalizarBalao(b)));
+  const recentes = new Set(minhasRecentes.map(normalizarBalao).filter(Boolean));
+  const repetidos = baloes.filter((b) => recentes.has(normalizarBalao(b)));
   if (repetidos.length) {
     bloqueios.push({
       regra: "repetido",
@@ -56,14 +54,22 @@ export function revisar(e: EntradaRevisao): Revisao {
       sugestao: "tira esse balão; o cliente já recebeu. Se for retomar, diz só o que é novo",
     });
   }
-
   const pron = tratamentoErrado(texto);
   if (pron.length) bloqueios.push({ regra: "tratamento", peso: 0, motivo: avisoDeTratamento(pron), sugestao: "você/vc, seu/sua" });
+  for (const c of detectarCulpa(texto)) {
+    if (c.grupo === "A") bloqueios.push({ regra: "culpa", peso: 0, motivo: `confissão de culpa: "${c.trecho}"`, sugestao: c.sugestao });
+  }
+  return bloqueios;
+}
+
+export function revisar(e: EntradaRevisao): Revisao {
+  const texto = e.baloes.join("\n");
+  const bloqueios: Hit[] = bloqueiosDe(e.baloes, e.minhasRecentes);
+  const hits: Hit[] = [];
 
   let minimizador = 0;
   for (const c of detectarCulpa(texto)) {
-    if (c.grupo === "A") bloqueios.push({ regra: "culpa", peso: 0, motivo: `confissão de culpa: "${c.trecho}"`, sugestao: c.sugestao });
-    else if (c.grupo === "B") hits.push({ regra: "acidente", peso: c.peso, motivo: `narra acidente: "${c.trecho}"`, sugestao: c.sugestao });
+    if (c.grupo === "B") hits.push({ regra: "acidente", peso: c.peso, motivo: `narra acidente: "${c.trecho}"`, sugestao: c.sugestao });
     else if (c.grupo === "C") hits.push({ regra: "drama", peso: c.peso, motivo: `dramatiza: "${c.trecho}"`, sugestao: c.sugestao });
     else if (c.grupo === "D" && minimizador < TETO_MINIMIZADOR) {
       minimizador += c.peso;

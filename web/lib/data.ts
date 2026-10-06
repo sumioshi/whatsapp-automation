@@ -322,7 +322,7 @@ async function readChatStates(): Promise<Record<string, ChatStateEntry>> {
 }
 
 /** Lista os grupos coletados (uma pasta por grupo em DATA_DIR). */
-export async function listGroups(): Promise<GroupSummary[]> {
+export async function listGroups(opts: { lastSeen?: Record<string, string> } = {}): Promise<GroupSummary[]> {
   if (!(await exists(DATA_DIR))) return [];
   const entries = await readdir(DATA_DIR, { withFileTypes: true });
   const groups: GroupSummary[] = [];
@@ -344,7 +344,7 @@ export async function listGroups(): Promise<GroupSummary[]> {
     if (!records) return null;
     const last = records.at(-1);
     const hasAvatar = await exists(safeDataPath(slug, 'avatar.jpg'));
-    const seen = lastSeen[slug];
+    const seen = (opts.lastSeen ?? lastSeen)[slug];
     const unread = seen
       ? records.filter((r) => !r.fromMe && r.timestamp > seen).length
       : 0;
