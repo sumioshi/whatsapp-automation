@@ -61,18 +61,23 @@ async function lerUsuariosStrict(): Promise<Usuario[]> {
   }
 }
 
-let cache: { mtimeMs: number; lista: Usuario[] } | null = null;
+let cache: { chave: string; lista: Usuario[] } | null = null;
 
-/** Leitura quente do proxy: relê só quando o arquivo muda. */
+/**
+ * Leitura quente do proxy: relê só quando o arquivo muda. A chave junta mtime,
+ * tamanho e inode — o mtime sozinho pode repetir (resolução do sistema de
+ * arquivos, cópia que preserva data) e a escrita atômica troca o inode.
+ */
 export async function acharUsuario(login: string): Promise<Usuario | null> {
-  let mtimeMs = -1;
+  let chave: string;
   try {
-    mtimeMs = (await stat(usuariosFile())).mtimeMs;
+    const s = await stat(usuariosFile());
+    chave = `${s.mtimeMs}:${s.size}:${s.ino}`;
   } catch {
     cache = null;
     return null;
   }
-  if (!cache || cache.mtimeMs !== mtimeMs) cache = { mtimeMs, lista: await lerUsuarios() };
+  if (!cache || cache.chave !== chave) cache = { chave, lista: await lerUsuarios() };
   return cache.lista.find((u) => u.login === login) ?? null;
 }
 

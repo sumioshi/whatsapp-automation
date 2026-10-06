@@ -8,12 +8,20 @@ interface Chat { slug: string; nome: string; etiquetas: string[] }
 interface Dados { usuarios: UsuarioPublico[]; chats: Chat[] }
 
 async function comando(body: Record<string, unknown>): Promise<{ ok?: boolean; error?: string; senhaGerada?: string }> {
-  const res = await fetch("/api/equipe", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return (await res.json()) as { ok?: boolean; error?: string; senhaGerada?: string };
+  try {
+    const res = await fetch("/api/equipe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return (await res.json().catch(() => ({ error: `falhou (${res.status})` }))) as {
+      ok?: boolean;
+      error?: string;
+      senhaGerada?: string;
+    };
+  } catch {
+    return { error: "sem conexão com o painel — tente de novo" };
+  }
 }
 
 function quando(iso: string | null): string {
@@ -27,13 +35,19 @@ export function EquipeView() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [novo, setNovo] = useState({ login: "", nome: "", senha: "" });
   const [editando, setEditando] = useState<string | null>(null);
+  const [renomeando, setRenomeando] = useState<{ login: string; nome: string } | null>(null);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [busca, setBusca] = useState("");
   const [etiqueta, setEtiqueta] = useState("");
 
   const carregar = useCallback(async () => {
-    const res = await fetch("/api/equipe", { cache: "no-store" });
-    setDados((await res.json()) as Dados);
+    try {
+      const res = await fetch("/api/equipe", { cache: "no-store" });
+      if (!res.ok) throw new Error(String(res.status));
+      setDados((await res.json()) as Dados);
+    } catch {
+      setErro("não consegui carregar a equipe — recarregue a página");
+    }
   }, []);
   useEffect(() => { void carregar(); }, [carregar]);
 
@@ -68,7 +82,7 @@ export function EquipeView() {
     setMarcados((m) => { const n = new Set(m); for (const c of visiveis) { if (valor) n.add(c.slug); else n.delete(c.slug); } return n; });
   }
 
-  if (!dados) return <div className="p-6 text-sm text-fg-dim">Carregando…</div>;
+  if (!dados) return <div className="p-6 text-sm text-fg-dim">{erro ?? "Carregando…"}</div>;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-5 md:px-10">
@@ -101,14 +115,47 @@ export function EquipeView() {
           <div key={u.login} className="rounded-card border border-line bg-surface p-4">
             <div className="flex flex-wrap items-center gap-3">
               <div className="min-w-0">
-                <div className="font-medium text-fg">{u.nome} <span className="mono text-xs text-fg-faint">@{u.login}</span></div>
+                {renomeando?.login === u.login ? (
+                  <form
+                    className="flex items-center gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void rodar({ acao: "editar", login: u.login, nome: renomeando.nome }, () => setRenomeando(null));
+                    }}
+                  >
+                    <Input
+                      className="w-52"
+                      aria-label={`Nome de ${u.login}`}
+                      value={renomeando.nome}
+                      onChange={(e) => setRenomeando({ login: u.login, nome: e.target.value })}
+                      required
+                      autoFocus
+                    />
+                    <Button type="submit" size="sm">Salvar</Button>
+                    <Button type="button" variant="subtle" size="sm" onClick={() => setRenomeando(null)}>Cancelar</Button>
+                  </form>
+                ) : (
+                  <div className="font-medium text-fg">
+                    {u.nome} <span className="mono text-xs text-fg-faint">@{u.login}</span>{" "}
+                    <button
+                      type="button"
+                      className="mono text-[11px] text-fg-faint underline-offset-2 hover:text-fg hover:underline"
+                      onClick={() => setRenomeando({ login: u.login, nome: u.nome })}
+                    >
+                      editar nome
+                    </button>
+                  </div>
+                )}
                 <div className="mono text-[11px] text-fg-faint">
                   {u.ativo ? "ativa" : "desativada"} · {u.chats.length} {u.chats.length === 1 ? "chat" : "chats"} · último acesso: {quando(u.ultimoAcesso)}
                 </div>
               </div>
               <div className="ml-auto flex flex-wrap gap-2">
                 <Button variant="subtle" size="sm" onClick={() => abrirChats(u)}>Chats</Button>
-                <Button variant="subtle" size="sm" onClick={() => void rodar({ acao: "senha", login: u.login }, (r) => setAviso(`Nova senha de ${u.login}: ${r.senhaGerada} — anote agora.`))}>Nova senha</Button>
+                <Button variant="subtle" size="sm" onClick={() => {
+                  if (!window.confirm(`Gerar nova senha para ${u.nome}? A senha atual deixa de valer e a sessão aberta cai.`)) return;
+                  void rodar({ acao: "senha", login: u.login }, (r) => setAviso(`Nova senha de ${u.login}: ${r.senhaGerada} — anote agora.`));
+                }}>Nova senha</Button>
                 <Button variant="subtle" size="sm" onClick={() => void rodar({ acao: "ativo", login: u.login, ativo: !u.ativo })}>{u.ativo ? "Desativar" : "Ativar"}</Button>
                 <Button variant="danger" size="sm" onClick={() => { if (window.confirm(`Apagar a conta de ${u.nome}?`)) void rodar({ acao: "apagar", login: u.login }); }}>Apagar</Button>
               </div>

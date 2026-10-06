@@ -7,7 +7,7 @@ import { readGroupRecords } from "@/lib/data";
 import { atendenteDoPedido, exigirChat, irmaosLiberados, respostaDeErro } from "@/lib/equipe/acesso";
 import { destinoDoSlug } from "@/lib/equipe/destino";
 import { motivoDeRecusa, recentesDaConta, registrosDaConversa } from "@/lib/equipe/envio";
-import { nomeSeguro } from "@/lib/nome-arquivo";
+import { mimeDoNome, nomeSeguro } from "@/lib/nome-arquivo";
 import { CONTROL_URL } from "@/lib/paths";
 
 export const runtime = "nodejs";
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
         jid, kind, path: abs,
         caption: caption || undefined,
         fileName: kind === "document" ? fileName : undefined,
-        mimetype: file.type || undefined,
+        mimetype: file.type || mimeDoNome(fileName),
         ator: "painel", usuario: a.usuario.login,
       }),
     }).catch(() => null);

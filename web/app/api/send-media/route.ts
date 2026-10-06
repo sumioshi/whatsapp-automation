@@ -3,7 +3,7 @@ import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
-import { nomeSeguro } from "@/lib/nome-arquivo";
+import { mimeDoNome, nomeSeguro } from "@/lib/nome-arquivo";
 import { CONTROL_URL } from "@/lib/paths";
 
 export const runtime = "nodejs";
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
         path: abs,
         caption: typeof caption === "string" && caption.trim() ? caption.trim() : undefined,
         fileName: kind === "document" ? fileName : undefined,
-        mimetype: file.type || undefined,
+        mimetype: file.type || mimeDoNome(fileName),
       }),
     });
     const data = (await res.json()) as { ok?: boolean; error?: string };

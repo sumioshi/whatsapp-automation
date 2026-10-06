@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, utimes, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -46,5 +46,16 @@ describe('store de contas', () => {
   });
   it('publico() tira a senha', () => {
     expect('senha' in mod.publico(ana)).toBe(false);
+  });
+  it('cache não fica velho quando o arquivo muda por fora com o mesmo mtime', async () => {
+    const f = mod.usuariosFile();
+    const T = 1_790_000_000; // segundos inteiros: o mtime fica idêntico nas duas escritas
+    await writeFile(f, JSON.stringify([{ ...ana, ativo: true }]));
+    await utimes(f, T, T);
+    expect((await mod.acharUsuario('ana'))?.ativo).toBe(true);
+    await writeFile(f, JSON.stringify([{ ...ana, ativo: false, versao: 22 }]));
+    await utimes(f, T, T);
+    expect((await stat(f)).mtimeMs).toBe(T * 1000);
+    expect((await mod.acharUsuario('ana'))?.versao).toBe(22);
   });
 });

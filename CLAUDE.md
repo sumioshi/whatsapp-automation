@@ -55,7 +55,8 @@ Monitor(timeout_ms: 1800000, command:
     echo "$line" | python3 -c 'import sys,json;
 m=json.loads(sys.stdin.read()); t=(m.get("text") or "").strip() or "["+m.get("type","")+"]"
 o=m.get("origem")
-if m.get("fromMe"): print("Você ("+o+"): "+t, flush=True) if o in ("celular","web") else None
+if m.get("fromMe") and m.get("ator")=="painel": print("Painel ("+(m.get("usuario") or "?")+"): "+t, flush=True)
+elif m.get("fromMe"): print("Você ("+o+"): "+t, flush=True) if o in ("celular","web") else None
 else: print((m.get("senderName") or m.get("sender") or "?")+": "+t, flush=True)'
   done)
 ```
