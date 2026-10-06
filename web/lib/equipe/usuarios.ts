@@ -49,6 +49,18 @@ export async function lerUsuarios(): Promise<Usuario[]> {
   }
 }
 
+/** Leitura rigorosa para alterações: ENOENT → []; erro ou não-array → throw. */
+async function lerUsuariosStrict(): Promise<Usuario[]> {
+  try {
+    const parsed = JSON.parse(await readFile(usuariosFile(), 'utf8')) as unknown;
+    if (!Array.isArray(parsed)) throw new Error('não é array');
+    return parsed.filter(valido);
+  } catch (e) {
+    if (e instanceof Error && 'code' in e && e.code === 'ENOENT') return [];
+    throw new Error('arquivo de contas ilegível — corrija antes de alterar');
+  }
+}
+
 let cache: { mtimeMs: number; lista: Usuario[] } | null = null;
 
 /** Leitura quente do proxy: relê só quando o arquivo muda. */
@@ -69,7 +81,7 @@ let fila: Promise<unknown> = Promise.resolve();
 /** Lê, aplica `fn` na lista e grava — uma alteração por vez. */
 export function alterarUsuarios<T>(fn: (lista: Usuario[]) => T | Promise<T>): Promise<T> {
   const passo = fila.then(async () => {
-    const lista = await lerUsuarios();
+    const lista = await lerUsuariosStrict();
     const r = await fn(lista);
     await writeJsonAtomic(usuariosFile(), lista);
     cache = null;

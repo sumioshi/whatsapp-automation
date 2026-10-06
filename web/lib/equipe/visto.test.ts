@@ -20,3 +20,12 @@ it('visto é por atendente e por chat', async () => {
   expect(await mod.lerVisto('ana')).toEqual({ 'grupo-a': '2026-10-06T12:00:00.000Z' });
   expect(await mod.lerVisto('bia')).toEqual({ 'grupo-a': '2026-10-06T13:00:00.000Z' });
 });
+
+it('marcarVisto concorrente não perde atualizações', async () => {
+  await Promise.all(['a1', 'a2', 'a3', 'a4', 'a5'].map((l) =>
+    mod.marcarVisto(l, 'grupo-a', '2026-10-06T12:00:00.000Z'),
+  ));
+  for (const l of ['a1', 'a2', 'a3', 'a4', 'a5']) {
+    expect(await mod.lerVisto(l)).toEqual({ 'grupo-a': '2026-10-06T12:00:00.000Z' });
+  }
+});

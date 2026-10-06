@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -37,9 +37,12 @@ describe('store de contas', () => {
     );
     expect((await mod.lerUsuarios()).map((u) => u.login).sort()).toEqual(['ana', 'bia', 'caio', 'duda']);
   });
-  it('arquivo corrompido → ninguém entra (lista vazia), sem exceção', async () => {
+  it('arquivo corrompido → ninguém entra (lista vazia), sem exceção; alterarUsuarios recusa', async () => {
     await writeFile(mod.usuariosFile(), '{não é json');
     expect(await mod.lerUsuarios()).toEqual([]);
+    const conteudoOriginal = await readFile(mod.usuariosFile(), 'utf8');
+    await expect(mod.alterarUsuarios((l) => { l.push({...ana, login: 'eva'}); })).rejects.toThrow(/ilegível/);
+    expect(await readFile(mod.usuariosFile(), 'utf8')).toBe(conteudoOriginal);
   });
   it('publico() tira a senha', () => {
     expect('senha' in mod.publico(ana)).toBe(false);
