@@ -72,5 +72,6 @@ export function exigirChat(a: Atendente, slug: string): void {
 
 export function respostaDeErro(e: unknown): Response {
   if (e instanceof ErroHttp) return Response.json({ error: e.message }, { status: e.status });
-  return Response.json({ error: e instanceof Error ? e.message : 'erro' }, { status: 500 });
+  console.error('[atendimento]', e);
+  return Response.json({ error: 'erro interno' }, { status: 500 });
 }

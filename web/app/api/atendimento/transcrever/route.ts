@@ -9,8 +9,8 @@ export async function POST(req: Request) {
   try {
     const a = await atendenteDoPedido(req);
     const body = (await req.json().catch(() => ({}))) as { slug?: string; mediaPath?: string };
-    const slug = body.slug ?? "";
-    const mediaPath = body.mediaPath ?? "";
+    const slug = typeof body.slug === "string" ? body.slug : "";
+    const mediaPath = typeof body.mediaPath === "string" ? body.mediaPath : "";
     exigirChat(a, slug);
     if (!ehCaminhoDeMidia(mediaPath) || slugDoCaminho(mediaPath) !== slug) throw new ErroHttp(404, "não encontrado");
     return transcreverDoDono(

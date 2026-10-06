@@ -7,7 +7,8 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   try {
     const a = await atendenteDoPedido(req);
-    const { slug = "" } = (await req.json().catch(() => ({}))) as { slug?: string };
+    const body = (await req.json().catch(() => ({}))) as { slug?: unknown };
+    const slug = typeof body.slug === "string" ? body.slug : "";
     exigirChat(a, slug);
     await marcarVisto(a.usuario.login, slug, new Date().toISOString());
     return NextResponse.json({ ok: true });

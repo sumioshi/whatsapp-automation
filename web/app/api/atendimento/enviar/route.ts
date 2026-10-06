@@ -12,9 +12,10 @@ export async function POST(req: Request) {
   try {
     const a = await atendenteDoPedido(req);
     const body = (await req.json().catch(() => ({}))) as { slug?: string; texto?: string };
-    const slug = body.slug ?? "";
+    const slug = typeof body.slug === "string" ? body.slug : "";
     exigirChat(a, slug);
-    const texto = (body.texto ?? "").trim();
+    if (typeof body.texto !== "string") return NextResponse.json({ error: "texto inválido" }, { status: 400 });
+    const texto = body.texto.trim();
     if (!texto) return NextResponse.json({ error: "texto vazio" }, { status: 400 });
     const jid = await destinoDoSlug(slug);
     if (!jid) return NextResponse.json({ error: "não achei o destino deste chat" }, { status: 409 });

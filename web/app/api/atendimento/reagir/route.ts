@@ -10,9 +10,10 @@ export async function POST(req: Request) {
   try {
     const a = await atendenteDoPedido(req);
     const body = (await req.json().catch(() => ({}))) as { slug?: string; msgId?: string; emoji?: string };
-    const slug = body.slug ?? "";
+    const slug = typeof body.slug === "string" ? body.slug : "";
     exigirChat(a, slug);
     if (typeof body.emoji !== "string") return NextResponse.json({ error: "emoji é obrigatório" }, { status: 400 });
+    if (typeof body.msgId !== "string") return NextResponse.json({ error: "msgId é obrigatório" }, { status: 400 });
     const alvo = (await readGroupRecords(slug)).find((r) => r.id === body.msgId);
     if (!alvo) throw new ErroHttp(404, "mensagem não encontrada neste chat");
     const res = await fetch(`${CONTROL_URL}/react`, {

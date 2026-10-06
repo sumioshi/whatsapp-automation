@@ -3,6 +3,7 @@ import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
+import { nomeSeguro } from "@/lib/nome-arquivo";
 import { CONTROL_URL } from "@/lib/paths";
 
 export const runtime = "nodejs";
@@ -39,8 +40,8 @@ export async function POST(req: Request) {
 
   const dir = join(tmpdir(), "wa-outbox");
   await mkdir(dir, { recursive: true });
-  const fileName = file.name || `arquivo-${randomUUID()}`;
-  const abs = join(dir, `${randomUUID()}-${fileName}`);
+  const fileName = nomeSeguro(file.name, `arquivo-${randomUUID()}`);
+  const abs = join(dir, randomUUID());
   await writeFile(abs, Buffer.from(await file.arrayBuffer()));
 
   try {
