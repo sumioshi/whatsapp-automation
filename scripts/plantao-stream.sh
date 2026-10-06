@@ -11,8 +11,9 @@
 #   Entrega interrompida (mensagem nova, 1/3 saiu) — releia o chat e responda de novo
 #                                    uma entrega humanizada agendada não saiu (ou saiu pela
 #                                    metade); entregas concluídas ficam em silêncio
-# O que o próprio coletor mandou (MCP/painel/API) NÃO aparece: o servidor oculta
-# (`ocultar=coletor`) e uma fromMe sem `origem` (coletor antigo) fica em silêncio.
+# O eco do agente/MCP fica em silêncio (o servidor oculta com `ocultar=coletor`, e uma
+# fromMe sem `origem`, de coletor antigo, também); envio de uma pessoa pelo painel aparece
+# como Painel (login).
 # Com mais de uma conversa, a linha vem com [slug] na frente.
 #
 # Reconecta sozinho e retoma de onde parou (guarda o último `id:` e reenvia em

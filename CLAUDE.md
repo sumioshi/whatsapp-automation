@@ -76,6 +76,21 @@ Cada chat tem um modo, persistido (tool `definir_modo`, lido pelo `responder`):
 O retorno do `responder` traz o `modo` do chat. É **convenção que a IA respeita**, não trava de
 código — então NÃO burle o `confirmar`. Pra saber o modo de um chat sem enviar, use `estado_triagem`.
 
+## Equipe no painel (acesso por chat)
+
+O operador cria contas em `/equipe` (login, senha, chats liberados). O atendente entra pelo
+mesmo link e cai em `/atendimento`: só existe pra ele o que foi liberado (404 no resto), sem QR,
+notas, contrato nem copiloto. O envio dele sai na hora, como o operador, passando pelos
+bloqueios da revisão (tu, culpa, balão repetido). Toda mensagem dele é gravada com
+`ator: "painel"` e `usuario: <login>`.
+
+- **Plantão:** `Painel (ana): texto` é CONTEXTO, igual ao `Você (celular)` — alguém da equipe já
+  respondeu; não responder por cima nem repetir.
+- **Fila:** envio pelo painel interrompe o ticket vivo do agente no chat (`operador_respondeu`).
+- **MCP:** `ler_mensagens` mostra `de: "ana (painel)"`.
+- Regras de acesso em `web/lib/equipe/politica.ts`; toda rota/página nova precisa de linha em
+  `web/lib/classificacao-rotas.ts` (o teste falha sem ela).
+
 ## Revisão de texto antes do envio (código, não convenção)
 
 `responder`, `responder_midia` (legenda) e `editar_mensagem` passam o texto por uma revisão
