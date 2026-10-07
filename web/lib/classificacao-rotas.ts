@@ -18,7 +18,6 @@ export const CLASSIFICACAO: Record<string, 'dono' | 'atendimento' | 'publico'> =
   '(painel)/page.tsx': 'dono',
   'api/agenda/route.ts': 'dono',
   'api/agent-seen/route.ts': 'dono',
-  'api/atendimento/chats/route.ts': 'atendimento',
   'api/atendimento/documento/route.ts': 'atendimento',
   'api/atendimento/enviar-midia/route.ts': 'atendimento',
   'api/atendimento/enviar/route.ts': 'atendimento',

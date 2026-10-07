@@ -1,16 +1,17 @@
 import { notFound } from "next/navigation";
 import { InboxItem } from "@/app/(painel)/inbox/InboxItem";
 import { EmptyState } from "@/app/components/ui";
-import { atendenteDaPagina } from "@/lib/equipe/acesso";
+import { paginaDoAtendente } from "@/lib/equipe/pagina";
 import { buildInbox } from "@/lib/inbox";
 
 export const dynamic = "force-dynamic";
 
 export default async function AtendimentoInicio() {
-  const a = await atendenteDaPagina();
-  if (!a) notFound();
+  const p = await paginaDoAtendente();
+  if (!p) notFound();
   // Só os chats dele; o "silenciado" é organização do dono e não tira ninguém da fila.
-  const items = await buildInbox({ slugs: a.chats, ignorarSilenciados: true });
+  // DM partida em telefone × LID é avaliada como uma conversa só.
+  const items = await buildInbox({ slugs: p.a.chats, ignorarSilenciados: true, canonicoDe: p.canonicoDe });
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="border-b border-line bg-surface px-5 py-3">

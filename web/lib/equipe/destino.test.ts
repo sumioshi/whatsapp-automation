@@ -43,16 +43,41 @@ describe('destinoDoSlug', () => {
       ];
       expect(await destinoDoSlug('grupo-b', { contatos, grupos: duplicados, registros })).toBe('120363000000000003@g.us');
     });
-    it('sem registro que case com um deles → null (não chuta)', async () => {
-      const registros = async () => [reg('120363000000000009@g.us', '2026-10-02T10:00:00.000Z')];
-      expect(await destinoDoSlug('grupo-b', { contatos, grupos: duplicados, registros })).toBeNull();
+    it('sem registros → null (não chuta entre os dois)', async () => {
       expect(await destinoDoSlug('grupo-b', { contatos, grupos: duplicados, registros: semRegistros })).toBeNull();
     });
-    it('grupo único não lê os registros', async () => {
-      const registros = async () => {
+    it('DM não lê registros nem config', async () => {
+      const falha = async () => {
         throw new Error('não devia ler');
       };
+      expect(await destinoDoSlug('dm-5511888888888', { contatos, grupos: falha, registros: falha })).toBe('5511888888888@s.whatsapp.net');
+    });
+  });
+
+  describe('grupo com registros: a identidade é a do diretório', () => {
+    const reg = (groupJid: string, timestamp: string) => ({ groupJid, timestamp });
+
+    it('config aponta outro grupo com o mesmo slug derivado, mas os registros mostram o jid real → usa o dos registros', async () => {
+      const outro = async () => [{ id: '120363000000000005@g.us', name: 'Grupo C' }];
+      const registros = async () => [
+        reg('120363000000000006@g.us', '2026-10-01T10:00:00.000Z'),
+        reg('120363000000000006@g.us', '2026-10-02T10:00:00.000Z'),
+      ];
+      expect(await destinoDoSlug('grupo-c', { contatos, grupos: outro, registros })).toBe('120363000000000006@g.us');
+    });
+    it('vale o jid de grupo do registro mais novo', async () => {
+      const registros = async () => [
+        reg('120363000000000007@g.us', '2026-10-03T10:00:00.000Z'),
+        reg('120363000000000006@g.us', '2026-10-01T10:00:00.000Z'),
+      ];
+      expect(await destinoDoSlug('grupo-c', { contatos, grupos: semRegistros, registros })).toBe('120363000000000007@g.us');
+    });
+    it('registro sem jid de grupo não vira destino: cai no config', async () => {
+      const registros = async () => [reg('5511999999999@s.whatsapp.net', '2026-10-03T10:00:00.000Z')];
       expect(await destinoDoSlug('grupo-a', { contatos, grupos, registros })).toBe('120363000000000000@g.us');
+    });
+    it('sem registros e sem config → null', async () => {
+      expect(await destinoDoSlug('grupo-z', { contatos, grupos: semRegistros, registros: semRegistros })).toBeNull();
     });
   });
 });

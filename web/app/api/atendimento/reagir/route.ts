@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 /** A chave da reação sai do histórico da conversa (com o irmão de DM) — o atendente só manda o id. */
 export async function POST(req: Request) {
   try {
-    const a = await atendenteDoPedido(req);
+    const a = await atendenteDoPedido();
     const body = (await req.json().catch(() => ({}))) as { slug?: string; msgId?: string; emoji?: string };
     const slug = typeof body.slug === "string" ? body.slug : "";
     exigirChat(a, slug);

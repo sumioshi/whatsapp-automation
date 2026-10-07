@@ -39,8 +39,8 @@ export function slugsIrmaosDeDm(
 }
 
 /** Junta várias listas por id (sem duplicar) e ordena por timestamp. */
-export function fundirMensagens(listas: MessageView[][]): MessageView[] {
-  const porId = new Map<string, MessageView>();
+export function fundirMensagens<T extends Pick<MessageView, 'id' | 'timestamp'>>(listas: T[][]): T[] {
+  const porId = new Map<string, T>();
   for (const lista of listas) for (const m of lista) if (!porId.has(m.id)) porId.set(m.id, m);
   return [...porId.values()].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 }

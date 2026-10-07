@@ -10,7 +10,7 @@ const LIMITE_MAX = 500;
 
 export async function GET(req: Request) {
   try {
-    const a = await atendenteDoPedido(req);
+    const a = await atendenteDoPedido();
     const url = new URL(req.url);
     const slug = url.searchParams.get("slug") ?? "";
     exigirChat(a, slug);

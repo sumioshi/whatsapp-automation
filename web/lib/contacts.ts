@@ -37,7 +37,7 @@ interface ContactSidecar {
  * Lê o sidecar `.contacts.json` (mapa LID↔telefone↔nome). Retorna mapas vazios
  * se o arquivo não existir/estiver corrompido — o painel segue funcionando.
  */
-async function readContactSidecar(): Promise<{
+export async function readContactSidecar(): Promise<{
   phones: Map<string, string>;
   names: Map<string, string>;
   lids: Set<string>;

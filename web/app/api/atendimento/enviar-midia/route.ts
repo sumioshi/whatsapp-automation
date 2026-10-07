@@ -18,7 +18,7 @@ const KINDS = new Set(["image", "document", "audio", "video"]);
 export async function POST(req: Request) {
   let abs: string | null = null;
   try {
-    const a = await atendenteDoPedido(req);
+    const a = await atendenteDoPedido();
     const form = await req.formData().catch(() => null);
     if (!form) return NextResponse.json({ error: "esperado multipart/form-data" }, { status: 400 });
     const slug = String(form.get("slug") ?? "");

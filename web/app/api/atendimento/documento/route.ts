@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
-    const a = await atendenteDoPedido(req);
+    const a = await atendenteDoPedido();
     const body = (await req.json().catch(() => ({}))) as { slug?: string; mediaPath?: string };
     const slug = typeof body.slug === "string" ? body.slug : "";
     const mediaPath = typeof body.mediaPath === "string" ? body.mediaPath : "";
@@ -15,7 +15,13 @@ export async function POST(req: Request) {
     const slugDaMidia = ehCaminhoDeMidia(mediaPath) ? slugDoCaminho(mediaPath) : null;
     if (!slugDaMidia || !(await irmaosLiberados(a, slug)).includes(slugDaMidia)) throw new ErroHttp(404, "não encontrado");
     return documentoDoDono(
-      new Request(req.url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mediaPath }) }),
+      new Request(req.url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mediaPath }),
+        // Cliente que desiste (fechou a conversa) cancela o trabalho do dono também.
+        signal: req.signal,
+      }),
     );
   } catch (e) {
     return respostaDeErro(e);

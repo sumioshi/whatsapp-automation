@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Contacts } from '../contacts';
-import { chatsEfetivos, ErroHttp, exigirChat, irmaosPermitidos } from './acesso';
+import { chatsEfetivos, ErroHttp, exigirChat, irmaosPermitidos, slugCanonico } from './acesso';
 
 function contatos(phones: Array<[string, string]>): Contacts {
   return {
@@ -71,5 +71,22 @@ describe('exigirChat', () => {
       expect(e).toBeInstanceOf(ErroHttp);
       expect((e as ErroHttp).status).toBe(404);
     }
+  });
+});
+
+describe('slugCanonico', () => {
+  const c = contatos([
+    ['98200000000001', '5511999999999'],
+    ['98200000000002', '5511999999999'],
+  ]);
+  it('o do telefone, quando está entre os irmãos', () => {
+    expect(slugCanonico(['dm-98200000000001', 'dm-5511999999999'], c)).toBe('dm-5511999999999');
+  });
+  it('só LIDs: o mesmo resultado em qualquer ordem', () => {
+    expect(slugCanonico(['dm-98200000000002', 'dm-98200000000001'], c)).toBe('dm-98200000000001');
+    expect(slugCanonico(['dm-98200000000001', 'dm-98200000000002'], c)).toBe('dm-98200000000001');
+  });
+  it('grupo é ele mesmo', () => {
+    expect(slugCanonico(['grupo-a'], c)).toBe('grupo-a');
   });
 });

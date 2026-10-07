@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 /** Texto do atendente: sai na hora, como o operador, carimbado com o login. */
 export async function POST(req: Request) {
   try {
-    const a = await atendenteDoPedido(req);
+    const a = await atendenteDoPedido();
     const body = (await req.json().catch(() => ({}))) as { slug?: string; texto?: string };
     const slug = typeof body.slug === "string" ? body.slug : "";
     exigirChat(a, slug);

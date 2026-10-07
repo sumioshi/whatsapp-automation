@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /** Só o estado da conexão: o QR de pareamento nunca sai pra equipe. */
 export async function GET(req: Request) {
   try {
-    await atendenteDoPedido(req);
+    await atendenteDoPedido();
     const s = await readStatus();
     return NextResponse.json({ connection: s.connection });
   } catch (e) {
