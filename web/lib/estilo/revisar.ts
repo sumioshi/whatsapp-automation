@@ -4,7 +4,7 @@
  * o resto soma num score explicável comparado ao jeito real do operador.
  */
 import { avisoDeTratamento, tratamentoErrado } from "../voz-guard";
-import { contarDesculpas, detectarCulpa } from "./culpa";
+import { type Culpa, contarDesculpas, detectarCulpa } from "./culpa";
 import type { EntradaRepeticao, Hit } from "./repeticao";
 import { scoreRepeticao } from "./repeticao";
 import { detectarTells, type TellId } from "./tells";
@@ -40,8 +40,16 @@ export const CONFIG_REVISAO = { limiar: LIMIAR };
 const PESO_TELL: Partial<Record<TellId, number>> = { dois_pontos_intro: 2, travessao: 2, nao_so_mas: 2, markdown: 2, bullets: 2 };
 const TETO_MINIMIZADOR = 3;
 
-/** Só o que nunca passa: balão repetido, tratamento errado e confissão de culpa. */
-export function bloqueiosDe(baloes: string[], minhasRecentes: string[] = []): Hit[] {
+/**
+ * Só o que nunca passa: balão repetido, tratamento errado e confissão de culpa.
+ * `culpas` é a detecção do texto já feita por quem chama (o `revisar` usa a
+ * mesma lista para os hits); sem ela, detecta aqui.
+ */
+export function bloqueiosDe(
+  baloes: string[],
+  minhasRecentes: string[] = [],
+  culpas: Culpa[] = detectarCulpa(baloes.join("\n")),
+): Hit[] {
   const texto = baloes.join("\n");
   const bloqueios: Hit[] = [];
   const recentes = new Set(minhasRecentes.map(normalizarBalao).filter(Boolean));
@@ -56,7 +64,7 @@ export function bloqueiosDe(baloes: string[], minhasRecentes: string[] = []): Hi
   }
   const pron = tratamentoErrado(texto);
   if (pron.length) bloqueios.push({ regra: "tratamento", peso: 0, motivo: avisoDeTratamento(pron), sugestao: "você/vc, seu/sua" });
-  for (const c of detectarCulpa(texto)) {
+  for (const c of culpas) {
     if (c.grupo === "A") bloqueios.push({ regra: "culpa", peso: 0, motivo: `confissão de culpa: "${c.trecho}"`, sugestao: c.sugestao });
   }
   return bloqueios;
@@ -64,11 +72,12 @@ export function bloqueiosDe(baloes: string[], minhasRecentes: string[] = []): Hi
 
 export function revisar(e: EntradaRevisao): Revisao {
   const texto = e.baloes.join("\n");
-  const bloqueios: Hit[] = bloqueiosDe(e.baloes, e.minhasRecentes);
+  const culpas = detectarCulpa(texto);
+  const bloqueios: Hit[] = bloqueiosDe(e.baloes, e.minhasRecentes, culpas);
   const hits: Hit[] = [];
 
   let minimizador = 0;
-  for (const c of detectarCulpa(texto)) {
+  for (const c of culpas) {
     if (c.grupo === "B") hits.push({ regra: "acidente", peso: c.peso, motivo: `narra acidente: "${c.trecho}"`, sugestao: c.sugestao });
     else if (c.grupo === "C") hits.push({ regra: "drama", peso: c.peso, motivo: `dramatiza: "${c.trecho}"`, sugestao: c.sugestao });
     else if (c.grupo === "D" && minimizador < TETO_MINIMIZADOR) {

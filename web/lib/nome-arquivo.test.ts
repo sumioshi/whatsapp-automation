@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MIME_BY_EXT } from '../../src/whatsapp/mime';
 import { mimeDoNome, nomeSeguro } from './nome-arquivo';
 
 describe('nomeSeguro', () => {
@@ -41,5 +42,12 @@ describe('mimeDoNome', () => {
     expect(mimeDoNome('arquivo')).toBeUndefined();
     expect(mimeDoNome('x.exe')).toBeUndefined();
     expect(mimeDoNome('pdf')).toBeUndefined();
+  });
+});
+
+describe('mimeDoNome × coletor', () => {
+  it('toda extensão de documento que o coletor conhece tem o mesmo tipo aqui', () => {
+    expect(Object.keys(MIME_BY_EXT).length).toBeGreaterThan(0);
+    for (const [ext, tipo] of Object.entries(MIME_BY_EXT)) expect(mimeDoNome(`arquivo${ext}`), ext).toBe(tipo);
   });
 });

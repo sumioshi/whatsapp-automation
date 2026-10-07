@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BASELINE_PADRAO } from "./baseline";
-import { LIMIAR, revisar } from "./revisar";
+import { detectarCulpa } from "./culpa";
+import { bloqueiosDe, LIMIAR, revisar } from "./revisar";
 
 const ctx = { ultimasMinhas: [] as string[], ultimasDoCliente: [] as string[], baseline: BASELINE_PADRAO };
 
@@ -88,5 +89,16 @@ describe("propriedade: janelas humanas variadas passam", () => {
       if (rev.score < LIMIAR && !rev.hits.some((h) => h.peso >= 3)) ok++;
     }
     expect(ok / 200).toBeGreaterThanOrEqual(0.95);
+  });
+});
+
+describe('bloqueiosDe com a detecção de culpa já feita', () => {
+  it('usa a lista recebida em vez de detectar de novo', () => {
+    expect(bloqueiosDe(['foi culpa minha, desculpa']).map((b) => b.regra)).toContain('culpa');
+    expect(bloqueiosDe(['foi culpa minha, desculpa'], [], []).map((b) => b.regra)).not.toContain('culpa');
+  });
+  it('sem a lista, o resultado é o mesmo de passar a detecção do texto', () => {
+    const baloes = ['foi culpa minha', 'tu viu?'];
+    expect(bloqueiosDe(baloes, [])).toEqual(bloqueiosDe(baloes, [], detectarCulpa(baloes.join('\n'))));
   });
 });

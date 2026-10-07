@@ -78,6 +78,7 @@ import {
   resolveConversation,
   toMillis,
 } from './mapper.js';
+import { MIME_BY_EXT } from './mime.js';
 
 type ConnectionUpdate = BaileysEventMap['connection.update'];
 type MessagesUpsert = BaileysEventMap['messages.upsert'];
@@ -118,19 +119,6 @@ const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 
 /** Mimetypes inferidos pela extensão quando o cliente não informa. */
-const MIME_BY_EXT: Record<string, string> = {
-  '.pdf': 'application/pdf',
-  '.doc': 'application/msword',
-  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  '.xls': 'application/vnd.ms-excel',
-  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  '.ppt': 'application/vnd.ms-powerpoint',
-  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  '.txt': 'text/plain',
-  '.csv': 'text/csv',
-  '.zip': 'application/zip',
-};
-
 function inferDocumentMimetype(path: string): string {
   return MIME_BY_EXT[extname(path).toLowerCase()] ?? 'application/octet-stream';
 }
