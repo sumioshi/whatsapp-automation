@@ -55,7 +55,8 @@ Monitor(timeout_ms: 1800000, command:
     echo "$line" | python3 -c 'import sys,json;
 m=json.loads(sys.stdin.read()); t=(m.get("text") or "").strip() or "["+m.get("type","")+"]"
 o=m.get("origem")
-if m.get("fromMe"): print("Você ("+o+"): "+t, flush=True) if o in ("celular","web") else None
+if m.get("fromMe") and m.get("ator")=="painel": print("Painel ("+(m.get("usuario") or "?")+"): "+t, flush=True)
+elif m.get("fromMe"): print("Você ("+o+"): "+t, flush=True) if o in ("celular","web") else None
 else: print((m.get("senderName") or m.get("sender") or "?")+": "+t, flush=True)'
   done)
 ```
@@ -75,6 +76,23 @@ Cada chat tem um modo, persistido (tool `definir_modo`, lido pelo `responder`):
 
 O retorno do `responder` traz o `modo` do chat. É **convenção que a IA respeita**, não trava de
 código — então NÃO burle o `confirmar`. Pra saber o modo de um chat sem enviar, use `estado_triagem`.
+
+## Equipe no painel (acesso por chat)
+
+O operador cria contas em `/equipe` (login, senha, chats liberados). O atendente entra pelo
+mesmo link e cai em `/atendimento`: só existe pra ele o que foi liberado (404 no resto), sem QR,
+notas, contrato nem copiloto. O envio dele sai na hora, como o operador, passando pelos
+bloqueios da revisão (tu, culpa, balão repetido). Toda mensagem dele é gravada com
+`ator: "painel"` e `usuario: <login>`. O envio direto do PRÓPRIO operador pelo painel (sessão
+de cookie, não Basic) também sai carimbado, com `usuario: <PANEL_USER>`; o MCP, o plantão e o
+sync usam Basic e não levam carimbo.
+
+- **Plantão:** `Painel (ana): texto` (ou `Painel (<PANEL_USER>)`, o operador pelo painel) é
+  CONTEXTO, igual ao `Você (celular)` — alguém já respondeu; não responder por cima nem repetir.
+- **Fila:** envio pelo painel interrompe o ticket vivo do agente no chat (`operador_respondeu`).
+- **MCP:** `ler_mensagens` mostra `de: "ana (painel)"`.
+- Regras de acesso em `web/lib/equipe/politica.ts`; toda rota/página nova precisa de linha em
+  `web/lib/classificacao-rotas.ts` (o teste falha sem ela).
 
 ## Revisão de texto antes do envio (código, não convenção)
 

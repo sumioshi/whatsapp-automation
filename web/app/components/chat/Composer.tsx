@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { checarSessao, useRotas } from "../RotasPainel";
 import { Button, IconButton } from "../ui";
 
 /* Composer do chat: campo de resposta, anexos (imagem/vídeo/áudio/doc) e envio.
@@ -14,15 +15,18 @@ function kindOf(file: File): "image" | "video" | "audio" | "document" {
 }
 
 export function Composer({
+  slug,
   groupJid,
   onSent,
   draft,
 }: {
+  slug: string;
   groupJid: string | null;
   onSent: () => void;
   /** Rascunho injetado pelo copiloto. `nonce` muda a cada envio pra reaplicar o mesmo texto. */
   draft?: { text: string; nonce: number } | null;
 }) {
+  const rotas = useRotas();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,16 +81,21 @@ export function Composer({
 
   async function send() {
     const body = text.trim();
-    if (!body || !groupJid || sending) return;
+    const pedido = body ? rotas.enviarTexto(slug, groupJid, body) : null;
+    if (!pedido || sending) return;
     setSending(true);
     setError(null);
     try {
-      const res = await fetch("/api/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jid: groupJid, text: body }),
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const res = checarSessao(
+        await fetch(pedido.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pedido.body),
+        }),
+        rotas,
+      );
+      // Corpo que não é JSON (proxy, página de erro) não vira erro de parse na tela.
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? "falha no envio");
       setText("");
       // Atualiza assim que o coletor registrar a própria mensagem.
@@ -99,17 +108,18 @@ export function Composer({
   }
 
   async function sendFile(file: File) {
-    if (!groupJid || sending) return;
+    const alvo = rotas.enviarMidia(slug, groupJid);
+    if (!alvo || sending) return;
     setSending(true);
     setError(null);
     try {
       const form = new FormData();
-      form.set("jid", groupJid);
+      for (const [k, v] of Object.entries(alvo.campos)) form.set(k, v);
       form.set("kind", kindOf(file));
       form.set("file", file);
       if (text.trim()) form.set("caption", text.trim());
-      const res = await fetch("/api/send-media", { method: "POST", body: form });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const res = checarSessao(await fetch(alvo.url, { method: "POST", body: form }), rotas);
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error ?? "falha no envio");
       setText("");
       setTimeout(onSent, 1200);

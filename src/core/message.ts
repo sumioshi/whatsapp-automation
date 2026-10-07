@@ -45,6 +45,17 @@ export interface MediaDescriptor {
  */
 export type Origem = 'coletor' | 'celular' | 'web' | 'ia_meta';
 
+/**
+ * Quem pediu o envio, quando foi uma pessoa no painel. `origem` segue sendo o
+ * canal (coletor/celular/web/ia_meta); `ator` + `usuario` dizem quem, dentro
+ * do coletor, mandou.
+ */
+export type Ator = 'painel';
+export interface MetaEnvio {
+  ator: Ator;
+  usuario: string;
+}
+
 /** Mensagem normalizada (independente do Baileys), pronta para ser processada. */
 export interface InboundMessage {
   /** ID da mensagem (key.id) — usado para dedup. */
@@ -79,6 +90,10 @@ export interface InboundMessage {
   media: MediaDescriptor | null;
   /** Só em mensagem da própria conta (ou de bot). Ver `Origem`. */
   origem?: Origem;
+  /** Envio feito por uma pessoa no painel (ver `Ator`). */
+  ator?: Ator;
+  /** Login de quem enviou pelo painel. */
+  usuario?: string;
 }
 
 /** Status de entrega/leitura de uma mensagem própria (fromMe). */
@@ -238,6 +253,10 @@ export interface MessageRecord {
   mediaPath: string | null;
   /** Só em mensagem da própria conta (ou de bot). Ver `Origem`. */
   origem?: Origem;
+  /** Envio feito por uma pessoa no painel (ver `Ator`). */
+  ator?: Ator;
+  /** Login de quem enviou pelo painel. */
+  usuario?: string;
 }
 
 /**

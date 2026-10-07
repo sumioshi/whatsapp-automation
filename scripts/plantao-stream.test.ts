@@ -86,15 +86,17 @@ describe('plantao-stream.sh', { timeout: 15_000 }, () => {
       res.write(frame('a=10', { slug: 'a', fromMe: false, senderName: 'Carlos', text: 'oi' }));
       res.write(frame('a=20', { slug: 'a', fromMe: true, origem: 'coletor', text: 'eco do mcp' }));
       res.write(frame('a=30', { slug: 'a', fromMe: true, origem: 'celular', text: 'respondi do celular' }));
+      res.write(frame('a=35', { slug: 'a', fromMe: true, origem: 'coletor', ator: 'painel', usuario: 'ana', text: 'respondi pelo painel' }));
       res.write(frame('a=40', { slug: 'a', fromMe: true, origem: 'ia_meta', text: 'auto' }));
       res.write(frame('a=50', { slug: 'a', fromMe: true, text: 'coletor antigo sem origem' }));
       res.write(frame('a=60', { slug: 'a', fromMe: false, senderName: 'Carlos', type: 'image', text: '' }));
     };
     const { out } = rodar(['a']);
-    await espera(() => out.length >= 4);
+    await espera(() => out.length >= 5);
     expect(out).toEqual([
       'Carlos: oi',
       'Você (celular): respondi do celular',
+      'Painel (ana): respondi pelo painel',
       'IA da Meta (sua conta): auto',
       'Carlos: [image]',
     ]);

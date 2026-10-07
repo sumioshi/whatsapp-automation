@@ -106,6 +106,31 @@ describe('vigia — mensagens', () => {
       aoReceberMensagem(e, { groupJid: JID, fromMe: false, sender: JID }, new Set(), T0, rng),
     ).toBeNull();
   });
+
+  it('envio de uma pessoa pelo painel interrompe o ticket do agente', () => {
+    const { e, t } = estadoCom(JID);
+    const r = aoReceberMensagem(
+      e,
+      { groupJid: JID, fromMe: true, sender: JID, origem: 'coletor', ator: 'painel' },
+      new Set(),
+      T0 + 10_000,
+      rng,
+    );
+    expect(r?.acao).toBe('interrompeu');
+    expect(t.motivo).toBe('operador_respondeu');
+  });
+
+  it('eco da própria fila (coletor sem ator) não interrompe', () => {
+    const { e } = estadoCom(JID, true);
+    const r = aoReceberMensagem(
+      e,
+      { groupJid: JID, fromMe: true, sender: JID, origem: 'coletor' },
+      new Set(),
+      T0 + 31_000,
+      rng,
+    );
+    expect(r).toBeNull();
+  });
 });
 
 describe('vigia — presença', () => {

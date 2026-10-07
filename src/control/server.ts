@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { env } from '../config/env.js';
-import type { OutboundMedia } from '../core/message.js';
+import type { MetaEnvio, OutboundMedia } from '../core/message.js';
 import type { WhatsAppGateway } from '../core/ports.js';
 import { type FilaEnvio, resumoTicket } from '../humano/fila.js';
 import { RecusaEnvio } from '../humano/fila-core.js';
@@ -23,11 +23,20 @@ function isWithin(path: string, allowedDirs: string[]): boolean {
   return allowedDirs.some((dir) => abs === dir || abs.startsWith(dir + sep));
 }
 
+/** Carimbo de quem mandou pelo painel; qualquer outra coisa é ignorada. */
+function metaDoCorpo(b: { ator?: unknown; usuario?: unknown }): MetaEnvio | undefined {
+  return b.ator === 'painel' && typeof b.usuario === 'string' && b.usuario
+    ? { ator: 'painel', usuario: b.usuario }
+    : undefined;
+}
+
 interface SendBody {
   jid?: string;
   text?: string;
   mentions?: string[];
   humano?: boolean;
+  ator?: string;
+  usuario?: string;
   slug?: string;
   typos?: boolean;
   umBalao?: boolean;
@@ -57,6 +66,8 @@ interface ReactBody {
 }
 
 interface SendMediaBody {
+  ator?: string;
+  usuario?: string;
   jid?: string;
   kind?: string;
   path?: string;
@@ -412,7 +423,12 @@ export function startControlServer(
             });
             return;
           }
-          await gateway.sendText(jid, text, Array.isArray(mentions) ? mentions : undefined);
+          await gateway.sendText(
+            jid,
+            text,
+            Array.isArray(mentions) ? mentions : undefined,
+            metaDoCorpo(body),
+          );
           logger.info({ jid }, '📤 Mensagem enviada via API de controle.');
           json(200, { ok: true });
         })
@@ -486,7 +502,7 @@ export function startControlServer(
           }
           const { media } = result;
           const destino = await resolverJid((parsed as SendMediaBody).jid as string);
-          await gateway.sendMedia(destino.jid, media);
+          await gateway.sendMedia(destino.jid, media, metaDoCorpo(parsed as SendMediaBody));
           logger.info({ kind: media.kind }, '📎 Mídia enviada via API de controle.');
           json(200, {
             ok: true,

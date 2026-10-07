@@ -54,6 +54,7 @@ import type {
   InboundPresence,
   InboundReaction,
   InboundReceipt,
+  MetaEnvio,
   OutboundMedia,
   ReceiptStatus,
 } from '../core/message.js';
@@ -77,6 +78,7 @@ import {
   resolveConversation,
   toMillis,
 } from './mapper.js';
+import { MIME_BY_EXT } from './mime.js';
 
 type ConnectionUpdate = BaileysEventMap['connection.update'];
 type MessagesUpsert = BaileysEventMap['messages.upsert'];
@@ -116,20 +118,7 @@ const MAX_RECEBIDAS_POR_CHAT = 50;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 
-/** Mimetypes inferidos pela extensão quando o cliente não informa. */
-const MIME_BY_EXT: Record<string, string> = {
-  '.pdf': 'application/pdf',
-  '.doc': 'application/msword',
-  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  '.xls': 'application/vnd.ms-excel',
-  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  '.ppt': 'application/vnd.ms-powerpoint',
-  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  '.txt': 'text/plain',
-  '.csv': 'text/csv',
-  '.zip': 'application/zip',
-};
-
+/** Infere o mimetype de um documento pela extensão, usando o mapa compartilhado; sem correspondência, `application/octet-stream`. */
 function inferDocumentMimetype(path: string): string {
   return MIME_BY_EXT[extname(path).toLowerCase()] ?? 'application/octet-stream';
 }
@@ -336,11 +325,11 @@ export class BaileysGateway implements WhatsAppGateway {
     return this.sock?.user?.id ? jidNormalizedUser(this.sock.user.id) : null;
   }
 
-  async sendText(jid: string, text: string, mentions?: string[]): Promise<void> {
+  async sendText(jid: string, text: string, mentions?: string[], meta?: MetaEnvio): Promise<void> {
     if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
     const content = mentions?.length ? { text, mentions } : { text };
     const sent = await this.sock.sendMessage(jid, content);
-    this.echoSent(jid, sent);
+    this.echoSent(jid, sent, meta);
   }
 
   async checkNumber(number: string): Promise<{ exists: boolean; jid: string | null }> {
@@ -349,17 +338,17 @@ export class BaileysGateway implements WhatsAppGateway {
     return result?.exists ? { exists: true, jid: result.jid } : { exists: false, jid: null };
   }
 
-  async sendMedia(jid: string, media: OutboundMedia): Promise<void> {
+  async sendMedia(jid: string, media: OutboundMedia, meta?: MetaEnvio): Promise<void> {
     if (!this.sock) throw new Error('Coletor não está conectado ao WhatsApp.');
     if (media.kind !== 'audio') {
       const sent = await this.sock.sendMessage(jid, toMessageContent(media));
-      this.echoSent(jid, sent);
+      this.echoSent(jid, sent, meta);
       return;
     }
     const oggPath = await toOggOpus(media.path);
     try {
       const sent = await this.sock.sendMessage(jid, toMessageContent({ ...media, path: oggPath }));
-      this.echoSent(jid, sent);
+      this.echoSent(jid, sent, meta);
     } finally {
       await unlink(oggPath).catch(() => {});
     }
@@ -584,13 +573,13 @@ export class BaileysGateway implements WhatsAppGateway {
     }
   }
 
-  private echoSent(jid: string, sent: WAMessage | undefined): void {
+  private echoSent(jid: string, sent: WAMessage | undefined, meta?: MetaEnvio): void {
     this.lembrarEnviada(sent);
     if (!sent || !this.sock) return;
     const groupName = this.groups.get(jid) ?? jid;
     const mapped = mapMessage(sent, this.sock, groupName);
     // Só aqui se sabe que o envio foi deste processo — marca antes do dedup/emissão.
-    if (mapped) this.emitMessageDeduped({ ...mapped, origem: 'coletor' });
+    if (mapped) this.emitMessageDeduped({ ...mapped, origem: 'coletor', ...(meta ?? {}) });
   }
 
   /**

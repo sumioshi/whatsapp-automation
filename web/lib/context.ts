@@ -55,6 +55,9 @@ export type CompactMsg = {
    * `celular`/`web` (o operador respondeu na mão) ou `ia_meta` (IA da Meta em nome
    * da conta). Diz quem de fato escreveu um "Você"; ausente = recebida ou antiga. */
   origem?: Origem;
+  /** Envio de uma pessoa pelo painel; `usuario` é o login dela. */
+  ator?: 'painel';
+  usuario?: string;
 };
 
 /** Formata um timestamp UTC ISO como data+hora local de Brasília (America/Sao_Paulo).
@@ -98,7 +101,7 @@ export function compact(m: MessageView, c: Contacts): CompactMsg {
     id: m.id,
     timestamp: m.timestamp,
     hora_brt: horaBRT(m.timestamp),
-    de: m.origem === "ia_meta" ? "IA da Meta" : m.senderName,
+    de: m.origem === "ia_meta" ? "IA da Meta" : m.ator === "painel" ? `${m.usuario ?? "?"} (painel)` : m.senderName,
     papel: roleOf(c, numberFromJid(m.sender)), // 'me' | 'team' | 'client'
     tipo: m.type,
     texto: ehMidia ? undefined : textoResolvido,
@@ -111,6 +114,8 @@ export function compact(m: MessageView, c: Contacts): CompactMsg {
     // Tipo com arquivo mas sem path local = pendente (na nuvem, baixa sob demanda).
     ...(TIPOS_COM_ARQUIVO.has(m.type) && !m.mediaPath ? { midia_pendente: true as const } : {}),
     ...(m.origem ? { origem: m.origem } : {}),
+    ...(m.ator ? { ator: m.ator } : {}),
+    ...(m.usuario ? { usuario: m.usuario } : {}),
   };
 }
 

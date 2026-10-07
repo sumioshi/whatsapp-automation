@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ehCaminhoDeMidia } from "@/lib/caminho-midia";
 import { extractDocumentText } from "@/lib/documents";
 
 export const runtime = "nodejs";
@@ -17,6 +18,9 @@ export async function POST(req: Request) {
 
   if (!body.mediaPath) {
     return NextResponse.json({ error: "mediaPath é obrigatório" }, { status: 400 });
+  }
+  if (!ehCaminhoDeMidia(body.mediaPath)) {
+    return NextResponse.json({ error: "não encontrado" }, { status: 404 });
   }
 
   try {

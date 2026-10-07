@@ -140,7 +140,7 @@ export function abrirStreamEventos(
           continue;
         }
         offsets.set(c.slug, end);
-        if (!passaFiltro(obj as { fromMe?: boolean; origem?: string; sender?: string }, opts.filtro, opts.papelDe)) {
+        if (!passaFiltro(obj as { fromMe?: boolean; origem?: string; sender?: string; ator?: string }, opts.filtro, opts.papelDe)) {
           continue;
         }
         emit(`id: ${formatCursor(offsets)}\ndata: ${JSON.stringify({ ...obj, slug: c.slug })}\n\n`);

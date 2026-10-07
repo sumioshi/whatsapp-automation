@@ -84,9 +84,11 @@ Cada linha é um evento, e o prefixo diz quem escreveu:
 - `Você (celular): texto` / `Você (web): texto` — o OPERADOR respondeu na mão. Absorva como
   contexto (ele já cuidou daquilo; não repita, não responda por cima, não avise que viu). Só
   fale se o que ele escreveu contradiz algo que você sabe do projeto.
+- `Painel (<login>): texto` — alguém da equipe (ou o próprio operador, com o login dele)
+  respondeu pelo painel; é contexto, não responder por cima nem repetir.
 - `IA da Meta (sua conta): texto` — resposta automática da Meta em nome da conta. Trate como
   contexto e avise o operador se ela prometeu algo errado.
-- O que o próprio agente/MCP/painel mandou NÃO aparece (o servidor oculta `origem: coletor`).
+- O que o próprio agente/MCP mandou NÃO aparece (o servidor oculta `origem: coletor`).
 
 Conexão que cai (deploy, wifi) reconecta sozinha e retoma de onde parou — nada se perde no
 buraco (teto de 200 mensagens por chat; acima disso o servidor avisa que truncou).

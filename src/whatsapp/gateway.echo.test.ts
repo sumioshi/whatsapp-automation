@@ -33,4 +33,23 @@ describe('eco do próprio envio', () => {
     expect(vistas).toHaveLength(1);
     expect(vistas[0]?.origem).toBe('coletor');
   });
+  it('envio do painel sai carimbado com ator e usuario', async () => {
+    const gw = await makeGateway();
+    const vistas: InboundMessage[] = [];
+    gw.onMessage((m) => vistas.push(m));
+    (gw as unknown as Priv).echoSent(
+      '5511999999999@s.whatsapp.net',
+      {
+        key: {
+          remoteJid: '5511999999999@s.whatsapp.net',
+          fromMe: true,
+          id: '3EB0BBBBBBBBBBBBBBBBBB',
+        },
+        message: { conversation: 'oi' },
+        messageTimestamp: 1_700_000_000,
+      },
+      { ator: 'painel', usuario: 'ana' },
+    );
+    expect(vistas[0]).toMatchObject({ origem: 'coletor', ator: 'painel', usuario: 'ana' });
+  });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { checarSessao, useRotas } from "./RotasPainel";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MessageView, PollView } from "@/lib/data";
 import { LiveAudio } from "./LiveAudio";
@@ -153,6 +154,7 @@ export function Timeline({
   const [mediaFilter, setMediaFilter] = useState("all");
   const scrollRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const rotas = useRotas();
 
   const filterOptions = useMemo(() => {
     const order = ["audio", "image", "video", "gif", "document", "sticker"] as const;
@@ -191,9 +193,9 @@ export function Timeline({
     if (!first || loadingOlder) return;
     setLoadingOlder(true);
     try {
-      const res = await fetch(
-        `/api/messages?slug=${encodeURIComponent(slug)}&before=${encodeURIComponent(first.id)}&limit=150`,
-        { cache: "no-store" },
+      const res = checarSessao(
+        await fetch(rotas.mensagens(slug, { before: first.id, limit: 150 }), { cache: "no-store" }),
+        rotas,
       );
       if (!res.ok) return;
       const older = (await res.json()) as MessageView[];
@@ -214,25 +216,27 @@ export function Timeline({
     } finally {
       setLoadingOlder(false);
     }
-  }, [messages, slug, loadingOlder]);
+  }, [messages, slug, loadingOlder, rotas]);
   // Ids do carregamento inicial — só anima a entrada do que chegar DEPOIS (estado),
   // sem orquestrar a página inteira no primeiro load.
   const initialIds = useRef(new Set(initial.map((m) => m.id)));
 
   // Carrega quem é do time (pra marcar "time" e separar de cliente).
   useEffect(() => {
+    if (!rotas.recursos.time) return;
     fetch("/api/team", { cache: "no-store" })
       .then((r) => r.json())
       .then((cs: Array<{ id: string; role: string }>) =>
         setTeamIds(new Set(cs.filter((c) => c.role === "team").map((c) => c.id))),
       )
       .catch(() => {});
-  }, []);
+  }, [rotas]);
 
   // Opt-in do copiloto neste grupo: sem ele, nenhum card de sugestão é montado/disparado.
   useEffect(() => {
     let alive = true;
     setCopilotOn(false);
+    if (!rotas.recursos.copiloto) return;
     fetch("/api/triage", { cache: "no-store" })
       .then((r) => r.json())
       .then((t: { copilot?: Record<string, boolean> }) => {
@@ -242,18 +246,22 @@ export function Timeline({
     return () => {
       alive = false;
     };
-  }, [slug]);
+  }, [slug, rotas]);
 
   // Marca o grupo como visto ao abrir e atualiza a sidebar (zera as não-lidas).
   useEffect(() => {
-    fetch("/api/triage", {
+    const v = rotas.visto(slug, new Date().toISOString());
+    fetch(v.url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "lastSeen", slug, value: new Date().toISOString() }),
+      body: JSON.stringify(v.body),
     })
-      .then(() => router.refresh())
+      .then((r) => {
+        checarSessao(r, rotas);
+        router.refresh();
+      })
       .catch(() => {});
-  }, [slug, router]);
+  }, [slug, router, rotas]);
 
   // Mapa de id->nome (de quem já mandou mensagem) + os ids que são "você".
   const contacts = useMemo<Contacts>(() => {
@@ -298,9 +306,7 @@ export function Timeline({
   const lastBodyRef = useRef<string>("");
   const poll = useCallback(async () => {
     try {
-      const res = await fetch(`/api/messages?slug=${encodeURIComponent(slug)}`, {
-        cache: "no-store",
-      });
+      const res = checarSessao(await fetch(rotas.mensagens(slug), { cache: "no-store" }), rotas);
       if (!res.ok) return;
       const body = await res.text();
       if (body === lastBodyRef.current) return; // nada mudou → não mexe no estado
@@ -321,7 +327,7 @@ export function Timeline({
     } catch {
       /* coletor/painel pode estar reiniciando */
     }
-  }, [slug]);
+  }, [slug, rotas]);
 
   useEffect(() => {
     const id = setInterval(poll, 3000);
@@ -352,7 +358,7 @@ export function Timeline({
           title="Voltar"
           onClick={() => {
             if (window.history.length > 1) window.history.back();
-            else window.location.assign("/clientes");
+            else window.location.assign(rotas.inicio);
           }}
           className="grid h-8 w-8 shrink-0 place-items-center rounded-control border border-line bg-surface-2 text-fg-dim transition-colors hover:text-fg"
         >
@@ -474,7 +480,7 @@ export function Timeline({
         )}
       </div>
 
-      <Composer groupJid={messages.at(-1)?.groupJid ?? null} onSent={poll} draft={draft} />
+      <Composer slug={slug} groupJid={messages.at(-1)?.groupJid ?? null} onSent={poll} draft={draft} />
     </>
   );
 }

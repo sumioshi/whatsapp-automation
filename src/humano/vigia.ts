@@ -15,7 +15,7 @@ import {
   ticketVivo,
 } from './fila-core.js';
 
-export type MsgVigia = Pick<InboundMessage, 'groupJid' | 'fromMe' | 'sender' | 'origem'>;
+export type MsgVigia = Pick<InboundMessage, 'groupJid' | 'fromMe' | 'sender' | 'origem' | 'ator'>;
 export type PresencaVigia = Pick<InboundPresence, 'chatJid' | 'participant' | 'state'>;
 
 export const userPart = (jid: string): string => (jid.split('@')[0] ?? '').split(':')[0] ?? '';
@@ -31,7 +31,10 @@ export function aoReceberMensagem(
   const vivo = ticketVivo(e, jid);
   if (!vivo) return null;
   if (msg.fromMe) {
-    if (msg.origem !== 'celular' && msg.origem !== 'web') return null;
+    // Pessoa respondeu (celular, web ou painel): o agente sai da frente.
+    // Eco dos balões da própria fila não tem `ator`, então não se interrompe.
+    const humano = msg.origem === 'celular' || msg.origem === 'web' || msg.ator === 'painel';
+    if (!humano) return null;
     const t = interromper(e, { jid }, 'operador_respondeu', agora);
     return t ? { ticket: t, acao: 'interrompeu' } : null;
   }

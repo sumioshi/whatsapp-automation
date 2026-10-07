@@ -2,6 +2,7 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { Readable } from 'node:stream';
+import { ehCaminhoDeMidia } from '@/lib/caminho-midia';
 import { safeDataPath } from '@/lib/paths';
 
 export const runtime = 'nodejs';
@@ -36,6 +37,9 @@ export async function GET(
   ctx: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await ctx.params;
+  if (!ehCaminhoDeMidia(path.join('/'))) {
+    return new Response('Não encontrado', { status: 404 });
+  }
 
   let absPath: string;
   try {

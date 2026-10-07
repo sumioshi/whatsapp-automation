@@ -6,12 +6,14 @@
 # command de um Monitor persistente do harness):
 #   Fulano: texto                    mensagem recebida
 #   Você (celular): texto            o operador respondeu na mão (celular ou web)
+#   Painel (ana): texto             alguém da equipe respondeu pelo painel (contexto)
 #   IA da Meta (sua conta): texto    resposta gerada pela Meta em nome da conta
 #   Entrega interrompida (mensagem nova, 1/3 saiu) — releia o chat e responda de novo
 #                                    uma entrega humanizada agendada não saiu (ou saiu pela
 #                                    metade); entregas concluídas ficam em silêncio
-# O que o próprio coletor mandou (MCP/painel/API) NÃO aparece: o servidor oculta
-# (`ocultar=coletor`) e uma fromMe sem `origem` (coletor antigo) fica em silêncio.
+# O eco do agente/MCP fica em silêncio (o servidor oculta com `ocultar=coletor`, e uma
+# fromMe sem `origem`, de coletor antigo, também); envio de uma pessoa pelo painel aparece
+# como Painel (login).
 # Com mais de uma conversa, a linha vem com [slug] na frente.
 #
 # Reconecta sozinho e retoma de onde parou (guarda o último `id:` e reenvia em
@@ -104,7 +106,10 @@ pre = "[" + str(m.get("slug", "?")) + "] " if os.environ.get("MULTI") == "1" els
 texto = (m.get("text") or "").strip() or "[" + str(m.get("type", "")) + "]"
 if m.get("fromMe"):
     o = m.get("origem")
-    if o in ("celular", "web"):
+    if m.get("ator") == "painel":
+        login = m.get("usuario") or "?"
+        print(f"{pre}Painel ({login}): {texto}", flush=True)
+    elif o in ("celular", "web"):
         print(f"{pre}Você ({o}): {texto}", flush=True)
     elif o == "ia_meta":
         print(f"{pre}IA da Meta (sua conta): {texto}", flush=True)

@@ -1,5 +1,6 @@
 import { type Contacts, buildContacts, displayNameOf, numberFromJid, roleOf } from "./contacts";
-import { type GroupSummary, type MessageView, listGroups, readGroupRecords } from "./data";
+import { type MessageView, listGroups, readGroupRecords } from "./data";
+import { fundirMensagens } from "./dm-irmaos";
 import { readTriage } from "./triage";
 import { type SlaBand, aguardandoValido, buildSlaInfo } from "./sla";
 
@@ -170,7 +171,51 @@ export function evaluateGroup(
  * Isso inverte a ordenação anterior (mais-recente primeiro), que colocava o
  * cliente mais recente no topo e afundava o mais antigo — urgência invertida.
  */
-export async function buildInbox(): Promise<InboxItem[]> {
+export interface OpcoesInbox {
+  /** Só estes chats entram (os demais nem são lidos). */
+  slugs?: ReadonlySet<string>;
+  /** Não aplica o "silenciado" do dono (a fila de quem atende não some por ele). */
+  ignorarSilenciados?: boolean;
+  /**
+   * Slug canônico de cada chat: os que caem no mesmo (DM partida em telefone ×
+   * LID) são avaliados como uma conversa só e viram um item.
+   */
+  canonicoDe?: (slug: string) => string;
+}
+
+/** Junta os candidatos pela conversa (`canonicoDe`), na ordem em que aparecem. */
+export function agruparConversas<T extends { slug: string }>(
+  candidatos: T[],
+  canonicoDe: (slug: string) => string = (s) => s,
+): Array<{ slug: string; membros: T[] }> {
+  const porSlug = new Map<string, T[]>();
+  for (const c of candidatos) {
+    const k = canonicoDe(c.slug);
+    porSlug.set(k, [...(porSlug.get(k) ?? []), c]);
+  }
+  return [...porSlug].map(([slug, membros]) => ({ slug, membros }));
+}
+
+/** Avalia a conversa com os registros de todos os seus slugs fundidos por id. */
+export function avaliarConversa<T extends MensagemAvaliavel & { id: string }>(
+  listas: T[][],
+  contacts: Contacts,
+): GroupVerdict | null {
+  return evaluateGroup(listas.length === 1 ? (listas[0] ?? []) : fundirMensagens(listas), contacts);
+}
+
+/** Chats que a fila avalia: o recorte pedido, menos os silenciados (salvo se ignorados). */
+export function candidatosDoInbox<T extends { slug: string }>(
+  groups: T[],
+  muted: Record<string, boolean | undefined>,
+  opts: OpcoesInbox = {},
+): T[] {
+  return groups.filter(
+    (g) => (!opts.slugs || opts.slugs.has(g.slug)) && (opts.ignorarSilenciados || !muted[g.slug]),
+  );
+}
+
+export async function buildInbox(opts: OpcoesInbox = {}): Promise<InboxItem[]> {
   const now = Date.now(); // calculado uma vez, server-side
   const [groups, contacts, triage] = await Promise.all([
     listGroups(),
@@ -178,16 +223,17 @@ export async function buildInbox(): Promise<InboxItem[]> {
     readTriage(),
   ]);
 
-  const candidates = groups.filter((g: GroupSummary) => !triage.muted[g.slug]);
+  const candidates = candidatosDoInbox(groups, triage.muted, opts);
 
   const items = await Promise.all(
-    candidates.map(async (g) => {
-      const messages = await readGroupRecords(g.slug);
-      const verdict = evaluateGroup(messages, contacts);
+    agruparConversas(candidates, opts.canonicoDe).map(async ({ slug, membros }) => {
+      const verdict = avaliarConversa(await Promise.all(membros.map((m) => readGroupRecords(m.slug))), contacts);
       if (!verdict) return null;
+      const g = membros.find((m) => m.slug === slug) ?? membros[0];
+      if (!g) return null;
 
       // Resolvido até aqui? (lastResolved >= timestamp do gatilho) → some.
-      const resolvedAt = triage.resolved[g.slug];
+      const resolvedAt = membros.map((m) => triage.resolved[m.slug] ?? "").reduce((a, b) => (b > a ? b : a), "");
       if (resolvedAt && resolvedAt >= verdict.timestamp) return null;
 
       const sla = buildSlaInfo(verdict.waitingSince, now);
@@ -195,7 +241,7 @@ export async function buildInbox(): Promise<InboxItem[]> {
       if (!aguardandoValido(sla.waitingMs)) return null;
 
       return {
-        slug: g.slug,
+        slug,
         groupName: g.name,
         reason: verdict.reason,
         preview: verdict.preview,
