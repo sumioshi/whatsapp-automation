@@ -253,6 +253,32 @@ describe('escrita', () => {
     expect(new URL(String(url)).searchParams.get('sendUpdates')).toBe('all');
     expect(JSON.parse(String(init!.body))).not.toHaveProperty('attendees');
   });
+  it('editar convidados preserva sala, própria conta e respostas', async () => {
+    const atual = {
+      id: 'c',
+      summary: 'Call',
+      start: { dateTime: '2026-10-08T14:00:00-03:00' },
+      end: { dateTime: '2026-10-08T15:00:00-03:00' },
+      attendees: [
+        { email: 'eu@exemplo.com', self: true },
+        { email: 'sala@resource.exemplo', resource: true },
+        { email: 'cliente@exemplo.com', responseStatus: 'accepted' },
+      ],
+    };
+    const f = google((url, init) => {
+      if (!url.pathname.endsWith('/events/c')) return undefined;
+      return Response.json(atual);
+    });
+    const { editarEvento } = await import('./calendario');
+    await editarEvento('eu@exemplo.com', 'c', { convidados: ['cliente@exemplo.com', 'novo@exemplo.com'] });
+    const init = f.mock.calls.find((c) => c[1]?.method === 'PATCH')![1]!;
+    expect(JSON.parse(String(init.body)).attendees).toEqual([
+      { email: 'eu@exemplo.com', self: true },
+      { email: 'sala@resource.exemplo', resource: true },
+      { email: 'cliente@exemplo.com', responseStatus: 'accepted' },
+      { email: 'novo@exemplo.com' },
+    ]);
+  });
   it('apagar evento que já sumiu responde nao_existe', async () => {
     google((url, init) => (init?.method === 'DELETE' ? new Response('', { status: 410 }) : undefined));
     const { apagarEvento } = await import('./calendario');

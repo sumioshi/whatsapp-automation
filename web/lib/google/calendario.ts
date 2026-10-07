@@ -14,6 +14,7 @@ import {
   corpoDoGoogle,
   eventoDoGoogle,
   instanteDe,
+  mesclarConvidados,
   validarEntrada,
 } from './evento';
 import { configOAuth, renovar } from './oauth';
@@ -217,9 +218,13 @@ export async function criarEvento(e: EntradaEvento): Promise<Evento> {
 export async function editarEvento(agenda: string, id: string, patch: PatchEvento): Promise<Evento> {
   const a = await agendaGravavel(agenda);
   const caminho = caminhoDoEvento(a.id, id);
-  const atual = eventoDoGoogle((await (await google(caminho)).json()) as GoogleEvento, a);
+  const bruto = (await (await google(caminho)).json()) as GoogleEvento;
+  const atual = eventoDoGoogle(bruto, a);
   if (!atual) throw new ErroAgenda('nao_existe');
   const { corpo, avisar } = corpoDaEdicao(atual, patch, randomUUID());
+  if (Array.isArray(corpo.attendees)) {
+    corpo.attendees = mesclarConvidados(bruto.attendees, (corpo.attendees as { email: string }[]).map((c) => c.email));
+  }
   const q = new URLSearchParams({ conferenceDataVersion: '1', sendUpdates: avisar ? 'all' : 'none' });
   const res = await google(`${caminho}?${q}`, { method: 'PATCH', body: corpo });
   limparCache();

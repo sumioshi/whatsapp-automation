@@ -11,6 +11,7 @@ import {
   eventoDoGoogle,
   instanteDe,
   isoBrt,
+  mesclarConvidados,
   somarDias,
   validarEntrada,
 } from './evento';
@@ -168,6 +169,26 @@ describe('corpoDaEdicao', () => {
   it('local vazio limpa o campo no Google', () => expect(corpoDaEdicao(atual, { local: '' }, 'r').corpo.location).toBe(''));
   it('virar dia inteiro exige o início novo', () =>
     expect(() => corpoDaEdicao(atual, { diaInteiro: true }, 'r')).toThrow('mande o início'));
+  it('lista de convidados igual à atual não regrava attendees', () => {
+    const r = corpoDaEdicao(atual, { titulo: 'Call', convidados: ['C@ex.com'] }, 'r');
+    expect(r.corpo).not.toHaveProperty('attendees');
+  });
+  it('tirar todos os convidados avisa quem saiu', () => {
+    const r = corpoDaEdicao(atual, { convidados: [] }, 'r');
+    expect([r.corpo.attendees, r.avisar]).toEqual([[], true]);
+  });
+  it('virar dia inteiro apaga o horário antigo no Google', () => {
+    const { corpo } = corpoDaEdicao(atual, { diaInteiro: true, inicio: '2026-10-09' }, 'r');
+    expect([corpo.start, corpo.end]).toEqual([
+      { date: '2026-10-09', dateTime: null, timeZone: null },
+      { date: '2026-10-10', dateTime: null, timeZone: null },
+    ]);
+  });
+  it('sair de dia inteiro apaga a data antiga no Google', () => {
+    const ad: Evento = { ...atual, diaInteiro: true, inicio: '2026-10-08', fim: '2026-10-09' };
+    const { corpo } = corpoDaEdicao(ad, { diaInteiro: false, inicio: '2026-10-08T10:00' }, 'r');
+    expect(corpo.start).toEqual({ dateTime: '2026-10-08T10:00:00-03:00', timeZone: 'America/Sao_Paulo', date: null });
+  });
   it('dia inteiro de 2 dias movido mantém 2 dias e não avisa ninguém', () => {
     const ad: Evento = { ...atual, diaInteiro: true, inicio: '2026-10-08', fim: '2026-10-10', convidados: [] };
     const r = corpoDaEdicao(ad, { inicio: '2026-10-20' }, 'r');
@@ -186,5 +207,22 @@ describe('entradaDeJson', () => {
     expect(() => entradaDeJson({ titulo: 1 })).toThrow('titulo precisa ser texto');
     expect(() => entradaDeJson({ convidados: 'a@b.com' })).toThrow('convidados');
     expect(() => entradaDeJson(null)).toThrow(ErroAgenda);
+  });
+});
+
+describe('mesclarConvidados', () => {
+  it('mantém a própria conta, a sala e a resposta de quem continua; tira quem saiu', () => {
+    const atuais = [
+      { email: 'eu@exemplo.com', self: true, responseStatus: 'accepted' },
+      { email: 'sala@resource.exemplo', resource: true },
+      { email: 'c@ex.com', responseStatus: 'accepted' },
+      { email: 'saiu@ex.com', responseStatus: 'needsAction' },
+    ];
+    expect(mesclarConvidados(atuais, ['c@ex.com', 'novo@ex.com'])).toEqual([
+      { email: 'eu@exemplo.com', self: true, responseStatus: 'accepted' },
+      { email: 'sala@resource.exemplo', resource: true },
+      { email: 'c@ex.com', responseStatus: 'accepted' },
+      { email: 'novo@ex.com' },
+    ]);
   });
 });

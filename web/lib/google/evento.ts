@@ -119,6 +119,13 @@ interface GoogleHorario {
   timeZone?: string;
 }
 
+export interface GoogleConvidado {
+  email?: string;
+  self?: boolean;
+  resource?: boolean;
+  responseStatus?: string;
+}
+
 export interface GoogleEvento {
   id: string;
   status?: string;
@@ -127,7 +134,7 @@ export interface GoogleEvento {
   location?: string;
   start?: GoogleHorario;
   end?: GoogleHorario;
-  attendees?: { email?: string; self?: boolean; resource?: boolean }[];
+  attendees?: GoogleConvidado[];
   hangoutLink?: string;
   conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
   recurringEventId?: string;
@@ -313,9 +320,33 @@ export function corpoDaEdicao(
     location: v.local ?? '',
     description: v.descricao ?? '',
   };
-  if (patch.convidados !== undefined) corpo.attendees = v.convidados.map((email) => ({ email }));
+  if (mudouTipo) {
+    // PATCH mescla objetos aninhados: o formato antigo (date ou dateTime) precisa ir nulo.
+    const apagar = diaInteiro ? { dateTime: null, timeZone: null } : { date: null };
+    corpo.start = { ...(corpo.start as object), ...apagar };
+    corpo.end = { ...(corpo.end as object), ...apagar };
+  }
+  // Lista igual à atual não é mudança: regravar attendees derrubaria sala e respostas.
+  const anteriores = new Set(atual.convidados.map((c) => c.toLowerCase()));
+  const mudouConvidados =
+    patch.convidados !== undefined &&
+    (v.convidados.length !== anteriores.size || v.convidados.some((c) => !anteriores.has(c)));
+  if (mudouConvidados) corpo.attendees = v.convidados.map((email) => ({ email }));
   else delete corpo.attendees;
-  return { corpo, avisar: (patch.convidados ?? atual.convidados).length > 0 };
+  // Quem saiu da lista também recebe o aviso do Google.
+  return { corpo, avisar: atual.convidados.length > 0 || v.convidados.length > 0 };
+}
+
+/**
+ * Lista nova de convidados sobre a atual do Google: a própria conta e salas ficam,
+ * quem continua mantém a resposta, quem saiu sai, quem chegou entra.
+ */
+export function mesclarConvidados(atuais: GoogleConvidado[] | undefined, novos: string[]): GoogleConvidado[] {
+  const fixos = (atuais ?? []).filter((a) => a.self || a.resource);
+  const porEmail = new Map(
+    (atuais ?? []).filter((a) => !a.self && !a.resource && a.email).map((a) => [a.email!.toLowerCase(), a]),
+  );
+  return [...fixos, ...novos.map((email) => porEmail.get(email.toLowerCase()) ?? { email })];
 }
 
 const CAMPOS_TEXTO = ['agenda', 'titulo', 'inicio', 'fim', 'local', 'descricao'] as const;
