@@ -49,8 +49,9 @@ export const config = {
   // protege tudo, menos: assets estáticos do Next, favicon, o proxy da API de
   // controle e a API pública v1 (as duas têm auth própria por Bearer), o
   // fluxo de login/saída, o manifest e os ícones (o fetch do manifest é sem
-  // cookies; sem ele o "Instalar app" não aparece).
+  // cookies; sem ele o "Instalar app" não aparece) e a política de privacidade
+  // (a tela de consentimento do Google exige link público).
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/control(?:/|$)|api/v1(?:/|$)|api/login$|api/logout$|login$|manifest.webmanifest|icon-192.png|icon-512.png|apple-touch-icon.png).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/control(?:/|$)|api/v1(?:/|$)|api/login$|api/logout$|login$|privacidade$|manifest.webmanifest|icon-192.png|icon-512.png|apple-touch-icon.png).*)",
   ],
 };

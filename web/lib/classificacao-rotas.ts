@@ -92,4 +92,5 @@ export const CLASSIFICACAO: Record<string, 'dono' | 'atendimento' | 'publico'> =
   'atendimento/g/[slug]/page.tsx': 'atendimento',
   'atendimento/page.tsx': 'atendimento',
   'login/page.tsx': 'publico',
+  'privacidade/page.tsx': 'publico',
 };
