@@ -110,3 +110,24 @@ export async function cloudPostForm(
   if (!res.ok) throw await cloudHttpError(path, res);
   return res;
 }
+
+/** Chamada autenticada com qualquer método (a agenda usa PATCH e DELETE). Mesma
+ *  auth, timeout e premissa de erro do cloudPost: lança em HTTP não-2xx com o
+ *  `{error}` da rota na mensagem. */
+export async function cloudRequest(
+  metodo: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  path: string,
+  body?: unknown,
+  opts: CloudReqOpts = {},
+): Promise<Response> {
+  const base = cloudUrl();
+  if (!base) throw new Error('WAC_CLOUD_URL não configurado');
+  const res = await fetch(`${base}${path}`, {
+    method: metodo,
+    headers: { ...authHeaders(), ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    signal: sinalDaChamada(opts),
+  });
+  if (!res.ok) throw await cloudHttpError(path, res);
+  return res;
+}
