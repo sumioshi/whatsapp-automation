@@ -10,7 +10,8 @@ export const OFFSET_BRT = '-03:00';
 const MIN_MS = 60_000;
 const DIA_MS = 86_400_000;
 const OFFSET_MS = 3 * 3_600_000;
-const SEM_TITULO = '(sem título)';
+/** Título mostrado para evento sem título no Google; nunca é gravado de volta. */
+export const SEM_TITULO = '(sem título)';
 const DIA = /^\d{4}-\d{2}-\d{2}$/;
 const DATA_HORA = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(:\d{2}(?:\.\d+)?)?$/;
 const COM_FUSO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
@@ -66,6 +67,8 @@ export interface Evento {
   meet?: string;
   recorrente: boolean;
   editavel: boolean;
+  /** E-mail de quem organizou, quando foi outra pessoa (aí só ela altera o evento). */
+  organizador?: string;
   cor: string;
   link?: string;
 }
@@ -139,6 +142,8 @@ export interface GoogleEvento {
   conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
   recurringEventId?: string;
   htmlLink?: string;
+  organizer?: { email?: string; self?: boolean };
+  guestsCanModify?: boolean;
 }
 
 /** Data-hora com fuso explícito; sem fuso, vale o horário de Brasília. */
@@ -190,6 +195,8 @@ export function eventoDoGoogle(g: GoogleEvento, agenda: Agenda): Evento | null {
   const fim = g.end.dateTime ?? g.end.date;
   if (!inicio || !fim) return null;
   const meet = g.hangoutLink ?? g.conferenceData?.entryPoints?.find((p) => p.entryPointType === 'video')?.uri;
+  // Reunião organizada por outra pessoa: só ela altera, a menos que libere os convidados.
+  const deOutro = g.organizer && !g.organizer.self && g.guestsCanModify !== true ? g.organizer.email : undefined;
   return {
     id: g.id,
     agenda: agenda.id,
@@ -204,7 +211,8 @@ export function eventoDoGoogle(g: GoogleEvento, agenda: Agenda): Evento | null {
       .map((a) => a.email as string),
     ...(meet ? { meet } : {}),
     recorrente: Boolean(g.recurringEventId),
-    editavel: agenda.gravavel,
+    editavel: agenda.gravavel && !deOutro,
+    ...(deOutro ? { organizador: deOutro } : {}),
     cor: agenda.cor,
     ...(g.htmlLink ? { link: g.htmlLink } : {}),
   };
@@ -303,8 +311,11 @@ export function corpoDaEdicao(
       fim = isoBrt(Date.parse(comFuso(inicio)) + (Date.parse(atual.fim) - Date.parse(atual.inicio)));
     }
   }
+  // Evento sem título segue sem título: o rótulo da tela não volta para o Google.
+  const tituloNovo = patch.titulo !== undefined && patch.titulo.trim() !== SEM_TITULO ? patch.titulo : undefined;
+  const manterSemTitulo = tituloNovo === undefined && atual.titulo === SEM_TITULO;
   const v = validarEntrada({
-    titulo: patch.titulo ?? atual.titulo,
+    titulo: tituloNovo ?? atual.titulo,
     inicio,
     fim,
     duracaoMin: patch.duracaoMin,
@@ -320,6 +331,7 @@ export function corpoDaEdicao(
     location: v.local ?? '',
     description: v.descricao ?? '',
   };
+  if (manterSemTitulo) delete corpo.summary;
   if (mudouTipo) {
     // PATCH mescla objetos aninhados: o formato antigo (date ou dateTime) precisa ir nulo.
     const apagar = diaInteiro ? { dateTime: null, timeZone: null } : { date: null };

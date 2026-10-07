@@ -79,8 +79,7 @@ import {
   dsAgendaEstado,
   dsAgendaEventos } from "../lib/data-source";
 import type { EntregaResumo } from "../lib/data-source";
-import { diaBrt, rotuloBrt, somarDias } from "../lib/agenda-semana";
-import type { Evento } from "../lib/google/evento";
+import { diaBrt, resumoParaIa, somarDias } from "../lib/agenda-semana";
 import { numberFromJid, roleOf, sendableDmJid } from "../lib/contacts";
 import { explicarSinal } from "../lib/dashboard";
 
@@ -1648,24 +1647,6 @@ server.registerTool(
   },
 );
 
-/** Evento no formato curto das tools de agenda (horário de Brasília em `quando`). */
-function resumoEvento(ev: Evento, nomeDaAgenda?: string) {
-  return {
-    agenda: ev.agenda,
-    ...(nomeDaAgenda ? { agenda_nome: nomeDaAgenda } : {}),
-    id: ev.id,
-    titulo: ev.titulo,
-    quando: rotuloBrt(ev),
-    inicio: ev.inicio,
-    fim: ev.fim,
-    ...(ev.local ? { local: ev.local } : {}),
-    ...(ev.meet ? { meet: ev.meet } : {}),
-    ...(ev.convidados.length ? { convidados: ev.convidados } : {}),
-    ...(ev.recorrente ? { recorrente: true } : {}),
-    ...(ev.editavel ? {} : { somente_leitura: true }),
-  };
-}
-
 const AVISO_CONVIDADOS =
   "CONVIDADOS: o Google manda e-mail de convite na hora. Só inclua convidados quando o operador pedir, " +
   "e antes mostre a ele o evento (título, quando, quem) e espere o OK. Sem convidados, ninguém recebe nada.";
@@ -1675,7 +1656,7 @@ server.registerTool(
   {
     description:
       "Lê o Google Agenda do operador (todas as agendas da conta) numa janela de datas; padrão hoje até daqui a 7 dias. " +
-      "Cada evento traz `agenda` e `id` (use em agenda_editar/agenda_apagar) e `quando` em horário de Brasília. " +
+      "Cada evento traz `agenda` e `id` (use em agenda_editar/agenda_apagar) e `hora_brt` em horário de Brasília; `organizador` = reunião de outra pessoa, que só ela altera. " +
       "Desconectado = erro pedindo para reconectar em /agenda no painel.",
     inputSchema: {
       de: z.string().optional().describe("início: YYYY-MM-DD ou data-hora ISO (sem fuso = Brasília)"),
@@ -1694,7 +1675,7 @@ server.registerTool(
         de: inicio,
         ate: fim,
         total: eventos.length,
-        eventos: eventos.map((ev) => resumoEvento(ev, nomes.get(ev.agenda))),
+        eventos: eventos.map((ev) => resumoParaIa(ev, nomes.get(ev.agenda))),
       });
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao ler a agenda");
@@ -1707,7 +1688,7 @@ server.registerTool(
   {
     description:
       "Cria um evento no Google Agenda do operador. Marque só o que foi combinado de fato (data e hora claras) ou o que " +
-      `o operador pediu. ${AVISO_CONVIDADOS} Devolve o evento criado com \`id\`, \`agenda\`, \`quando\` e o link do Meet.`,
+      `o operador pediu. ${AVISO_CONVIDADOS} Devolve o evento criado com \`id\`, \`agenda\`, \`hora_brt\`, \`link\` e o link do Meet.`,
     inputSchema: {
       titulo: z.string().describe("título do evento"),
       inicio: z.string().describe("data-hora ISO (sem fuso = Brasília) ou YYYY-MM-DD com dia_inteiro"),
@@ -1735,7 +1716,7 @@ server.registerTool(
         convidados,
         meet,
       });
-      return text({ criado: resumoEvento(ev) });
+      return text({ criado: resumoParaIa(ev) });
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao criar o evento");
     }
@@ -1775,7 +1756,7 @@ server.registerTool(
         convidados,
         meet,
       });
-      return text({ editado: resumoEvento(ev) });
+      return text({ editado: resumoParaIa(ev) });
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao editar o evento");
     }

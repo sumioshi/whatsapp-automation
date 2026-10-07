@@ -10,10 +10,12 @@ interface Props {
   agendas: Agenda[];
   aoFechar: () => void;
   aoSalvar: () => void;
+  /** Recarrega a grade sem fechar (o evento mudou ou sumiu no Google). */
+  aoRecarregar: () => void;
 }
 
 /** Criar, editar ou apagar um evento. Agenda só leitura abre só para ver. */
-export function EventoModal({ rascunho, agendas, aoFechar, aoSalvar }: Props) {
+export function EventoModal({ rascunho, agendas, aoFechar, aoSalvar, aoRecarregar }: Props) {
   const [r, setR] = useState(rascunho);
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -49,6 +51,7 @@ export function EventoModal({ rascunho, agendas, aoFechar, aoSalvar }: Props) {
               body: JSON.stringify(metodo === "PATCH" ? { ...entradaDoRascunho(r), id: r.id } : entradaDoRascunho(r)),
             });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (res.status === 404) aoRecarregar();
       if (!res.ok) throw new Error(data.error ?? "falha ao salvar");
       aoSalvar();
     } catch (e) {
@@ -72,7 +75,13 @@ export function EventoModal({ rascunho, agendas, aoFechar, aoSalvar }: Props) {
         }}
       >
         <h2 className="font-medium text-fg">{novo ? "Novo evento" : leitura ? "Evento" : "Editar evento"}</h2>
-        {leitura && <p className="text-xs text-fg-dim">Esta agenda é só de leitura.</p>}
+        {leitura && (
+          <p className="text-xs text-fg-dim">
+            {r.organizador
+              ? `Quem organizou (${r.organizador}) é quem pode alterar este evento.`
+              : "Esta agenda é só de leitura."}
+          </p>
+        )}
         {r.recorrente && !leitura && (
           <p className="text-xs text-fg-dim">Evento que se repete: a alteração vale só para este dia.</p>
         )}

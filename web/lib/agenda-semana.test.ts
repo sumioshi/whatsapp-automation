@@ -11,6 +11,7 @@ import {
   minutosBrt,
   rascunhoDoEvento,
   rascunhoNovo,
+  resumoParaIa,
   rotuloBrt,
   rotuloDoDia,
 } from './agenda-semana';
@@ -145,4 +146,32 @@ describe('rotuloBrt', () => {
     expect(rotuloBrt(ev({ diaInteiro: true, inicio: '2026-10-07', fim: '2026-10-09' }))).toBe(
       'qua 07/10 → qui 08/10 (dia inteiro)',
     ));
+});
+
+describe('resumoParaIa', () => {
+  it('leva hora_brt, link e marca só leitura e quem organizou', () => {
+    expect(
+      resumoParaIa(
+        ev({
+          inicio: '2026-10-07T14:00:00-03:00',
+          fim: '2026-10-07T15:00:00-03:00',
+          link: 'https://calendar.google.com/e',
+          editavel: false,
+          organizador: 'cliente@exemplo.com',
+        }),
+        'Eu',
+      ),
+    ).toEqual({
+      agenda: 'a',
+      agenda_nome: 'Eu',
+      id: 'e',
+      titulo: 'x',
+      hora_brt: 'qua 07/10 14:00–15:00',
+      inicio: '2026-10-07T14:00:00-03:00',
+      fim: '2026-10-07T15:00:00-03:00',
+      link: 'https://calendar.google.com/e',
+      somente_leitura: true,
+      organizador: 'cliente@exemplo.com',
+    });
+  });
 });

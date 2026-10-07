@@ -170,6 +170,8 @@ export interface Rascunho {
   linkMeet?: string;
   link?: string;
   editavel: boolean;
+  /** Quem organizou, quando foi outra pessoa: o formulário abre só para ver. */
+  organizador?: string;
   recorrente: boolean;
 }
 
@@ -206,6 +208,7 @@ export function rascunhoDoEvento(ev: Evento): Rascunho {
     ...(ev.meet ? { linkMeet: ev.meet } : {}),
     ...(ev.link ? { link: ev.link } : {}),
     editavel: ev.editavel,
+    ...(ev.organizador ? { organizador: ev.organizador } : {}),
     recorrente: ev.recorrente,
   };
   if (ev.diaInteiro) {
@@ -230,4 +233,24 @@ export function entradaDoRascunho(r: Rascunho): EntradaEvento {
         inicio: `${r.dia}T${r.horaInicio}:00${OFFSET_BRT}`,
         fim: `${r.diaFim}T${r.horaFim}:00${OFFSET_BRT}`,
       };
+}
+
+/** Evento no formato das tools de agenda do MCP (horário de Brasília em `hora_brt`). */
+export function resumoParaIa(ev: Evento, nomeDaAgenda?: string): Record<string, unknown> {
+  return {
+    agenda: ev.agenda,
+    ...(nomeDaAgenda ? { agenda_nome: nomeDaAgenda } : {}),
+    id: ev.id,
+    titulo: ev.titulo,
+    hora_brt: rotuloBrt(ev),
+    inicio: ev.inicio,
+    fim: ev.fim,
+    ...(ev.local ? { local: ev.local } : {}),
+    ...(ev.meet ? { meet: ev.meet } : {}),
+    ...(ev.convidados.length ? { convidados: ev.convidados } : {}),
+    ...(ev.link ? { link: ev.link } : {}),
+    ...(ev.recorrente ? { recorrente: true } : {}),
+    ...(ev.editavel ? {} : { somente_leitura: true }),
+    ...(ev.organizador ? { organizador: ev.organizador } : {}),
+  };
 }

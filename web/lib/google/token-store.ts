@@ -1,4 +1,4 @@
-import { chmod, readFile, rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from '../json-store';
 import { DATA_DIR } from '../paths';
@@ -34,8 +34,7 @@ export async function lerToken(arquivo = caminhoDoToken()): Promise<TokenGuardad
 }
 
 export async function gravarToken(t: TokenGuardado, arquivo = caminhoDoToken()): Promise<void> {
-  await writeJsonAtomic(arquivo, t);
-  await chmod(arquivo, 0o600);
+  await writeJsonAtomic(arquivo, t, { mode: 0o600 });
 }
 
 export async function apagarToken(arquivo = caminhoDoToken()): Promise<void> {

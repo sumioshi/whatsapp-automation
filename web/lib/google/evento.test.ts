@@ -12,6 +12,7 @@ import {
   instanteDe,
   isoBrt,
   mesclarConvidados,
+  SEM_TITULO,
   somarDias,
   validarEntrada,
 } from './evento';
@@ -86,6 +87,25 @@ describe('eventoDoGoogle', () => {
       '2026-10-12',
       '2026-10-13',
     ]);
+  });
+  it('reunião organizada por outra pessoa não é editável e diz quem organizou', () => {
+    const ev = eventoDoGoogle(
+      {
+        id: 'e4',
+        start: { dateTime: '2026-10-08T14:00:00-03:00' },
+        end: { dateTime: '2026-10-08T15:00:00-03:00' },
+        organizer: { email: 'cliente@exemplo.com' },
+      },
+      principal,
+    )!;
+    expect([ev.editavel, ev.organizador]).toEqual([false, 'cliente@exemplo.com']);
+  });
+  it('organizada pela própria agenda, ou com convidado podendo editar, segue editável', () => {
+    const base = { start: { dateTime: '2026-10-08T14:00:00-03:00' }, end: { dateTime: '2026-10-08T15:00:00-03:00' } };
+    expect(eventoDoGoogle({ id: 'a', ...base, organizer: { email: 'eu@exemplo.com', self: true } }, principal)!.editavel).toBe(true);
+    expect(
+      eventoDoGoogle({ id: 'b', ...base, organizer: { email: 'x@ex.com' }, guestsCanModify: true }, principal)!.editavel,
+    ).toBe(true);
   });
   it('cancelado some', () => expect(eventoDoGoogle({ id: 'e3', status: 'cancelled' }, principal)).toBeNull());
 });
@@ -188,6 +208,12 @@ describe('corpoDaEdicao', () => {
     const ad: Evento = { ...atual, diaInteiro: true, inicio: '2026-10-08', fim: '2026-10-09' };
     const { corpo } = corpoDaEdicao(ad, { diaInteiro: false, inicio: '2026-10-08T10:00' }, 'r');
     expect(corpo.start).toEqual({ dateTime: '2026-10-08T10:00:00-03:00', timeZone: 'America/Sao_Paulo', date: null });
+  });
+  it('evento sem título continua sem título quando outra coisa muda', () => {
+    const semTitulo: Evento = { ...atual, titulo: SEM_TITULO };
+    expect(corpoDaEdicao(semTitulo, { local: 'Sala 2' }, 'r').corpo).not.toHaveProperty('summary');
+    expect(corpoDaEdicao(semTitulo, { titulo: SEM_TITULO }, 'r').corpo).not.toHaveProperty('summary');
+    expect(corpoDaEdicao(semTitulo, { titulo: 'Agora tem' }, 'r').corpo.summary).toBe('Agora tem');
   });
   it('dia inteiro de 2 dias movido mantém 2 dias e não avisa ninguém', () => {
     const ad: Evento = { ...atual, diaInteiro: true, inicio: '2026-10-08', fim: '2026-10-10', convidados: [] };

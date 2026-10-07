@@ -26,18 +26,22 @@ const JANELA_MAX_MS = 62 * 86_400_000;
 const LIMITE_DE_USO = new Set(['rateLimitExceeded', 'userRateLimitExceeded', 'quotaExceeded', 'dailyLimitExceeded']);
 
 const cache = new Map<string, { em: number; valor: unknown }>();
+let geracao = 0;
 let renovando: Promise<string> | null = null;
 
 /** Toda escrita (e conectar/desconectar) limpa o cache: a leitura seguinte vai ao Google. */
 export function limparCache(): void {
   cache.clear();
+  geracao++;
 }
 
 async function comCache<T>(chave: string, carregar: () => Promise<T>): Promise<T> {
   const c = cache.get(chave);
   if (c && Date.now() - c.em < CACHE_MS) return c.valor as T;
+  const minha = geracao;
   const valor = await carregar();
-  cache.set(chave, { em: Date.now(), valor });
+  // Leitura que começou antes de uma escrita não guarda o resultado velho.
+  if (minha === geracao) cache.set(chave, { em: Date.now(), valor });
   return valor;
 }
 
@@ -77,7 +81,11 @@ async function erroDoGoogle(res: Response): Promise<ErroAgenda> {
   if (res.status === 403) {
     const corpo = (await res.json().catch(() => ({}))) as { error?: { errors?: { reason?: string }[] } };
     const motivo = corpo.error?.errors?.[0]?.reason ?? '';
-    return LIMITE_DE_USO.has(motivo) ? new ErroAgenda('google_indisponivel') : new ErroAgenda('somente_leitura');
+    if (LIMITE_DE_USO.has(motivo)) return new ErroAgenda('google_indisponivel');
+    if (motivo === 'forbiddenForNonOrganizer') {
+      return new ErroAgenda('somente_leitura', 'só quem organizou o evento pode alterá-lo');
+    }
+    return new ErroAgenda('somente_leitura');
   }
   return new ErroAgenda('google_indisponivel');
 }

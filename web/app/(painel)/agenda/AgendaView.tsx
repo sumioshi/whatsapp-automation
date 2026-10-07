@@ -45,21 +45,24 @@ export function AgendaView({ inicial, aviso }: { inicial: EstadoAgenda; aviso: s
   if (!estado.configurado || !estado.conectado) {
     return <ConectarGoogle configurado={estado.configurado} aviso={texto} />;
   }
-  return <AgendaConectada estado={estado} aviso={texto} aoDesconectar={desconectou} />;
+  return <AgendaConectada estado={estado} aviso={texto} aoDesconectar={desconectou} aoAtualizar={setEstado} />;
 }
 
 function AgendaConectada({
   estado,
   aviso: avisoInicial,
   aoDesconectar,
+  aoAtualizar,
 }: {
   estado: EstadoAgenda;
   aviso: string | null;
   aoDesconectar: () => void;
+  aoAtualizar: (e: EstadoAgenda) => void;
 }) {
   const [segunda, setSegunda] = useState(() => inicioDaSemana(diaBrt(Date.now())));
   const [eventos, setEventos] = useState<Evento[]>([]);
-  const [ocultas, setOcultas] = useState<string[]>([]);
+  // null até ler a escolha salva: a primeira busca já respeita as agendas desligadas.
+  const [ocultas, setOcultas] = useState<string[] | null>(null);
   const [aviso, setAviso] = useState(avisoInicial);
   const [carregando, setCarregando] = useState(true);
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
@@ -69,14 +72,30 @@ function AgendaConectada({
   useEffect(() => setOcultas(lerOcultas()), []);
   const dias = useMemo(() => diasDaSemana(segunda), [segunda]);
   const visiveis = estado.agendas
-    .filter((a) => !ocultas.includes(a.id))
+    .filter((a) => !ocultas?.includes(a.id))
     .map((a) => a.id)
     .join(",");
+  const semAgendas = estado.agendas.length === 0;
   const principal = estado.agendas.find((a) => a.principal && a.gravavel) ?? estado.agendas.find((a) => a.gravavel);
   const hoje = diaBrt(Date.now());
 
   const carregar = useCallback(async () => {
+    if (ocultas === null) return;
     const meu = ++pedido.current;
+    // A página abriu com o Google fora do ar: tenta de novo a lista de agendas.
+    if (semAgendas) {
+      try {
+        const res = await fetch("/api/agenda/estado", { cache: "no-store" });
+        const novo = (await res.json().catch(() => ({}))) as Partial<EstadoAgenda>;
+        if (meu !== pedido.current) return;
+        if (res.ok && novo.conectado === false) aoDesconectar();
+        else if (res.ok && Array.isArray(novo.agendas) && novo.agendas.length) aoAtualizar(novo as EstadoAgenda);
+      } catch {
+        // Continua com o aviso atual; a próxima tentativa vem no ciclo de 60 s.
+      }
+      setCarregando(false);
+      return;
+    }
     if (!visiveis) {
       setEventos([]);
       setCarregando(false);
@@ -104,7 +123,7 @@ function AgendaConectada({
     } finally {
       if (meu === pedido.current) setCarregando(false);
     }
-  }, [segunda, visiveis, aoDesconectar]);
+  }, [segunda, visiveis, ocultas, semAgendas, aoDesconectar, aoAtualizar]);
 
   useEffect(() => {
     void carregar();
@@ -120,7 +139,8 @@ function AgendaConectada({
   }, [carregar]);
 
   function alternar(id: string) {
-    setOcultas((atual) => {
+    setOcultas((anterior) => {
+      const atual = anterior ?? [];
       const nova = atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id];
       try {
         localStorage.setItem(OCULTAS_KEY, JSON.stringify(nova));
@@ -153,7 +173,7 @@ function AgendaConectada({
             >
               <input
                 type="checkbox"
-                checked={!ocultas.includes(a.id)}
+                checked={!ocultas?.includes(a.id)}
                 onChange={() => alternar(a.id)}
                 style={{ accentColor: a.cor }}
               />
@@ -208,6 +228,7 @@ function AgendaConectada({
             setRascunho(null);
             void carregar();
           }}
+          aoRecarregar={() => void carregar()}
         />
       )}
     </div>

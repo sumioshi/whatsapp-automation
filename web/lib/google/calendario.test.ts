@@ -41,14 +41,14 @@ const AGENDAS = {
   ],
 };
 
-type Rota = (url: URL, init?: RequestInit) => Response | undefined;
+type Rota = (url: URL, init?: RequestInit) => Response | undefined | Promise<Response | undefined>;
 
 /** Google simulado: cada rota pode responder; a lista de agendas tem resposta padrão. */
 function google(...rotas: Rota[]) {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (entrada, init) => {
     const url = new URL(String(entrada));
     for (const r of rotas) {
-      const res = r(url, init);
+      const res = await r(url, init);
       if (res) return res;
     }
     if (url.pathname.endsWith('/users/me/calendarList')) return Response.json(AGENDAS);
@@ -123,6 +123,28 @@ describe('leitura', () => {
     await listarEventos('2026-10-05', '2026-10-12', ['eu@exemplo.com']);
     expect(f.mock.calls.length).toBeGreaterThan(antes);
     expect(f.mock.calls.some((c) => String(c[0]).includes('holiday'))).toBe(false);
+  });
+  it('leitura que começou antes de uma escrita não volta a ocupar o cache', async () => {
+    let soltar!: () => void;
+    const segura = new Promise<void>((r) => {
+      soltar = r;
+    });
+    let leituras = 0;
+    google(async (url) => {
+      if (!url.pathname.endsWith('/events')) return undefined;
+      leituras++;
+      if (leituras === 1) await segura;
+      return Response.json({ items: [] });
+    });
+    const { listarEventos, listarAgendas, limparCache } = await import('./calendario');
+    await listarAgendas();
+    const antiga = listarEventos('2026-10-05', '2026-10-12', ['eu@exemplo.com']);
+    await new Promise((r) => setTimeout(r, 0));
+    limparCache();
+    soltar();
+    await antiga;
+    await listarEventos('2026-10-05', '2026-10-12', ['eu@exemplo.com']);
+    expect(leituras).toBe(2);
   });
   it('janela maior que 62 dias é recusada', async () => {
     google();
@@ -278,6 +300,21 @@ describe('escrita', () => {
       { email: 'cliente@exemplo.com', responseStatus: 'accepted' },
       { email: 'novo@exemplo.com' },
     ]);
+  });
+  it('403 de quem não organizou explica o motivo', async () => {
+    google((url, init) => {
+      if (!url.pathname.endsWith('/events/c')) return undefined;
+      if (init?.method === 'PATCH') {
+        return Response.json({ error: { errors: [{ reason: 'forbiddenForNonOrganizer' }] } }, { status: 403 });
+      }
+      return Response.json({
+        id: 'c',
+        start: { dateTime: '2026-10-08T14:00:00-03:00' },
+        end: { dateTime: '2026-10-08T15:00:00-03:00' },
+      });
+    });
+    const { editarEvento } = await import('./calendario');
+    await expect(editarEvento('eu@exemplo.com', 'c', { titulo: 'x' })).rejects.toThrow('só quem organizou');
   });
   it('apagar evento que já sumiu responde nao_existe', async () => {
     google((url, init) => (init?.method === 'DELETE' ? new Response('', { status: 410 }) : undefined));
