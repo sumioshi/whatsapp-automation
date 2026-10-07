@@ -28,7 +28,9 @@ export function listaDoAtendente(
       name: canonico?.name ?? recente.name,
       avatarPath: canonico?.avatarPath ?? membros.find((m) => m.avatarPath)?.avatarPath ?? null,
       unread: membros.reduce((n, m) => n + m.unread, 0),
-      messageCount: membros.reduce((n, m) => n + m.messageCount, 0),
+      // Máximo, não soma: o mesmo id pode estar nos dois irmãos e só dá pra
+      // de-duplicar lendo os registros; o maior é o piso sem contar em dobro.
+      messageCount: Math.max(...membros.map((m) => m.messageCount)),
     });
   }
   return out.sort((a, b) => (b.lastTimestamp ?? '').localeCompare(a.lastTimestamp ?? ''));

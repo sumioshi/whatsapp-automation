@@ -9,7 +9,8 @@ const TTL_MS = 15_000;
  * Cache de módulo para leituras que toda requisição da área repete. Relê
  * quando a chave muda (mtime/tamanho do arquivo) ou quando o TTL vence — o
  * mtime pode repetir, então o TTL é o teto. Chamadas simultâneas dividem a
- * mesma leitura; leitura que falhou não fica guardada.
+ * mesma consulta (chave + leitura), registrada antes de qualquer espera;
+ * leitura que falhou não fica guardada.
  */
 export function cacheComChave<T>(o: {
   chave: () => Promise<string | null>;
@@ -19,7 +20,8 @@ export function cacheComChave<T>(o: {
 }): () => Promise<T> {
   const agora = o.agora ?? Date.now;
   let atual: { chave: string | null; em: number; valor: Promise<T> } | null = null;
-  return async () => {
+  let pendente: Promise<T> | null = null;
+  const consultar = async (): Promise<T> => {
     const chave = await o.chave();
     const t = agora();
     if (atual && atual.chave === chave && t - atual.em < o.ttlMs) return atual.valor;
@@ -30,6 +32,16 @@ export function cacheComChave<T>(o: {
       if (atual === entrada) atual = null;
     });
     return valor;
+  };
+  return () => {
+    if (pendente) return pendente;
+    const p = consultar();
+    pendente = p;
+    const solta = () => {
+      if (pendente === p) pendente = null;
+    };
+    p.then(solta, solta);
+    return p;
   };
 }
 

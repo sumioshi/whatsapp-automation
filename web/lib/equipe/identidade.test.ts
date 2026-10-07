@@ -52,6 +52,25 @@ describe('cacheComChave', () => {
     expect(await Promise.all([m.get(), m.get(), m.get()])).toEqual([1, 1, 1]);
     expect(m.leituras()).toBe(1);
   });
+  it('duas chamadas simultâneas com cache frio fazem uma leitura só', async () => {
+    let leituras = 0;
+    let chaves = 0;
+    const get = cacheComChave({
+      chave: async () => {
+        chaves++;
+        await new Promise((r) => setTimeout(r, 5));
+        return 'k';
+      },
+      ler: async () => {
+        await new Promise((r) => setTimeout(r, 5));
+        return ++leituras;
+      },
+      ttlMs: 15_000,
+      agora: () => 0,
+    });
+    const [a, b] = await Promise.all([get(), get()]);
+    expect([a, b, leituras, chaves]).toEqual([1, 1, 1, 1]);
+  });
   it('leitura que falhou não fica no cache', async () => {
     let n = 0;
     const get = cacheComChave({

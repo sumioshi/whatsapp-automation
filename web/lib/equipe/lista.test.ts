@@ -41,9 +41,9 @@ describe('listaDoAtendente', () => {
     const canonicoDe = (slug: string) => (slug === lid ? tel : slug);
     const lista = listaDoAtendente(
       [
-        g(lid, '2026-10-01T14:00:00.000Z', { unread: 2, lastPreview: 'do lid', name: 'Fulano' }),
+        g(lid, '2026-10-01T14:00:00.000Z', { unread: 2, lastPreview: 'do lid', name: 'Fulano', messageCount: 4 }),
         g('grupo-a', '2026-10-01T13:00:00.000Z', { unread: 1 }),
-        g(tel, '2026-10-01T10:00:00.000Z', { unread: 3, lastPreview: 'do telefone', name: 'Fulano', avatarPath: `${tel}/avatar.jpg` }),
+        g(tel, '2026-10-01T10:00:00.000Z', { unread: 3, messageCount: 7, lastPreview: 'do telefone', name: 'Fulano', avatarPath: `${tel}/avatar.jpg` }),
       ],
       new Set([tel, lid, 'grupo-a']),
       canonicoDe,
@@ -56,7 +56,7 @@ describe('listaDoAtendente', () => {
       lastTimestamp: '2026-10-01T14:00:00.000Z',
       lastPreview: 'do lid',
       avatarPath: `${tel}/avatar.jpg`,
-      messageCount: 2,
+      messageCount: 7,
     });
   });
   it('irmão sem o do telefone na lista: o item leva o slug canônico mesmo assim', () => {

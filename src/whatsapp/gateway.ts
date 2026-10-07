@@ -118,7 +118,7 @@ const MAX_RECEBIDAS_POR_CHAT = 50;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 
-/** Mimetypes inferidos pela extensão quando o cliente não informa. */
+/** Infere o mimetype de um documento pela extensão, usando o mapa compartilhado; sem correspondência, `application/octet-stream`. */
 function inferDocumentMimetype(path: string): string {
   return MIME_BY_EXT[extname(path).toLowerCase()] ?? 'application/octet-stream';
 }

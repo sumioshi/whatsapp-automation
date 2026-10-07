@@ -1,7 +1,7 @@
 import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 let tmp: string;
 let admin: typeof import('./admin');
@@ -74,6 +74,19 @@ describe('executar', () => {
     expect(nova.versao).not.toBe(velha.versao);
     expect(await autenticar.quemPelaSessao(tokenVelho, cred, store.acharUsuario, CHAVE)).toBeNull();
     expect(await visto.lerVisto('caio')).toEqual({});
+  });
+  it('falha ao remover o visto depois de apagar a conta não vira erro', async () => {
+    await admin.executar({ acao: 'criar', login: 'eli', nome: 'Eli' }, 'operador');
+    const caminho = join(tmp, 'data', '.equipe', 'visto-eli.json');
+    await mkdir(join(caminho, 'x'), { recursive: true });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await expect(admin.executar({ acao: 'apagar', login: 'eli' }, 'operador')).resolves.toEqual({});
+      expect(log).toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
+    expect(await store.acharUsuario('eli')).toBeNull();
   });
   it('apagar conta sem visto gravado não é erro', async () => {
     await admin.executar({ acao: 'criar', login: 'davi', nome: 'Davi' }, 'operador');

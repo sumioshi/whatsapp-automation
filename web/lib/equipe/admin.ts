@@ -111,7 +111,12 @@ export async function executar(
       if (i < 0) throw new Error(`conta "${login}" não existe`);
       lista.splice(i, 1);
     });
-    await apagarVisto(login);
+    try {
+      await apagarVisto(login);
+    } catch (e) {
+      // A conta já saiu; o visto órfão não deve virar erro de uma remoção feita.
+      console.error('apagar conta: visto não removido', e);
+    }
     return {};
   }
 
