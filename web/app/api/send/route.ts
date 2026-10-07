@@ -1,4 +1,7 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { credenciaisDoDono, metaDoPainel, SESSION_COOKIE } from "@/lib/equipe/autenticar";
+import { chaveDeSessao } from "@/lib/equipe/sessao";
 import { CONTROL_URL } from "@/lib/paths";
 
 export const runtime = "nodejs";
@@ -36,6 +39,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "jid e text (ou baloes) são obrigatórios" }, { status: 400 });
   }
 
+  // Envio direto do dono pelo painel (cookie, sem Basic) sai carimbado: o
+  // plantão mostra e a fila do agente se interrompe, como resposta manual.
+  const meta =
+    body.humano === true
+      ? undefined
+      : metaDoPainel(
+          (await cookies()).get(SESSION_COOKIE)?.value,
+          req.headers.get("authorization"),
+          credenciaisDoDono(),
+          chaveDeSessao(),
+        );
+
   try {
     const res = await fetch(`${CONTROL_URL}/send`, {
       method: "POST",
@@ -53,6 +68,7 @@ export async function POST(req: Request) {
         ...(body.aguardar === true ? { aguardar: true } : {}),
         ...(typeof body.decorrido_s === "number" ? { decorrido_s: body.decorrido_s } : {}),
         ...(typeof body.latenciaMaxima_s === "number" ? { latenciaMaxima_s: body.latenciaMaxima_s } : {}),
+        ...(meta ?? {}),
       }),
       // Cliente que desconecta (Esc no agente) derruba esta chamada, e o control
       // server cancela a entrega entre passos.

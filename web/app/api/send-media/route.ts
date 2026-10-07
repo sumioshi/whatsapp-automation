@@ -2,13 +2,18 @@ import { randomUUID } from "node:crypto";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { credenciaisDoDono, metaDoPainel, SESSION_COOKIE } from "@/lib/equipe/autenticar";
+import { chaveDeSessao } from "@/lib/equipe/sessao";
 import { mimeDoNome, nomeSeguro } from "@/lib/nome-arquivo";
 import { CONTROL_URL } from "@/lib/paths";
 
 export const runtime = "nodejs";
 
 const KINDS = new Set(["image", "document", "audio", "video"]);
+/** Mesmo teto da área de atendimento (o proxy aceita corpo até 70 MB). */
+const TETO_BYTES = 64 * 1024 * 1024;
 
 /**
  * Recebe um arquivo (multipart) do painel, grava num temp e manda pro coletor
@@ -37,6 +42,16 @@ export async function POST(req: Request) {
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: "arquivo ausente" }, { status: 400 });
   }
+  if (file.size > TETO_BYTES) {
+    return NextResponse.json({ error: "arquivo maior que 64 MB" }, { status: 413 });
+  }
+  // Envio do dono pelo painel (cookie, sem Basic) sai carimbado, como no /api/send.
+  const meta = metaDoPainel(
+    (await cookies()).get(SESSION_COOKIE)?.value,
+    req.headers.get("authorization"),
+    credenciaisDoDono(),
+    chaveDeSessao(),
+  );
 
   const dir = join(tmpdir(), "wa-outbox");
   await mkdir(dir, { recursive: true });
@@ -55,6 +70,7 @@ export async function POST(req: Request) {
         caption: typeof caption === "string" && caption.trim() ? caption.trim() : undefined,
         fileName: kind === "document" ? fileName : undefined,
         mimetype: file.type || mimeDoNome(fileName),
+        ...(meta ?? {}),
       }),
     });
     const data = (await res.json()) as { ok?: boolean; error?: string };

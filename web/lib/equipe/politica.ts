@@ -17,6 +17,17 @@ export function areaDoAtendente(pathname: string): boolean {
   );
 }
 
+/**
+ * Pedido de página (vai pro login/redirecionamento) ou de dado (leva status).
+ * Navegador sem Sec-Fetch-Dest (antigo, ou fora de contexto seguro) cai na
+ * heurística de sempre: GET que aceita HTML.
+ */
+export function ehNavegacao(headers: Headers, metodo: string): boolean {
+  const dest = headers.get('sec-fetch-dest');
+  if (dest) return dest === 'document';
+  return metodo === 'GET' && (headers.get('accept') ?? '').includes('text/html');
+}
+
 export function decidir(quem: Quem | null, pathname: string, ehDocumento: boolean): Decisao {
   if (!quem) return ehDocumento ? { tipo: 'login' } : { tipo: 'negar', status: 401 };
   if (quem.papel === 'dono') return { tipo: 'seguir' };

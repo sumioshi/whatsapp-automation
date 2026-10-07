@@ -51,13 +51,23 @@ export async function quemPelaSessao(
   return { papel: 'atendente', login: u.login };
 }
 
-export function cookieDe(header: string | null, nome: string): string | undefined {
-  if (!header) return undefined;
-  for (const parte of header.split(';')) {
-    const [k, ...v] = parte.trim().split('=');
-    if (k === nome) return v.join('=');
-  }
-  return undefined;
+/**
+ * Carimbo do envio que o dono faz pelo painel (cookie de sessão do dono): o
+ * coletor grava `ator: "painel"` e o plantão/vigia tratam como resposta
+ * manual. Pedido com Basic Auth é máquina (MCP, plantão, sync) e não leva
+ * carimbo, nem se também trouxer o cookie.
+ */
+export function metaDoPainel(
+  cookieToken: string | undefined,
+  authorization: string | null,
+  cred: Credenciais | null,
+  chave: string | null,
+  agoraS?: number,
+): { ator: 'painel'; usuario: string } | undefined {
+  if (!cred || !chave || !cookieToken) return undefined;
+  if (/^basic\s/i.test(authorization ?? '')) return undefined;
+  const s = lerSessao(cookieToken, chave, agoraS);
+  return s?.p === 'dono' && s.u === cred.user ? { ator: 'painel', usuario: cred.user } : undefined;
 }
 
 export async function quemDoPedido(

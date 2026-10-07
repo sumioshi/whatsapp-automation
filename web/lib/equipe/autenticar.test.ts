@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cookieDe, credenciaisDoDono, donoPorBasic, igualSeguro, quemPelaSessao } from './autenticar';
+import { credenciaisDoDono, donoPorBasic, igualSeguro, metaDoPainel, quemPelaSessao } from './autenticar';
 import { assinarSessao, novaSessao } from './sessao';
 import type { Usuario } from './usuarios';
 
@@ -54,9 +54,27 @@ describe('utilitários', () => {
     expect(credenciaisDoDono({ PANEL_USER: 'u', PANEL_PASS: 'p' })).toEqual({ user: 'u', pass: 'p' });
     expect(credenciaisDoDono({ PANEL_USER: 'u' })).toBeNull();
   });
-  it('cookieDe acha o valor pelo nome', () => {
-    expect(cookieDe('a=1; wac_session=v2.x.y; b=2', 'wac_session')).toBe('v2.x.y');
-    expect(cookieDe('a=1', 'wac_session')).toBeUndefined();
-    expect(cookieDe(null, 'wac_session')).toBeUndefined();
+});
+
+describe('metaDoPainel (carimbo do envio do dono pelo painel)', () => {
+  const tok = (login: string, papel: 'dono' | 'atendente', v = 0) => assinarSessao(novaSessao(login, papel, v, AGORA), CHAVE);
+
+  it('cookie de dono, sem Basic → carimbo com o login do dono', () => {
+    expect(metaDoPainel(tok('operador', 'dono'), null, cred, CHAVE, AGORA)).toEqual({ ator: 'painel', usuario: 'operador' });
+  });
+  it('com Basic (MCP, plantão, sync) → sem carimbo, mesmo com cookie', () => {
+    expect(metaDoPainel(tok('operador', 'dono'), basic('operador', 'senha-do-dono'), cred, CHAVE, AGORA)).toBeUndefined();
+    expect(metaDoPainel(undefined, basic('operador', 'senha-do-dono'), cred, CHAVE, AGORA)).toBeUndefined();
+  });
+  it('sem cookie, cookie de atendente, adulterado, vencido ou de outro dono → sem carimbo', () => {
+    expect(metaDoPainel(undefined, null, cred, CHAVE, AGORA)).toBeUndefined();
+    expect(metaDoPainel(tok('ana', 'atendente', 2), null, cred, CHAVE, AGORA)).toBeUndefined();
+    expect(metaDoPainel(`${tok('operador', 'dono')}x`, null, cred, CHAVE, AGORA)).toBeUndefined();
+    expect(metaDoPainel(tok('operador', 'dono'), null, cred, CHAVE, AGORA + 31 * 24 * 3600)).toBeUndefined();
+    expect(metaDoPainel(tok('outro', 'dono'), null, cred, CHAVE, AGORA)).toBeUndefined();
+  });
+  it('painel sem login configurado (dev local) → sem carimbo', () => {
+    expect(metaDoPainel(tok('operador', 'dono'), null, null, CHAVE, AGORA)).toBeUndefined();
+    expect(metaDoPainel(tok('operador', 'dono'), null, cred, null, AGORA)).toBeUndefined();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { areaDoAtendente, decidir } from './politica';
+import { areaDoAtendente, decidir, ehNavegacao } from './politica';
 
 const dono = { papel: 'dono' as const, login: 'operador' };
 const ana = { papel: 'atendente' as const, login: 'ana' };
@@ -31,5 +31,19 @@ describe('decidir', () => {
     expect(decidir(ana, '/', true)).toEqual({ tipo: 'redirecionar', para: '/atendimento' });
     expect(decidir(ana, '/api/media/grupo-a/audio/x.ogg', false)).toEqual({ tipo: 'negar', status: 403 });
     expect(decidir(ana, '/api/send', false)).toEqual({ tipo: 'negar', status: 403 });
+  });
+});
+
+describe('ehNavegacao', () => {
+  const h = (o: Record<string, string>) => new Headers(o);
+  it('Sec-Fetch-Dest: document é navegação; outro destino não é', () => {
+    expect(ehNavegacao(h({ 'sec-fetch-dest': 'document' }), 'GET')).toBe(true);
+    expect(ehNavegacao(h({ 'sec-fetch-dest': 'empty', accept: 'text/html' }), 'GET')).toBe(false);
+  });
+  it('sem Sec-Fetch-Dest: GET que aceita HTML é navegação', () => {
+    expect(ehNavegacao(h({ accept: 'text/html,application/xhtml+xml,*/*;q=0.8' }), 'GET')).toBe(true);
+    expect(ehNavegacao(h({ accept: 'application/json' }), 'GET')).toBe(false);
+    expect(ehNavegacao(h({}), 'GET')).toBe(false);
+    expect(ehNavegacao(h({ accept: 'text/html' }), 'POST')).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { credenciaisDoDono, quemDoPedido, SESSION_COOKIE } from "@/lib/equipe/autenticar";
-import { decidir } from "@/lib/equipe/politica";
+import { decidir, ehNavegacao } from "@/lib/equipe/politica";
 
 /**
  * Autenticação e autorização do painel. Ativa SÓ quando PANEL_USER e
@@ -11,8 +11,8 @@ import { decidir } from "@/lib/equipe/politica";
  *  - atendente: cookie de sessão de uma conta ativa da equipe.
  *
  * Nega por padrão: o atendente só alcança a área de atendimento (ver
- * lib/equipe/politica). Os headers x-wac-* vindos do cliente são descartados e
- * reescritos aqui; as rotas da área revalidam a sessão por conta própria.
+ * lib/equipe/politica). A identidade não viaja por header até as rotas: cada
+ * rota ou página que precisa saber quem é revalida o cookie por conta própria.
  *
  * Roda no runtime Node (padrão do proxy no Next 16), por isso pode ler o
  * arquivo de contas.
@@ -26,8 +26,7 @@ export async function proxy(req: NextRequest) {
     req.cookies.get(SESSION_COOKIE)?.value,
     cred,
   );
-  const ehDocumento = req.headers.get("sec-fetch-dest") === "document";
-  const d = decidir(quem, req.nextUrl.pathname, ehDocumento);
+  const d = decidir(quem, req.nextUrl.pathname, ehNavegacao(req.headers, req.method));
 
   if (d.tipo === "login") {
     const login = new URL("/login", req.url);
@@ -43,13 +42,7 @@ export async function proxy(req: NextRequest) {
     });
   }
 
-  const headers = new Headers(req.headers);
-  for (const k of [...headers.keys()]) if (k.startsWith("x-wac-")) headers.delete(k);
-  if (quem) {
-    headers.set("x-wac-papel", quem.papel);
-    headers.set("x-wac-usuario", quem.login);
-  }
-  return NextResponse.next({ request: { headers } });
+  return NextResponse.next();
 }
 
 export const config = {

@@ -83,10 +83,12 @@ O operador cria contas em `/equipe` (login, senha, chats liberados). O atendente
 mesmo link e cai em `/atendimento`: só existe pra ele o que foi liberado (404 no resto), sem QR,
 notas, contrato nem copiloto. O envio dele sai na hora, como o operador, passando pelos
 bloqueios da revisão (tu, culpa, balão repetido). Toda mensagem dele é gravada com
-`ator: "painel"` e `usuario: <login>`.
+`ator: "painel"` e `usuario: <login>`. O envio direto do PRÓPRIO operador pelo painel (sessão
+de cookie, não Basic) também sai carimbado, com `usuario: <PANEL_USER>`; o MCP, o plantão e o
+sync usam Basic e não levam carimbo.
 
-- **Plantão:** `Painel (ana): texto` é CONTEXTO, igual ao `Você (celular)` — alguém da equipe já
-  respondeu; não responder por cima nem repetir.
+- **Plantão:** `Painel (ana): texto` (ou `Painel (<PANEL_USER>)`, o operador pelo painel) é
+  CONTEXTO, igual ao `Você (celular)` — alguém já respondeu; não responder por cima nem repetir.
 - **Fila:** envio pelo painel interrompe o ticket vivo do agente no chat (`operador_respondeu`).
 - **MCP:** `ler_mensagens` mostra `de: "ana (painel)"`.
 - Regras de acesso em `web/lib/equipe/politica.ts`; toda rota/página nova precisa de linha em
