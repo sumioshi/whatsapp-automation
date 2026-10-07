@@ -94,6 +94,20 @@ sync usam Basic e não levam carimbo.
 - Regras de acesso em `web/lib/equipe/politica.ts`; toda rota/página nova precisa de linha em
   `web/lib/classificacao-rotas.ts` (o teste falha sem ela).
 
+## Agenda (Google Agenda no painel)
+
+`/agenda` mostra e edita o Google Agenda do operador (todas as agendas, liga/desliga por
+agenda). A nuvem guarda a permissão em `DATA_DIR/.google/token.json` (conectar e desconectar
+na própria tela) e precisa de `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` no serviço, com o app
+OAuth publicado como "Em produção" (em "Teste" o Google derruba a conexão a cada 7 dias).
+Só o dono acessa; a equipe não vê.
+
+- **Tools MCP:** `agenda_ver`, `agenda_marcar`, `agenda_editar`, `agenda_apagar` (só no modo
+  remoto). Horário sem fuso vale Brasília.
+- **Convidado recebe e-mail do Google na hora:** só inclua `convidados` quando o operador pedir,
+  e depois de mostrar o evento a ele. Sem convidados, ninguém é avisado.
+- **Desconectado:** as tools respondem "agenda desconectada, reconecte em /agenda".
+
 ## Revisão de texto antes do envio (código, não convenção)
 
 `responder`, `responder_midia` (legenda) e `editar_mensagem` passam o texto por uma revisão

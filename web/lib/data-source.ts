@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { cloudFetch, cloudJson, cloudPost, cloudPostForm, mcpRemote } from './cloud';
+import { cloudFetch, cloudJson, cloudPost, cloudPostForm, cloudRequest, mcpRemote } from './cloud';
 import type { Contacts } from './contacts';
 import { buildContacts } from './contacts';
 import type { GroupEntry } from './config';
@@ -15,6 +15,7 @@ import { readContratos, setContrato } from './contratos';
 import type { EntradaFeature, Feature } from './features';
 import { listarFeatures, registrarFeature } from './features';
 import type { Dashboard } from './dashboard';
+import type { EntradaEvento, EstadoAgenda, Evento, PatchEvento } from './google/evento';
 import { CONTROL_URL } from './paths';
 
 /**
@@ -412,4 +413,37 @@ export async function dsDashboard(): Promise<Dashboard> {
   if (mcpRemote()) return cloudJson('/api/dashboard');
   const { montarDashboardAtual } = await import('./dashboard-atual');
   return montarDashboardAtual();
+}
+
+/** A agenda só existe na nuvem: o token do Google mora no volume do painel. */
+function exigirNuvem(): void {
+  if (!mcpRemote()) throw new Error('a agenda mora na nuvem: ligue WAC_MCP_REMOTE=1 com WAC_CLOUD_* configurado');
+}
+
+export async function dsAgendaEstado(): Promise<EstadoAgenda> {
+  exigirNuvem();
+  return (await (await cloudRequest('GET', '/api/agenda/estado')).json()) as EstadoAgenda;
+}
+
+export async function dsAgendaEventos(de: string, ate: string, agendas?: string[]): Promise<Evento[]> {
+  exigirNuvem();
+  const q = new URLSearchParams({ de, ate });
+  if (agendas?.length) q.set('agendas', agendas.join(','));
+  return (await (await cloudRequest('GET', `/api/agenda/eventos?${q}`)).json()) as Evento[];
+}
+
+export async function dsAgendaCriar(e: EntradaEvento): Promise<Evento> {
+  exigirNuvem();
+  return ((await (await cloudRequest('POST', '/api/agenda/eventos', e)).json()) as { evento: Evento }).evento;
+}
+
+export async function dsAgendaEditar(agenda: string, id: string, patch: PatchEvento): Promise<Evento> {
+  exigirNuvem();
+  const res = await cloudRequest('PATCH', '/api/agenda/eventos', { ...patch, agenda, id });
+  return ((await res.json()) as { evento: Evento }).evento;
+}
+
+export async function dsAgendaApagar(agenda: string, id: string): Promise<void> {
+  exigirNuvem();
+  await cloudRequest('DELETE', `/api/agenda/eventos?${new URLSearchParams({ agenda, id })}`);
 }

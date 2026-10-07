@@ -7,9 +7,10 @@ import { dirname, join } from 'node:path';
  * Compartilhado pelos stores do painel (triagem, checkpoint do agente, etc.).
  * Temp name é único por processo e UUID para evitar colisão em escritas concorrentes.
  */
-export async function writeJsonAtomic(path: string, data: unknown): Promise<void> {
+export async function writeJsonAtomic(path: string, data: unknown, opts: { mode?: number } = {}): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const tmp = join(dirname(path), `.${process.pid}.${randomUUID()}.tmp`);
-  await writeFile(tmp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  // `mode` vale já no temporário: arquivo de segredo nunca existe legível por outros.
+  await writeFile(tmp, `${JSON.stringify(data, null, 2)}\n`, { encoding: 'utf8', ...(opts.mode ? { mode: opts.mode } : {}) });
   await rename(tmp, path);
 }

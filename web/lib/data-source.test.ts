@@ -381,3 +381,63 @@ describe('ticket de entrega', () => {
     expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/127\.0\.0\.1:\d+\/entregas\?jid=x%40g\.us$/);
   });
 });
+
+describe('agenda (só na nuvem)', () => {
+  it('modo local recusa sem tocar a rede', async () => {
+    vi.stubEnv('WAC_CLOUD_URL', '');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const { dsAgendaEventos } = await import('./data-source');
+    await expect(dsAgendaEventos('2026-10-05', '2026-10-12')).rejects.toThrow('a agenda mora na nuvem');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  describe('modo remoto', () => {
+    beforeEach(() => {
+      vi.stubEnv('WAC_MCP_REMOTE', '1');
+      vi.stubEnv('WAC_CLOUD_URL', 'https://nuvem.exemplo');
+      vi.stubEnv('WAC_CLOUD_USER', 'u');
+      vi.stubEnv('WAC_CLOUD_PASS', 'p');
+    });
+
+    it('eventos: GET com janela e agendas na query', async () => {
+      const f = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json([{ id: 'c' }]));
+      const { dsAgendaEventos } = await import('./data-source');
+      expect(await dsAgendaEventos('2026-10-05', '2026-10-12', ['eu@exemplo.com'])).toEqual([{ id: 'c' }]);
+      const [url, init] = f.mock.calls[0]!;
+      expect(String(url)).toBe(
+        'https://nuvem.exemplo/api/agenda/eventos?de=2026-10-05&ate=2026-10-12&agendas=eu%40exemplo.com',
+      );
+      expect(init?.method).toBe('GET');
+    });
+
+    it('apagar: DELETE com id de agenda codificado', async () => {
+      const f = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ ok: true }));
+      const { dsAgendaApagar } = await import('./data-source');
+      await dsAgendaApagar('pt.brazilian#holiday@group.v.calendar.google.com', 'e1');
+      const [url, init] = f.mock.calls[0]!;
+      expect(String(url)).toBe(
+        'https://nuvem.exemplo/api/agenda/eventos?agenda=pt.brazilian%23holiday%40group.v.calendar.google.com&id=e1',
+      );
+      expect(init?.method).toBe('DELETE');
+    });
+
+    it('editar: PATCH com agenda e id no corpo', async () => {
+      const f = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ evento: { id: 'c' } }));
+      const { dsAgendaEditar } = await import('./data-source');
+      expect(await dsAgendaEditar('eu@exemplo.com', 'c', { titulo: 'Nova' })).toEqual({ id: 'c' });
+      const init = f.mock.calls[0]![1]!;
+      expect([init.method, JSON.parse(String(init.body))]).toEqual([
+        'PATCH',
+        { titulo: 'Nova', agenda: 'eu@exemplo.com', id: 'c' },
+      ]);
+    });
+
+    it('desconectado chega com a mensagem da rota', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        Response.json({ error: 'agenda desconectada, reconecte em /agenda', codigo: 'desconectado' }, { status: 409 }),
+      );
+      const { dsAgendaCriar } = await import('./data-source');
+      await expect(dsAgendaCriar({ titulo: 'x', inicio: '2026-10-08T14:00' })).rejects.toThrow('reconecte em /agenda');
+    });
+  });
+});

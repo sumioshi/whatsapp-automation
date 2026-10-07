@@ -72,8 +72,14 @@ import {
   dsSetExecutor,
   dsSetContrato,
   dsRegistrarFeature,
-  dsDashboard } from "../lib/data-source";
+  dsDashboard,
+  dsAgendaApagar,
+  dsAgendaCriar,
+  dsAgendaEditar,
+  dsAgendaEstado,
+  dsAgendaEventos } from "../lib/data-source";
 import type { EntregaResumo } from "../lib/data-source";
+import { diaBrt, resumoParaIa, somarDias } from "../lib/agenda-semana";
 import { numberFromJid, roleOf, sendableDmJid } from "../lib/contacts";
 import { explicarSinal } from "../lib/dashboard";
 
@@ -1637,6 +1643,143 @@ server.registerTool(
       return text(await dsTriage());
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao ler triagem");
+    }
+  },
+);
+
+const AVISO_CONVIDADOS =
+  "CONVIDADOS: o Google manda e-mail de convite na hora. Só inclua convidados quando o operador pedir, " +
+  "e antes mostre a ele o evento (título, quando, quem) e espere o OK. Sem convidados, ninguém recebe nada.";
+
+server.registerTool(
+  "agenda_ver",
+  {
+    description:
+      "Lê o Google Agenda do operador (todas as agendas da conta) numa janela de datas; padrão hoje até daqui a 7 dias. " +
+      "Cada evento traz `agenda` e `id` (use em agenda_editar/agenda_apagar) e `hora_brt` em horário de Brasília; `organizador` = reunião de outra pessoa, que só ela altera. " +
+      "Desconectado = erro pedindo para reconectar em /agenda no painel.",
+    inputSchema: {
+      de: z.string().optional().describe("início: YYYY-MM-DD ou data-hora ISO (sem fuso = Brasília)"),
+      ate: z.string().optional().describe("fim exclusivo: YYYY-MM-DD ou data-hora ISO; no máximo 62 dias depois de `de`"),
+      agendas: z.array(z.string()).optional().describe("ids de agenda para filtrar; omitido = todas"),
+    },
+  },
+  async ({ de, ate, agendas }) => {
+    try {
+      const inicio = de ?? diaBrt(Date.now());
+      const fim = ate ?? somarDias(inicio.slice(0, 10), 7);
+      const [estado, eventos] = await Promise.all([dsAgendaEstado(), dsAgendaEventos(inicio, fim, agendas)]);
+      const nomes = new Map(estado.agendas.map((a) => [a.id, a.nome]));
+      return text({
+        conta: estado.email,
+        de: inicio,
+        ate: fim,
+        total: eventos.length,
+        eventos: eventos.map((ev) => resumoParaIa(ev, nomes.get(ev.agenda))),
+      });
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "falha ao ler a agenda");
+    }
+  },
+);
+
+server.registerTool(
+  "agenda_marcar",
+  {
+    description:
+      "Cria um evento no Google Agenda do operador. Marque só o que foi combinado de fato (data e hora claras) ou o que " +
+      `o operador pediu. ${AVISO_CONVIDADOS} Devolve o evento criado com \`id\`, \`agenda\`, \`hora_brt\`, \`link\` e o link do Meet.`,
+    inputSchema: {
+      titulo: z.string().describe("título do evento"),
+      inicio: z.string().describe("data-hora ISO (sem fuso = Brasília) ou YYYY-MM-DD com dia_inteiro"),
+      fim: z.string().optional().describe("fim; sem ele vale duracao_min"),
+      duracao_min: z.number().int().optional().describe("duração em minutos quando não há fim; padrão 30"),
+      dia_inteiro: z.boolean().optional().describe("true = evento de dia inteiro"),
+      agenda: z.string().optional().describe("id da agenda; padrão a principal"),
+      descricao: z.string().optional(),
+      local: z.string().optional(),
+      convidados: z.array(z.string()).optional().describe("e-mails; o Google manda convite por e-mail"),
+      meet: z.boolean().optional().describe("true = cria link do Google Meet"),
+    },
+  },
+  async ({ titulo, inicio, fim, duracao_min, dia_inteiro, agenda, descricao, local, convidados, meet }) => {
+    try {
+      const ev = await dsAgendaCriar({
+        titulo,
+        inicio,
+        fim,
+        duracaoMin: duracao_min,
+        diaInteiro: dia_inteiro,
+        agenda,
+        descricao,
+        local,
+        convidados,
+        meet,
+      });
+      return text({ criado: resumoParaIa(ev) });
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "falha ao criar o evento");
+    }
+  },
+);
+
+server.registerTool(
+  "agenda_editar",
+  {
+    description:
+      "Altera um evento (só os campos passados). Início sem fim mantém a duração. `convidados` SUBSTITUI a lista. " +
+      `${AVISO_CONVIDADOS} Em evento recorrente, muda só esta ocorrência.`,
+    inputSchema: {
+      agenda: z.string().describe("id da agenda (vem do agenda_ver)"),
+      id: z.string().describe("id do evento (vem do agenda_ver)"),
+      titulo: z.string().optional(),
+      inicio: z.string().optional(),
+      fim: z.string().optional(),
+      duracao_min: z.number().int().optional(),
+      dia_inteiro: z.boolean().optional(),
+      descricao: z.string().optional().describe("'' apaga"),
+      local: z.string().optional().describe("'' apaga"),
+      convidados: z.array(z.string()).optional().describe("lista nova completa de e-mails"),
+      meet: z.boolean().optional().describe("true = cria link do Meet se ainda não houver"),
+    },
+  },
+  async ({ agenda, id, titulo, inicio, fim, duracao_min, dia_inteiro, descricao, local, convidados, meet }) => {
+    try {
+      const ev = await dsAgendaEditar(agenda, id, {
+        titulo,
+        inicio,
+        fim,
+        duracaoMin: duracao_min,
+        diaInteiro: dia_inteiro,
+        descricao,
+        local,
+        convidados,
+        meet,
+      });
+      return text({ editado: resumoParaIa(ev) });
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "falha ao editar o evento");
+    }
+  },
+);
+
+server.registerTool(
+  "agenda_apagar",
+  {
+    description:
+      "Apaga um evento do Google Agenda. Só apague o que o operador pediu explicitamente. Se o evento tiver convidados, " +
+      "o Google avisa o cancelamento por e-mail.",
+    inputSchema: {
+      agenda: z.string().describe("id da agenda (vem do agenda_ver)"),
+      id: z.string().describe("id do evento (vem do agenda_ver)"),
+    },
+  },
+  async ({ agenda, id }) => {
+    try {
+      await dsAgendaApagar(agenda, id);
+      return text({ ok: true, apagado: id });
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "falha ao apagar o evento");
     }
   },
 );
