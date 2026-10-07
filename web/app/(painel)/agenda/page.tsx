@@ -1,37 +1,26 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { DATA_DIR } from "@/lib/paths";
-import { AgendaSetup } from "./AgendaSetup";
+import { estadoAgenda } from "@/lib/google/calendario";
+import type { EstadoAgenda } from "@/lib/google/evento";
+import { AgendaView } from "./AgendaView";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Embed do Google Calendar do operador. O ID da agenda vive em
- * data/agenda.config.json (volume) — nada de e-mail no repositório. O iframe
- * renderiza com a sessão Google do PRÓPRIO navegador: agenda privada aparece
- * só pra quem tem acesso.
+ * Agenda própria do painel, ligada ao Google do operador pelo servidor: não
+ * depende de cookie de terceiros no navegador nem de iframe do Google.
  */
-export default async function AgendaPage() {
-  let calendario: string | null = null;
+export default async function AgendaPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  let estado: EstadoAgenda;
+  let aviso = typeof sp.erro === "string" ? sp.erro : null;
   try {
-    const cfg = JSON.parse(
-      await readFile(join(DATA_DIR, "agenda.config.json"), "utf8"),
-    ) as { calendario?: string };
-    calendario = cfg.calendario ?? null;
+    estado = await estadoAgenda();
   } catch {
-    /* sem config ainda */
+    estado = { configurado: true, conectado: true, email: null, agendas: [] };
+    aviso = "google_indisponivel";
   }
-
-  if (!calendario) return <AgendaSetup />;
-
-  const src = `https://calendar.google.com/calendar/embed?src=${encodeURIComponent(calendario)}&ctz=America%2FSao_Paulo&mode=WEEK&showTitle=0&showPrint=0`;
-  return (
-    <div className="flex min-h-0 flex-1 flex-col p-4">
-      <iframe
-        src={src}
-        title="Google Calendar"
-        className="min-h-0 flex-1 rounded-card border border-line bg-white"
-      />
-    </div>
-  );
+  return <AgendaView inicial={estado} aviso={aviso} />;
 }
