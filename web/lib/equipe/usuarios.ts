@@ -34,8 +34,10 @@ export function publico(u: Usuario): UsuarioPublico {
 function valido(x: unknown): x is Usuario {
   const u = x as Usuario;
   return (
-    !!u && typeof u.login === 'string' && typeof u.senha === 'string' &&
-    typeof u.ativo === 'boolean' && typeof u.versao === 'number' && Array.isArray(u.chats)
+    !!u && typeof u === 'object' && typeof u.login === 'string' && typeof u.nome === 'string' &&
+    typeof u.senha === 'string' && typeof u.ativo === 'boolean' && typeof u.versao === 'number' &&
+    Array.isArray(u.chats) && u.chats.every((c) => typeof c === 'string') &&
+    typeof u.criadoEm === 'string'
   );
 }
 
@@ -49,12 +51,16 @@ export async function lerUsuarios(): Promise<Usuario[]> {
   }
 }
 
-/** Leitura rigorosa para alterações: ENOENT → []; erro ou não-array → throw. */
+/**
+ * Leitura rigorosa para alterações: ENOENT → []; erro, não-array ou qualquer
+ * entrada inválida → throw. Descartar a entrada aqui a apagaria ao gravar.
+ */
 async function lerUsuariosStrict(): Promise<Usuario[]> {
   try {
     const parsed = JSON.parse(await readFile(usuariosFile(), 'utf8')) as unknown;
     if (!Array.isArray(parsed)) throw new Error('não é array');
-    return parsed.filter(valido);
+    if (!parsed.every(valido)) throw new Error('entrada inválida');
+    return parsed;
   } catch (e) {
     if (e instanceof Error && 'code' in e && e.code === 'ENOENT') return [];
     throw new Error('arquivo de contas ilegível — corrija antes de alterar');

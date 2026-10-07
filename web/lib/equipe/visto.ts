@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from '../json-store';
 import { DATA_DIR } from '../paths';
@@ -30,6 +30,14 @@ export function marcarVisto(login: string, slug: string, iso: string): Promise<v
     atual[slug] = iso;
     await writeJsonAtomic(arquivo(login), atual);
   });
+  filas.set(login, passo.catch(() => {}));
+  return passo;
+}
+
+/** Some com o não lido da conta (apagada): um login recriado começa do zero. */
+export function apagarVisto(login: string): Promise<void> {
+  const anterior = filas.get(login) ?? Promise.resolve();
+  const passo = anterior.then(() => rm(arquivo(login), { force: true }));
   filas.set(login, passo.catch(() => {}));
   return passo;
 }

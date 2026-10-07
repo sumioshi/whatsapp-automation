@@ -1,5 +1,6 @@
 import { gerarSenha, hashSenha } from './senha';
 import { alterarUsuarios, LOGIN_RE, publico, type Usuario, type UsuarioPublico } from './usuarios';
+import { apagarVisto } from './visto';
 
 export type Comando =
   | { acao: 'criar'; login: string; nome: string; senha?: string }
@@ -21,6 +22,44 @@ function senhaOuGerada(senha: string | undefined): { senha: string; gerada?: str
   return { senha };
 }
 
+const ACOES = new Set(['criar', 'editar', 'senha', 'ativo', 'chats', 'apagar']);
+
+/** O corpo vem da rede: confere o formato antes de tocar em qualquer campo. */
+function validarComando(c: unknown): asserts c is Comando {
+  const ok = (() => {
+    if (!c || typeof c !== 'object' || Array.isArray(c)) return false;
+    const x = c as Record<string, unknown>;
+    if (typeof x.acao !== 'string' || !ACOES.has(x.acao) || typeof x.login !== 'string') return false;
+    const senhaOk = x.senha === undefined || typeof x.senha === 'string';
+    switch (x.acao) {
+      case 'criar':
+        return typeof x.nome === 'string' && senhaOk;
+      case 'editar':
+        return typeof x.nome === 'string';
+      case 'senha':
+        return senhaOk;
+      case 'ativo':
+        return typeof x.ativo === 'boolean';
+      case 'chats':
+        return Array.isArray(x.chats) && x.chats.every((s) => typeof s === 'string');
+      default:
+        return true;
+    }
+  })();
+  if (!ok) throw new Error('comando inválido');
+}
+
+/**
+ * Versão inicial de uma conta: o relógio, nunca um número fixo. Um login
+ * apagado e recriado não pode repetir a versão da conta anterior, senão os
+ * cookies dela voltariam a valer.
+ */
+let ultimaVersao = 0;
+function versaoInicial(): number {
+  ultimaVersao = Math.max(Date.now(), ultimaVersao + 1);
+  return ultimaVersao;
+}
+
 function achar(lista: Usuario[], login: string): Usuario {
   const u = lista.find((x) => x.login === login);
   if (!u) throw new Error(`conta "${login}" não existe`);
@@ -32,6 +71,7 @@ export async function executar(
   donoLogin: string,
   agora = new Date(),
 ): Promise<{ usuario?: UsuarioPublico; senhaGerada?: string }> {
+  validarComando(c);
   const login = c.login.trim().toLowerCase();
 
   if (c.acao === 'criar') {
@@ -44,7 +84,7 @@ export async function executar(
     const usuario = await alterarUsuarios((lista) => {
       if (lista.some((u) => u.login === login)) throw new Error(`login "${login}" já existe`);
       const novo: Usuario = {
-        login, nome, senha: hash, ativo: true, versao: 1, chats: [],
+        login, nome, senha: hash, ativo: true, versao: versaoInicial(), chats: [],
         criadoEm: agora.toISOString(), ultimoAcesso: null,
       };
       lista.push(novo);
@@ -71,6 +111,7 @@ export async function executar(
       if (i < 0) throw new Error(`conta "${login}" não existe`);
       lista.splice(i, 1);
     });
+    await apagarVisto(login);
     return {};
   }
 

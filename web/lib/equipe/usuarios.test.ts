@@ -58,4 +58,22 @@ describe('store de contas', () => {
     expect((await stat(f)).mtimeMs).toBe(T * 1000);
     expect((await mod.acharUsuario('ana'))?.versao).toBe(22);
   });
+
+  it('alterarUsuarios recusa arquivo com entrada inválida em vez de descartá-la ao gravar', async () => {
+    const f = mod.usuariosFile();
+    const casos: unknown[] = [
+      { ...ana, login: 'eva', nome: 7 },
+      { ...ana, login: 'eva', criadoEm: null },
+      { ...ana, login: 'eva', chats: ['grupo-a', 9] },
+      { ...ana, login: 'eva', ativo: 'sim' },
+    ];
+    for (const ruim of casos) {
+      const conteudo = JSON.stringify([{ ...ana }, ruim]);
+      await writeFile(f, conteudo);
+      await expect(mod.alterarUsuarios((l) => { l.push({ ...ana, login: 'fabi' }); })).rejects.toThrow(/ilegível/);
+      expect(await readFile(f, 'utf8')).toBe(conteudo);
+      // O login segue enxergando só as entradas válidas.
+      expect((await mod.lerUsuarios()).map((u) => u.login)).toEqual(['ana']);
+    }
+  });
 });
