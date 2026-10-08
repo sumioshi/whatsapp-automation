@@ -179,10 +179,16 @@ completa; o Mac só tem o que capturou ligado. Quando uma mensagem de mídia vem
 tool de mídia normalmente, ela busca da nuvem. Só num setup 100% local (sem `WAC_CLOUD_*`) é que
 `midia_pendente` significa "essa mídia não foi capturada aqui".
 
-## Vídeo por link (YouTube, Instagram, TikTok): skill `watch`
+## Vídeo: `assistir_video` (MCP) e a skill `watch`
 
-Vídeo que veio **anexado** no WhatsApp é `ver_video` (MCP). Vídeo que veio como **link** na
-mensagem (YouTube, Instagram, TikTok, Vimeo…) é a skill **`watch`**, empacotada no repo em
+**`assistir_video`** (MCP, `web/lib/assistir-video.ts`): o Gemini (`google/gemini-3.8-flash` pela
+OpenRouter, troca com `WAC_VIDEO_MODEL`) assiste imagem e áudio juntos e devolve o que aparece e o que
+é falado, com tempos. Serve pro vídeo **anexado** no chat (`grupo` + `id`/`mediaPath`, ou o último do
+grupo) e pra **link** (`url`: YouTube direto; Instagram/TikTok baixados com `yt-dlp`). ~US$ 0,003–0,01
+por vídeo, teto de 20 min, comprimido até ~18 MB: chame sob demanda, nunca em lote. `ver_video`
+(quadros, grátis) continua pra GIF/meme; `transcrever` pra só a fala.
+
+A skill **`watch`** faz o mesmo fora do MCP (no Claude Code), empacotada no repo em
 `.claude/skills/watch/` (cópia da 0.3.2 de `bradautomates/claude-video`, MIT; o plugin global
 fica desligado neste projeto em `.claude/settings.json` para não duplicar).
 
