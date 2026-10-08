@@ -179,6 +179,23 @@ completa; o Mac só tem o que capturou ligado. Quando uma mensagem de mídia vem
 tool de mídia normalmente, ela busca da nuvem. Só num setup 100% local (sem `WAC_CLOUD_*`) é que
 `midia_pendente` significa "essa mídia não foi capturada aqui".
 
+## Vídeo por link (YouTube, Instagram, TikTok): skill `watch`
+
+Vídeo que veio **anexado** no WhatsApp é `ver_video` (MCP). Vídeo que veio como **link** na
+mensagem (YouTube, Instagram, TikTok, Vimeo…) é a skill **`watch`**, empacotada no repo em
+`.claude/skills/watch/` (cópia da 0.3.2 de `bradautomates/claude-video`, MIT; o plugin global
+fica desligado neste projeto em `.claude/settings.json` para não duplicar).
+
+- **Uso:** `python3 .claude/skills/watch/scripts/watch.py "<link>" --question "<o que o cliente quer saber>"`.
+  O SKILL.md tem o roteiro completo (setup na 1ª vez, `--detail`, `--start/--end`).
+- **Motor:** com `GEMINI_API_KEY` (ambiente, `~/.config/watch/.env` ou o arquivo de variáveis da
+  raiz do repo) o Gemini assiste o vídeo inteiro com áudio. Sem chave, roda local: quadros +
+  legenda; vídeo sem legenda (quase todo Reels) precisa de transcrição (WhisperX local, Groq ou OpenAI).
+- **Instagram:** costuma exigir sessão. Use `--cookies-from-browser chrome` só quando o download
+  falhar por login, e nunca inspecione o navegador sem o operador pedir.
+- **Atualizar:** copie `skills/watch/` da versão nova do repositório de origem por cima da pasta,
+  sem `__pycache__` nem `build-skill.sh`, e rode `setup.py --json` para conferir.
+
 ## Grupo renomeado ≠ chat morto (slug é estável)
 
 O slug é **estável por jid** (persistido no `groups.config.json` no primeiro contato); renomear
