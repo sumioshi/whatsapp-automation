@@ -12,7 +12,7 @@ CONFIG_DIR = Path.home() / '.config' / 'watch'
 CONFIG_FILE = CONFIG_DIR / '.env'
 DEFAULT_DETAIL = 'balanced'
 DETAILS = {'transcript', 'efficient', 'balanced', 'token-burner'}
-BACKENDS = {'auto', 'groq', 'openai', 'whisperx', 'none'}
+BACKENDS = {'auto', 'groq', 'openai', 'openrouter', 'whisperx', 'none'}
 ENGINES = {'auto', 'gemini', 'local'}
 DEFAULT_GEMINI_MODEL = 'gemini-3.7-flash'
 
@@ -94,7 +94,7 @@ def write_settings(values: dict[str, str], path: Path | None = None) -> None:
 
 
 def load_api_key(preferred: str | None = None) -> tuple[str | None, str | None]:
-    candidates = [('groq', 'GROQ_API_KEY'), ('openai', 'OPENAI_API_KEY')]
+    candidates = [('groq', 'GROQ_API_KEY'), ('openai', 'OPENAI_API_KEY'), ('openrouter', 'OPENROUTER_API_KEY')]
     for backend, name in candidates:
         if preferred is not None and backend != preferred:
             continue
@@ -136,7 +136,7 @@ def get_config(*, backend_override: str | None = None) -> dict:
     detail = setting('WATCH_DETAIL', DEFAULT_DETAIL)
     backend = backend_override if backend_override is not None else setting('WATCH_WHISPER_BACKEND', 'auto')
     if backend not in BACKENDS:
-        raise ConfigError('WATCH_WHISPER_BACKEND must be auto, groq, openai, whisperx, or none.')
+        raise ConfigError('WATCH_WHISPER_BACKEND must be auto, groq, openai, openrouter, whisperx, or none.')
     engine = setting('WATCH_ENGINE', 'auto')
     if engine not in ENGINES:
         raise ConfigError('WATCH_ENGINE must be auto, gemini, or local.')

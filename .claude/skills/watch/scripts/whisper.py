@@ -11,7 +11,9 @@ Pure stdlib — no `pip install groq` or `pip install openai` needed.
 from __future__ import annotations
 
 import io
+import base64
 import json
+import os
 import math
 import mimetypes
 import shutil
@@ -33,6 +35,10 @@ GROQ_MODEL = "whisper-large-v3"
 
 OPENAI_ENDPOINT = "https://api.openai.com/v1/audio/transcriptions"
 OPENAI_MODEL = "whisper-1"
+
+# OpenRouter: JSON com o áudio em base64 (não multipart). Patch local deste repo, fora do upstream.
+OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/audio/transcriptions"
+OPENROUTER_MODEL = os.environ.get("WATCH_OPENROUTER_MODEL", "openai/whisper-large-v3")
 
 # Both Groq's free tier and OpenAI whisper-1 cap uploads at 25 MB. We target a
 # margin under that so multipart framing overhead never pushes a chunk over.
@@ -193,7 +199,32 @@ def _post_whisper(endpoint: str, api_key: str, model: str, audio_path: Path) -> 
         # UA clears it; we identify honestly.
         "User-Agent": "watch-skill/1.0 (+claude-code; python-urllib)",
     }
+    return _send(endpoint, body, headers)
 
+
+def _post_openrouter(api_key: str, model: str, audio_path: Path) -> dict:
+    if audio_path.stat().st_size > MAX_UPLOAD_BYTES:
+        raise SystemExit("Audio file exceeds the 24,000,000-byte upload budget; split it before upload.")
+    payload = {
+        "model": model,
+        "input_audio": {
+            "data": base64.b64encode(audio_path.read_bytes()).decode("ascii"),
+            "format": audio_path.suffix.lstrip(".") or "mp3",
+        },
+        "response_format": "verbose_json",
+        "timestamp_granularities": ["segment"],
+        "temperature": 0,
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": "watch-skill/1.0 (+claude-code; python-urllib)",
+        "X-Title": "watch skill",
+    }
+    return _send(OPENROUTER_ENDPOINT, json.dumps(payload).encode("utf-8"), headers)
+
+
+def _send(endpoint: str, body: bytes, headers: dict) -> dict:
     context = ssl.create_default_context()
     rate_limit_hits = 0
     last_exc: Exception | None = None
@@ -339,6 +370,8 @@ def _transcribe_file(backend: str, api_key: str, audio_path: Path) -> list[dict]
         response = _post_whisper(GROQ_ENDPOINT, api_key, GROQ_MODEL, audio_path)
     elif backend == "openai":
         response = _post_whisper(OPENAI_ENDPOINT, api_key, OPENAI_MODEL, audio_path)
+    elif backend == "openrouter":
+        response = _post_openrouter(api_key, OPENROUTER_MODEL, audio_path)
     else:
         raise SystemExit(f"Unknown whisper backend: {backend}")
     return _segments_from_response(response)
@@ -355,14 +388,14 @@ def transcribe_video(
     Returns (segments, backend_used). Raises SystemExit on any failure.
     """
     if api_key is not None and backend is None:
-        raise SystemExit("An API key requires an explicit groq or openai backend.")
+        raise SystemExit("An API key requires an explicit groq, openai or openrouter backend.")
     if backend == "whisperx":
         if api_key is not None:
             raise SystemExit("WhisperX does not accept an API key.")
         from local_whisperx import transcribe_audio
         segments = transcribe_audio(extract_audio(video_path, audio_out))
         return segments, "whisperx"
-    if backend not in (None, "groq", "openai"):
+    if backend not in (None, "groq", "openai", "openrouter"):
         raise SystemExit("Unknown transcription backend.")
     if backend is None or api_key is None:
         detected_backend, detected_key = load_api_key(preferred=backend)
@@ -372,7 +405,7 @@ def transcribe_video(
     if not backend or not api_key:
         setup_py = Path(__file__).resolve().parent / "setup.py"
         raise SystemExit(
-            "No Whisper API key available. Set GROQ_API_KEY (preferred) or OPENAI_API_KEY "
+            "No Whisper API key available. Set GROQ_API_KEY (preferred), OPENAI_API_KEY or OPENROUTER_API_KEY "
             "in the environment or in ~/.config/watch/.env. "
             f"Run `python3 {setup_py}` to configure."
         )
@@ -416,7 +449,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Transcribe local media with the selected Whisper backend.")
     parser.add_argument("video")
     parser.add_argument("audio_out", nargs="?", default="audio.mp3", type=Path)
-    parser.add_argument("--backend", choices=["groq", "openai", "whisperx"])
+    parser.add_argument("--backend", choices=["groq", "openai", "openrouter", "whisperx"])
     args = parser.parse_args()
     try:
         segments, backend = transcribe_video(args.video, Path(args.audio_out), backend=args.backend)

@@ -28,6 +28,7 @@ ENV_TEMPLATE = '''# /watch configuration. No shell interpolation; last assignmen
 GEMINI_API_KEY=
 GROQ_API_KEY=
 OPENAI_API_KEY=
+OPENROUTER_API_KEY=
 '''
 
 
@@ -155,7 +156,7 @@ def _status(detailed=False):
     chosen = cfg['whisper_backend']
     backend = detected if chosen == 'auto' else chosen
     local_ready = _whisperx_status(cfg, detailed)
-    backend_ready = local_ready if chosen == 'whisperx' else (bool(load_api_key(backend)[1]) if backend in ('groq', 'openai') else chosen == 'none')
+    backend_ready = local_ready if chosen == 'whisperx' else (bool(load_api_key(backend)[1]) if backend in ('groq', 'openai', 'openrouter') else chosen == 'none')
     blocked = bool(missing) and binaries_required
     result = {'status': 'needs_install' if blocked else 'ready', 'can_proceed': not blocked,
               'engine': engine, 'configured_engine': cfg['engine'], 'gemini_key_present': gemini_key,
@@ -228,7 +229,7 @@ def cmd_install(backend=None, detail=None, engine=None):
         return install_whisperx()
     if backend:
         write_settings({'WATCH_WHISPER_BACKEND': backend}, CONFIG_FILE)
-        if backend in ('groq', 'openai') and not load_api_key(backend)[1]:
+        if backend in ('groq', 'openai', 'openrouter') and not load_api_key(backend)[1]:
             print(f'[setup] Base watch is ready. Add {backend.upper()}_API_KEY privately to {CONFIG_FILE}, then rerun --backend {backend}.', file=sys.stderr)
             return 3
         _write_setup_complete()
@@ -318,7 +319,7 @@ def main():
     mode.add_argument('--check', action='store_true')
     mode.add_argument('--json', action='store_true')
     mode.add_argument('--install-whisperx', action='store_true')
-    parser.add_argument('--backend', choices=['auto', 'whisperx', 'groq', 'openai', 'none'])
+    parser.add_argument('--backend', choices=['auto', 'whisperx', 'groq', 'openai', 'openrouter', 'none'])
     parser.add_argument('--detail', choices=sorted(DETAILS))
     parser.add_argument('--engine', choices=sorted(ENGINES))
     args = parser.parse_args()

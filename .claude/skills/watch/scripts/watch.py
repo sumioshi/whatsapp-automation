@@ -125,7 +125,7 @@ def main() -> int:
     )
     ap.add_argument(
         "--whisper",
-        choices=["groq", "openai", "whisperx"],
+        choices=["groq", "openai", "openrouter", "whisperx"],
         default=None,
         help="Select the fallback backend for this run; native captions still come first.",
     )
