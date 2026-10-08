@@ -193,12 +193,17 @@ fica desligado neste projeto em `.claude/settings.json` para não duplicar).
   legenda; vídeo sem legenda (quase todo Reels) precisa de transcrição (WhisperX local, Groq ou OpenAI).
 - **Instagram:** costuma exigir sessão. Use `--cookies-from-browser chrome` só quando o download
   falhar por login, e nunca inspecione o navegador sem o operador pedir.
-- **Transcrição pela OpenRouter (patch local, fora do upstream):** backend `openrouter` em
-  `whisper.py`/`config.py`/`setup.py`/`watch.py`, com a `OPENROUTER_API_KEY` (modelo
-  `openai/whisper-large-v3`, troca com `WATCH_OPENROUTER_MODEL`). Enquanto o Gemini estiver travado no
-  pré-pagamento, `~/.config/watch/.env` usa `WATCH_ENGINE=local` + `WATCH_WHISPER_BACKEND=openrouter`.
+- **OpenRouter (patches locais, fora do upstream):**
+  - **Gemini via OpenRouter:** `WATCH_GEMINI_VIA=openrouter` faz o motor gemini chamar
+    `google/<WATCH_GEMINI_MODEL>` pela OpenRouter (`gemini.ask_openrouter`, `watch.run_gemini_openrouter`):
+    YouTube vai por link; o resto é baixado, comprimido até ~18 MB e vai em base64 no corpo. Cobra do
+    saldo da OpenRouter, contornando o pré-pagamento do Google. ~US$ 0,003 por vídeo curto.
+  - **Transcrição:** backend `openrouter` (`openai/whisper-large-v3`, troca com `WATCH_OPENROUTER_MODEL`)
+    para o motor local.
+  - Config atual em `~/.config/watch/.env`: `WATCH_ENGINE=gemini`, `WATCH_GEMINI_VIA=openrouter`,
+    `WATCH_GEMINI_MODEL=gemini-3.8-flash`, `WATCH_WHISPER_BACKEND=openrouter`.
 - **Atualizar:** copie `skills/watch/` da versão nova do repositório de origem por cima da pasta,
-  sem `__pycache__` nem `build-skill.sh`, reaplique o backend `openrouter` acima e rode
+  sem `__pycache__` nem `build-skill.sh`, reaplique os patches da OpenRouter acima e rode
   `setup.py --json` para conferir.
 
 ## Grupo renomeado ≠ chat morto (slug é estável)

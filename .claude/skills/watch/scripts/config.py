@@ -146,6 +146,7 @@ def get_config(*, backend_override: str | None = None) -> dict:
         'whisper_backend': backend,
         'engine': engine,
         'gemini_model': setting('WATCH_GEMINI_MODEL', DEFAULT_GEMINI_MODEL) or DEFAULT_GEMINI_MODEL,
+        'gemini_via': setting('WATCH_GEMINI_VIA', 'google') or 'google',
         'gemini_timeout': positive_number(setting('WATCH_GEMINI_TIMEOUT', '600'), 'WATCH_GEMINI_TIMEOUT'),
         'sub_lang': setting('WATCH_SUB_LANG', 'auto'),
         'cookies_file': setting('WATCH_COOKIES_FILE'),
