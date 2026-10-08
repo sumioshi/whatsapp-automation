@@ -116,6 +116,51 @@ def ask(video: dict, question: str | None, *, model: str, key: str, clip=None, t
             'total_tokens': tokens if isinstance(tokens, int) else None}
 
 
+OPENROUTER_CHAT = 'https://openrouter.ai/api/v1/chat/completions'
+
+
+def ask_openrouter(video_url: str, question: str | None, *, model: str, key: str, clip=None,
+                   timeout: float = 600.0) -> dict:
+    """Patch local deste repo: o mesmo Gemini, via OpenRouter (cobra do saldo de lá, sem o pré-pagamento do Google).
+
+    `video_url` é um link do YouTube ou um data URL base64 do vídeo. Recorte vira instrução no texto.
+    """
+    prompt = build_prompt(question)
+    label = 'agentic via OpenRouter'
+    if clip and (clip[0] is not None or clip[1] is not None):
+        start, end = clip
+        prompt = (f'Focus only on {_clock(int(math.floor(start or 0)))}–'
+                  f'{_clock(int(math.ceil(end))) if end is not None else "the end"}.\n\n' + prompt)
+        label = 'focus range via OpenRouter'
+    payload = {'model': model if '/' in model else f'google/{model}',
+               'messages': [{'role': 'user', 'content': [
+                   {'type': 'text', 'text': prompt},
+                   {'type': 'video_url', 'video_url': {'url': video_url}}]}]}
+    request = Request(OPENROUTER_CHAT, data=json.dumps(payload).encode('utf-8'), method='POST',
+                      headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json',
+                               'X-Title': 'watch skill'})
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            body = response.read()
+    except HTTPError as exc:
+        message = _error_message(exc.read())
+        category = ('auth' if exc.code in (401, 403) else 'quota' if exc.code in (402, 429)
+                    else 'service' if exc.code >= 500 else 'rejected')
+        raise _fail(category, f'OpenRouter HTTP {exc.code}: {message}', key) from None
+    except (URLError, TimeoutError, OSError) as exc:
+        raise _fail('network', f'{type(exc).__name__}: {getattr(exc, "reason", exc)}', key) from None
+    try:
+        data = json.loads(body)
+        text = (data['choices'][0]['message'].get('content') or '').strip()
+        tokens = (data.get('usage') or {}).get('total_tokens')
+    except (ValueError, KeyError, TypeError, IndexError):
+        raise _fail('response', body[:300].decode('utf-8', errors='replace'), key) from None
+    if not text:
+        raise _fail('response', 'no answer text from OpenRouter', key)
+    return {'text': text, 'model': payload['model'], 'processing': label,
+            'total_tokens': tokens if isinstance(tokens, int) else None}
+
+
 def upload_file(path: Path, key: str, *, poll_seconds: float = 2.0, max_wait: float = 900.0, sleep=time.sleep) -> dict:
     path = Path(path)
     size = path.stat().st_size
