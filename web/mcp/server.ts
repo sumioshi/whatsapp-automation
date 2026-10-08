@@ -38,6 +38,7 @@ import { slugify } from "../lib/slug";
 import { filtrarContatos } from "../lib/contatos-filtro";
 import { fundirMensagens, slugsIrmaosDeDm } from "../lib/dm-irmaos";
 import { mediaPathPorId, transcribe, transcribeBatch } from "../lib/transcribe";
+import { assistirVideo } from "../lib/assistir-video";
 import { ultimaMidiaPath } from "../lib/ultima-midia";
 import { selectNew } from "../lib/novidades";
 import { baselineDoChat, carregarBaselinePadrao, contextoDeEscrita, type ContextoEscrita } from "../lib/estilo/contexto";
@@ -619,7 +620,7 @@ server.registerTool(
   "ver_video",
   {
     description:
-      "Mostra um vídeo ou GIF pra IA enxergar, amostrando alguns frames (via ffmpeg). Use pra entender o conteúdo visual de um GIF (reação/meme) ou de um vídeo mudo. Para o áudio do vídeo, use 'transcrever'. " +
+      "Mostra um vídeo ou GIF pra IA enxergar, amostrando alguns frames (via ffmpeg). Use pra entender o conteúdo visual de um GIF (reação/meme) ou de um vídeo mudo. Para o áudio do vídeo, use 'transcrever'; pra entender imagem e fala juntos (ex.: cliente mostrando um erro), use 'assistir_video'. " +
       "Sem mediaPath, mostra o ÚLTIMO vídeo/GIF do grupo.",
     inputSchema: {
       grupo: z.string().describe("slug do grupo"),
@@ -647,6 +648,46 @@ server.registerTool(
       };
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao ler vídeo");
+    }
+  },
+);
+
+server.registerTool(
+  "assistir_video",
+  {
+    description:
+      "Assiste um vídeo com o Gemini (imagem e áudio juntos) e devolve o que aparece e o que é falado, com tempos MM:SS. " +
+      "Use quando o conteúdo do vídeo importa: cliente mostrando erro na tela, explicando algo em vídeo, ou mandando LINK " +
+      "de vídeo (YouTube, Instagram, TikTok). Custa ~US$ 0,003–0,01 por vídeo (OpenRouter): chame sob demanda, nunca em " +
+      "lote. GIF/meme ou só uma olhada rápida: prefira 'ver_video' (grátis). " +
+      "Vídeo do chat: `grupo` + `id` (campo 'id' de ler_mensagens) ou `mediaPath`; sem os dois, o ÚLTIMO vídeo do grupo. " +
+      "Link: `url` (grupo opcional). `pergunta` foca a resposta. Teto: 20 min de vídeo.",
+    inputSchema: {
+      grupo: z.string().optional().describe("slug do grupo (obrigatório quando não há url)"),
+      id: z.string().optional().describe("id da mensagem de vídeo (campo 'id' de ler_mensagens)"),
+      mediaPath: z.string().optional().describe("mediaPath do vídeo (campo 'midia')"),
+      url: z.string().optional().describe("link do vídeo (YouTube, Instagram, TikTok…) em vez de um anexo do chat"),
+      pergunta: z.string().optional().describe("o que você quer saber do vídeo; ausente = descrição completa"),
+    },
+  },
+  async ({ grupo, id, mediaPath, url, pergunta }) => {
+    try {
+      if (url) {
+        const r = await assistirVideo({ url: url.trim(), pergunta });
+        return text({ fonte: r.fonte, url, modelo: r.modelo, custo_usd: r.custoUsd, resposta: r.texto });
+      }
+      if (!grupo) return fail("passe `grupo` (vídeo do chat) ou `url` (link de vídeo)");
+      if (!mediaPath && id) {
+        const p = mediaPathPorId((await mensagensDaConversa(grupo)).msgs, id);
+        if (!p.ok) return fail(p.motivo);
+        mediaPath = p.mediaPath;
+      }
+      const m = await resolverMidia(grupo, mediaPath, ["video", "gif"]);
+      if ("erro" in m) return fail(m.erro);
+      const r = await assistirVideo({ arquivo: await ensureLocalMedia(m.path), pergunta });
+      return text({ fonte: "anexo do chat", midia: m.path, modelo: r.modelo, custo_usd: r.custoUsd, resposta: r.texto });
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "falha ao assistir o vídeo");
     }
   },
 );
