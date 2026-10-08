@@ -9,6 +9,9 @@ from __future__ import annotations
 import argparse
 import math
 import shutil
+import base64
+import mimetypes
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -17,7 +20,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent.resolve()
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from config import ConfigError, frame_cap, get_config, load_gemini_key, resolve_engine  # noqa: E402
+from config import ConfigError, frame_cap, get_config, load_api_key, load_gemini_key, resolve_engine  # noqa: E402
 import gemini  # noqa: E402
 from download import download, fetch_captions, is_url, auth_args  # noqa: E402
 from frames import MAX_FPS, auto_fps, auto_fps_focus, extract_at_timestamps, extract_keyframes, extract_scene_or_uniform, format_time, get_metadata, merge_frames, parse_time, parse_timestamps, validate_controls  # noqa: E402
@@ -30,12 +33,75 @@ LOCAL_ONLY_FLAGS = (("--detail", "detail"), ("--fps", "fps"), ("--max-frames", "
                     ("--timestamps", "timestamps"), ("--whisper", "whisper"), ("--sub-lang", "sub_lang"))
 
 
+def _shrink_for_upload(path: Path, limit: int = 18_000_000) -> Path:
+    """Comprime para caber no corpo da requisição (360p, depois 240p a 10 fps se ainda passar)."""
+    if path.stat().st_size <= limit:
+        return path
+    for i, vf in enumerate(("scale=-2:360", "scale=-2:240,fps=10")):
+        out = path.with_name(f"shrunk_{i}.mp4")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(path), "-vf", vf, "-c:v", "libx264",
+                        "-preset", "veryfast", "-crf", "32", "-c:a", "aac", "-b:a", "48k", "-ac", "1", str(out)],
+                       check=True)
+        if out.stat().st_size <= limit:
+            return out
+    raise SystemExit(f"Video still exceeds {limit // 1_000_000} MB after compression; use --start/--end or --engine local.")
+
+
+def run_gemini_openrouter(args, config, key, clip, ignored, auth) -> int:
+    """Patch local: o Gemini assiste pela OpenRouter. YouTube vai por link; o resto vai no corpo, sem ficar guardado."""
+    result, error, work, sent = None, None, None, "URL sent to Gemini via OpenRouter"
+    try:
+        if gemini.is_youtube(args.source):
+            video_url = args.source
+        else:
+            parent = Path(args.out_dir).expanduser().resolve() if args.out_dir else None
+            if parent:
+                parent.mkdir(parents=True, exist_ok=True)
+            work = Path(tempfile.mkdtemp(prefix="watch-", dir=parent))
+            sent = "not sent"
+            print("[watch] downloading media…" if is_url(args.source) else "[watch] using local file…", file=sys.stderr)
+            media = download(args.source, work / "download", **(auth if is_url(args.source) else {}))
+            video = _shrink_for_upload(Path(media["video_path"]))
+            mime = mimetypes.guess_type(video.name)[0] or "video/mp4"
+            video_url = f"data:{mime};base64," + base64.b64encode(video.read_bytes()).decode("ascii")
+            sent = "video sent to Gemini via OpenRouter (not stored)"
+        print(f"[watch] asking {config['gemini_model']} via OpenRouter…", file=sys.stderr)
+        result = gemini.ask_openrouter(video_url, args.question, model=config["gemini_model"], key=key,
+                                       clip=clip, timeout=config["gemini_timeout"])
+    except (SystemExit, subprocess.CalledProcessError) as exc:
+        error = str(exc)
+    finally:
+        if work:
+            shutil.rmtree(work, ignore_errors=True)
+    print()
+    print("# watch: video report")
+    print()
+    print(f"- **Source:** {args.source} ({sent})")
+    print(f"- **Engine:** {result['model'] if result else config['gemini_model']} ({result['processing'] if result else 'failed'})")
+    if ignored:
+        print(f"- **Ignored local options:** {', '.join(ignored)} (these only apply with --engine local)")
+    if result and result["total_tokens"] is not None:
+        print(f"- **Gemini tokens:** {result['total_tokens']}")
+    print()
+    if error:
+        print("## Unavailable evidence")
+        print()
+        print(f"- {error}")
+        return 1
+    print("## Answer")
+    print()
+    print(result["text"])
+    return 0
+
+
 def run_gemini(args, config, key, start_sec, end_sec, auth) -> int:
     """Google watches the video. No captions, frames, or Whisper; no fallback on failure."""
     ignored = [flag for flag, name in LOCAL_ONLY_FLAGS if getattr(args, name) is not None]
     ignored += [flag for flag, on in (("--no-whisper", args.no_whisper), ("--no-dedup", args.no_dedup)) if on]
     clip = (start_sec, end_sec) if start_sec is not None or end_sec is not None else None
     uploaded, warning, result, error, sent, work = None, None, None, None, "URL sent to Google", None
+    if config.get("gemini_via") == "openrouter":
+        return run_gemini_openrouter(args, config, key, clip, ignored, auth)
     try:
         if gemini.is_youtube(args.source):
             video = {"uri": args.source}
@@ -161,7 +227,8 @@ def main() -> int:
     auth_args(cookies_file, cookies_browser)  # Validate even before starting network work.
     auth = {"cookies_file": cookies_file, "cookies_from_browser": cookies_browser}
 
-    gemini_key = load_gemini_key()
+    via_openrouter = config.get("gemini_via") == "openrouter"
+    gemini_key = load_api_key("openrouter")[1] if via_openrouter else load_gemini_key()
     if resolve_engine(args.engine or config["engine"], bool(gemini_key)) == "gemini":
         return run_gemini(args, config, gemini_key, start_sec, end_sec, auth)
 
