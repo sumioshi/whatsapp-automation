@@ -193,8 +193,13 @@ fica desligado neste projeto em `.claude/settings.json` para não duplicar).
   legenda; vídeo sem legenda (quase todo Reels) precisa de transcrição (WhisperX local, Groq ou OpenAI).
 - **Instagram:** costuma exigir sessão. Use `--cookies-from-browser chrome` só quando o download
   falhar por login, e nunca inspecione o navegador sem o operador pedir.
+- **Transcrição pela OpenRouter (patch local, fora do upstream):** backend `openrouter` em
+  `whisper.py`/`config.py`/`setup.py`/`watch.py`, com a `OPENROUTER_API_KEY` (modelo
+  `openai/whisper-large-v3`, troca com `WATCH_OPENROUTER_MODEL`). Enquanto o Gemini estiver travado no
+  pré-pagamento, `~/.config/watch/.env` usa `WATCH_ENGINE=local` + `WATCH_WHISPER_BACKEND=openrouter`.
 - **Atualizar:** copie `skills/watch/` da versão nova do repositório de origem por cima da pasta,
-  sem `__pycache__` nem `build-skill.sh`, e rode `setup.py --json` para conferir.
+  sem `__pycache__` nem `build-skill.sh`, reaplique o backend `openrouter` acima e rode
+  `setup.py --json` para conferir.
 
 ## Grupo renomeado ≠ chat morto (slug é estável)
 
