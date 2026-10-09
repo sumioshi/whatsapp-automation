@@ -44,6 +44,7 @@ import { selectNew } from "../lib/novidades";
 import { baselineDoChat, carregarBaselinePadrao, contextoDeEscrita, type ContextoEscrita } from "../lib/estilo/contexto";
 import { resumirEstilo } from "../lib/estilo/resumo";
 import { revisar, type Revisao } from "../lib/estilo/revisar";
+import { travaAutonoma, type Trava } from "../lib/estilo/identidade";
 import { escolherCandidato } from "../lib/estilo/escolher";
 import { registrarRevisao } from "../lib/estilo/registro";
 import {
@@ -133,15 +134,18 @@ async function contextoDoChat(
   modo: "confirmar" | "autonomo";
   typos: boolean;
   latenciaMaxima_s: number | undefined;
+  trava: Trava | null;
 }> {
   const destino = await resolveDestino(grupo);
   const slug = destino.slug ?? slugify(grupo);
   const padrao = await carregarBaselinePadrao(DATA_DIR);
   let ctx: ContextoEscrita;
+  let trava: Trava | null = null;
   try {
     const { msgs } = await mensagensDaConversa(slug);
     const c = await contacts();
     ctx = contextoDeEscrita(msgs, c, new Date(), baselineDoChat(slug, msgs, padrao));
+    trava = travaAutonoma(msgs, c, new Date());
   } catch {
     ctx = contextoDeEscrita([], { names: new Map(), ownIds: new Set(), teamIds: new Set(), phones: new Map(), lids: new Set(), hasSidecar: false } as never, new Date(), padrao);
   }
@@ -155,7 +159,16 @@ async function contextoDoChat(
   const modo = t.autonomo?.[slug] === true ? "autonomo" : "confirmar";
   const typos = t.typos?.[slug] === true;
   const latenciaMaxima_s = t.latenciaMaxima?.[slug];
-  return { slug, label: destino.label, jid: destino.jid, ctx, modo, typos, latenciaMaxima_s };
+  return { slug, label: destino.label, jid: destino.jid, ctx, modo, typos, latenciaMaxima_s, trava };
+}
+
+/**
+ * No modo autônomo, o agente sai de cena quando o operador assume na mão ou
+ * quando o contato pergunta se é IA. No `confirmar` o operador vê o texto antes.
+ */
+function recusaAutonoma(modo: "confirmar" | "autonomo", trava: Trava | null, acao: string) {
+  if (modo !== "autonomo" || !trava) return null;
+  return fail(`modo autônomo travado (${trava.regra}); nada foi ${acao}. ${trava.motivo}.`);
 }
 
 /**
@@ -958,8 +971,10 @@ server.registerTool(
       if (!candidatos && !textoBase) return fail("passe `texto`, `baloes` ou `candidatos`");
       if (candidatos && textoBase) return fail("`candidatos` é exclusivo com `texto`/`baloes`");
 
-      const { slug, label, jid, ctx, modo, typos, latenciaMaxima_s } = await contextoDoChat(grupo);
+      const { slug, label, jid, ctx, modo, typos, latenciaMaxima_s, trava } = await contextoDoChat(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
+      const travado = recusaAutonoma(modo, trava, "enviado");
+      if (travado) return travado;
       const ignorarScore = revisao === "ignorar";
 
       let lista = listaBase;
@@ -1134,8 +1149,10 @@ server.registerTool(
   },
   async ({ grupo, kind, path, caption, fileName, mimetype }, extra) => {
     try {
+      const { ctx, modo, trava } = await contextoDoChat(grupo);
+      const travado = recusaAutonoma(modo, trava, "enviado");
+      if (travado) return travado;
       if (caption?.trim()) {
-        const { ctx } = await contextoDoChat(grupo);
         const rev = revisar({ ...ctx, baloes: [caption.trim()] });
         if (!rev.ok) return fail(`revisão recusou a legenda (${rev.resumo}); nada foi enviado. Sugestões: ${rev.sugestoes.join("; ")}.`);
       }
@@ -1236,7 +1253,9 @@ server.registerTool(
   },
   async ({ grupo, msgId, texto }) => {
     try {
-      const { ctx } = await contextoDoChat(grupo);
+      const { ctx, modo, trava } = await contextoDoChat(grupo);
+      const travado = recusaAutonoma(modo, trava, "editado");
+      if (travado) return travado;
       const rev = revisar({ ...ctx, baloes: [texto.trim()] });
       if (!rev.ok) return fail(`revisão recusou (${rev.resumo}); nada foi editado. Sugestões: ${rev.sugestoes.join("; ")}.`);
       const { jid, label } = await resolveDestino(grupo);
