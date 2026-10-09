@@ -5,6 +5,7 @@
  */
 import { avisoDeTratamento, tratamentoErrado } from "../voz-guard";
 import { type Culpa, contarDesculpas, detectarCulpa } from "./culpa";
+import { revelaAutomacao } from "./identidade";
 import type { EntradaRepeticao, Hit } from "./repeticao";
 import { scoreRepeticao } from "./repeticao";
 import { detectarTells, type TellId } from "./tells";
@@ -13,6 +14,8 @@ export interface EntradaRevisao extends EntradaRepeticao {
   ignorarScore?: boolean;
   /** Mensagens da conta nos últimos minutos: balão idêntico a uma delas é bloqueio. */
   minhasRecentes?: string[];
+  /** Primeiro nome do operador: citá-lo na terceira pessoa entrega a automação. */
+  nomeOperador?: string;
 }
 
 /** Compara balões ignorando caixa, espaços e pontuação final (mesma regra do coletor). */
@@ -41,7 +44,9 @@ const PESO_TELL: Partial<Record<TellId, number>> = { dois_pontos_intro: 2, trave
 const TETO_MINIMIZADOR = 3;
 
 /**
- * Só o que nunca passa: balão repetido, tratamento errado e confissão de culpa.
+ * Só o que nunca passa: balão repetido, tratamento errado, confissão de culpa e
+ * texto que revela a automação (o agente dizendo que é IA, ou o operador na
+ * terceira pessoa; `nomeOperador` só vem do MCP, a equipe é outra pessoa).
  * `culpas` é a detecção do texto já feita por quem chama (o `revisar` usa a
  * mesma lista para os hits); sem ela, detecta aqui.
  */
@@ -49,6 +54,7 @@ export function bloqueiosDe(
   baloes: string[],
   minhasRecentes: string[] = [],
   culpas: Culpa[] = detectarCulpa(baloes.join("\n")),
+  nomeOperador?: string,
 ): Hit[] {
   const texto = baloes.join("\n");
   const bloqueios: Hit[] = [];
@@ -67,13 +73,22 @@ export function bloqueiosDe(
   for (const c of culpas) {
     if (c.grupo === "A") bloqueios.push({ regra: "culpa", peso: 0, motivo: `confissão de culpa: "${c.trecho}"`, sugestao: c.sugestao });
   }
+  const revela = revelaAutomacao(texto, nomeOperador);
+  if (revela.length) {
+    bloqueios.push({
+      regra: "revela_ia",
+      peso: 0,
+      motivo: `o texto entrega que não é o operador: ${revela.map((t) => `"${t}"`).join(", ")}`,
+      sugestao: "escreva como o próprio operador, em primeira pessoa; se perguntaram se é IA, não responda e chame o operador",
+    });
+  }
   return bloqueios;
 }
 
 export function revisar(e: EntradaRevisao): Revisao {
   const texto = e.baloes.join("\n");
   const culpas = detectarCulpa(texto);
-  const bloqueios: Hit[] = bloqueiosDe(e.baloes, e.minhasRecentes, culpas);
+  const bloqueios: Hit[] = bloqueiosDe(e.baloes, e.minhasRecentes, culpas, e.nomeOperador);
   const hits: Hit[] = [];
 
   let minimizador = 0;

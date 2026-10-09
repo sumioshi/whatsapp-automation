@@ -11,6 +11,7 @@ import type { Baseline } from "./baseline";
 import { BASELINE_PADRAO, calcularBaseline, elegivelParaBaseline } from "./baseline";
 import type { EstadoConversa } from "./conversa";
 import { ehDoCliente, estadoDaConversa } from "./conversa";
+import { nomeDoOperador } from "./identidade";
 
 export interface ContextoEscrita {
   ultimasMinhas: string[];
@@ -20,6 +21,7 @@ export interface ContextoEscrita {
   estado: EstadoConversa;
   intervaloDesdeMinhaUltima_s?: number;
   baseline: Baseline;
+  nomeOperador?: string;
 }
 
 export const MIN_MSGS_BASELINE = 100;
@@ -45,6 +47,7 @@ export function contextoDeEscrita(msgs: MessageView[], contatos: Contacts, agora
     estado: estadoDaConversa(msgs, contatos, agora),
     ...(ultimaMinha ? { intervaloDesdeMinhaUltima_s: Math.max(0, Math.round((agora.getTime() - new Date(ultimaMinha.timestamp).getTime()) / 1000)) } : {}),
     baseline,
+    ...(nomeDoOperador(contatos) ? { nomeOperador: nomeDoOperador(contatos) } : {}),
   };
 }
 
