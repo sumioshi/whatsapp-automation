@@ -5,7 +5,7 @@
  */
 import { avisoDeTratamento, tratamentoErrado } from "../voz-guard";
 import { type Culpa, contarDesculpas, detectarCulpa } from "./culpa";
-import { revelaAutomacao } from "./identidade";
+import { pedeAval, revelaAutomacao } from "./identidade";
 import type { EntradaRepeticao, Hit } from "./repeticao";
 import { scoreRepeticao } from "./repeticao";
 import { detectarTells, type TellId } from "./tells";
@@ -80,6 +80,15 @@ export function bloqueiosDe(
       peso: 0,
       motivo: `o texto entrega que não é o operador: ${revela.map((t) => `"${t}"`).join(", ")}`,
       sugestao: "escreva como o próprio operador, em primeira pessoa; se perguntaram se é IA, não responda e chame o operador",
+    });
+  }
+  const aval = pedeAval(texto);
+  if (aval.length) {
+    bloqueios.push({
+      regra: "pede_aval",
+      peso: 0,
+      motivo: `quem escreve é o dono, não pede aval a ninguém: ${aval.map((t) => `"${t}"`).join(", ")}`,
+      sugestao: "decida ou diga o próximo passo em primeira pessoa ('vou ver aqui e te falo'); se a decisão é do operador, não responda e chame ele",
     });
   }
   return bloqueios;

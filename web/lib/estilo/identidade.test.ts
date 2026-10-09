@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Contacts } from "../contacts";
 import type { MessageView } from "../data";
-import { nomeDoOperador, perguntaSeEhIa, revelaAutomacao, travaAutonoma } from "./identidade";
+import { nomeDoOperador, pedeAval, perguntaSeEhIa, revelaAutomacao, travaAutonoma } from "./identidade";
 
 const contatos: Contacts = {
   names: new Map([["5511000000001", "Fulano Silva"]]),
@@ -113,5 +113,24 @@ describe("nomeDoOperador", () => {
     expect(nomeDoOperador(contatos, { WAC_NOME_OPERADOR: "Beltrano Souza" })).toBe("Beltrano");
     expect(nomeDoOperador(contatos, {})).toBe("Fulano");
     expect(nomeDoOperador(undefined, {})).toBeUndefined();
+  });
+});
+
+describe("pedeAval", () => {
+  it("pega o agente adiando a decisão para alguém", () => {
+    for (const t of [
+      "ligo na hora, vou confirmar com o Beltrano se já abrimos",
+      "vou ver com o responsável e te falo",
+      "deixa eu checar com a equipe",
+      "preciso alinhar com meu sócio",
+      "vou perguntar pro Ciclano",
+    ]) {
+      expect(pedeAval(t), t).not.toEqual([]);
+    }
+  });
+  it("deixa passar o próximo passo em primeira pessoa", () => {
+    for (const t of ["vou ver aqui e te falo", "vou confirmar e já te mando", "deixa eu conferir o log", "vou ver com calma amanhã", "confirma pra mim o horário?"]) {
+      expect(pedeAval(t), t).toEqual([]);
+    }
   });
 });

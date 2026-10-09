@@ -60,6 +60,26 @@ export function revelaAutomacao(texto: string, nomeOperador?: string): string[] 
   return trechos;
 }
 
+const PEDE_AVAL = new RegExp(
+  `${I}(?:confirmar|ver|checar|conferir|alinhar|perguntar|consultar|validar)\\s+(?:isso\\s+|aqui\\s+)?(?:com|pro|pra|para|ao|à)\\s+(?:o |a |os |as |meu |minha |nosso |nossa )?(\\p{L}+)`,
+  "giu",
+);
+const QUEM_DECIDE = /^(?:chefe|dono|respons[áa]vel|patr[ãa]o|gestor|s[óo]cio|time|equipe|pessoal|dev|financeiro|suporte|diretoria)$/iu;
+
+/**
+ * O agente adiando a decisão para outra pessoa ("vou confirmar com o Fulano",
+ * "vou ver com o responsável"). Quem fala é o dono: ele decide, não pede aval.
+ * Alvo com inicial maiúscula (nome próprio) ou papel de chefia/equipe.
+ */
+export function pedeAval(texto: string): string[] {
+  const trechos: string[] = [];
+  for (const m of texto.matchAll(PEDE_AVAL)) {
+    const alvo = m[1] ?? "";
+    if (QUEM_DECIDE.test(alvo) || /^\p{Lu}/u.test(alvo)) trechos.push(m[0]);
+  }
+  return trechos;
+}
+
 const PERGUNTA_IA = new RegExp(`${I}(?:ia|i\\.a\\.?|intelig[êe]ncia artificial|bot|rob[ôo]|chat ?gpt|gpt|autom[áa]tic[oa]|automatizad[oa])${F}`, "iu");
 const SOBRE_A_CONVERSA =
   /(comigo|com (?:vc|voc[êe])|me respondendo|(?:vc|voc[êe]) [ée]|[ée] (?:vc|voc[êe])|[ée] humano|[ée] gente|[ée] (?:uma )?pessoa|de verdade|(?:isso|aqui|esse n[úu]mero|essa (?:conversa|resposta|mensagem)) [ée]|^\s*[ée] (?:um |uma )?(?:bot|ia|rob)|(?:t[áa]|est[áa]|[ée]) (?:falando|respondendo|conversando|escrevendo))/iu;
