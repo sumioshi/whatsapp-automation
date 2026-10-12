@@ -131,7 +131,8 @@ export function SidebarLink({ group, isNav = false, onNavEnter }: SidebarLinkPro
             <span
               key={e}
               title={e}
-              className={`h-1.5 w-1.5 shrink-0 rounded-full ${corDoPonto(e)}`}
+              className="h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{ background: corDoPonto(e) }}
             />
           ))}
         </div>

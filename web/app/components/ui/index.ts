@@ -1,8 +1,12 @@
+export { AnelEspera } from "./AnelEspera";
+export { Avatar, type AvatarProps } from "./Avatar";
 export { Badge } from "./Badge";
 export { Button, type ButtonProps } from "./Button";
 export { Card, CardHeader, SectionLabel } from "./Card";
 export { cn } from "./cn";
+export { Contador } from "./Contador";
 export { EmptyState } from "./EmptyState";
+export { Etiqueta } from "./Etiqueta";
 export { Field } from "./Field";
 export { Highlight, type HighlightProps } from "./Highlight";
 export { IconButton } from "./IconButton";

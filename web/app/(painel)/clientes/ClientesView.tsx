@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import type { ClienteCard } from "@/lib/clientes";
 import type { KanbanState } from "@/lib/kanban";
 import { ClientesGrid } from "./ClientesGrid";
-import { corDaEtiqueta } from "@/app/components/Etiqueta";
+import { Etiqueta } from "@/app/components/ui";
 import { MetricasResumo } from "./MetricasResumo";
 import { RadarBadge } from "./RadarBadge";
 import { SyncWidget } from "./SyncWidget";
@@ -111,12 +111,13 @@ export function ClientesView({ cards, kanban }: { cards: ClienteCard[]; kanban: 
           <button
             key={e}
             type="button"
+            aria-pressed={etiqueta === e}
             onClick={() => setEtiqueta((atual) => (atual === e ? null : e))}
-            className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-opacity ${corDaEtiqueta(e)} ${
+            className={`rounded-full transition-opacity ${
               etiqueta === null || etiqueta === e ? "" : "opacity-35 hover:opacity-70"
             }`}
           >
-            {e}
+            <Etiqueta nome={e} />
           </button>
         ))}
 

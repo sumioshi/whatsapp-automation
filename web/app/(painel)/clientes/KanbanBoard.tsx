@@ -111,7 +111,7 @@ export function KanbanBoard({
               onDrop={() => soltar(col.id)}
               className="flex w-9 shrink-0 flex-col items-center gap-2 self-start rounded-[8px] bg-surface-2 py-3 text-fg-dim transition-colors hover:text-fg"
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${corDoPonto(col.nome)}`} />
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: corDoPonto(col.nome) }} />
               <span className="mono text-[10px]">{itens.length}</span>
               <span className="text-xs font-medium [writing-mode:vertical-rl]">{col.nome}</span>
             </button>
@@ -131,7 +131,7 @@ export function KanbanBoard({
             }`}
           >
             <header className="flex items-center gap-2 px-1.5 pb-2">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${corDoPonto(col.nome)}`} />
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: corDoPonto(col.nome) }} />
               {renomeando === col.id ? (
                 <input
                   defaultValue={col.nome}
