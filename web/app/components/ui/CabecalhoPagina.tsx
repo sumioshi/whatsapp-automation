@@ -41,7 +41,7 @@ export function CabecalhoPagina({ titulo, subtitulo, acoes, variante = "pagina",
         </h1>
         {subtitulo && <p className="mt-2 max-w-[62ch] text-[14px] text-fg-dim">{subtitulo}</p>}
       </div>
-      {acoes && <div className="flex flex-wrap items-center gap-2">{acoes}</div>}
+      {acoes && <div className="ml-auto flex flex-wrap items-center gap-2">{acoes}</div>}
     </header>
   );
 }

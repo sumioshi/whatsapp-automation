@@ -22,6 +22,7 @@ export function CommandPalette({ groups }: { groups: GroupSummary[] }) {
       router.push(path);
     };
     return [
+      { id: "hoje", label: "Hoje", section: "Ir para", run: go("/") },
       { id: "inbox", label: "Caixa de entrada", section: "Ir para", run: go("/inbox") },
       { id: "clientes", label: "Clientes", section: "Ir para", run: go("/clientes") },
       { id: "agenda", label: "Agenda", section: "Ir para", run: go("/agenda") },
