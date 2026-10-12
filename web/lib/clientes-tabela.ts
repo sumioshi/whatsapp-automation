@@ -83,6 +83,14 @@ export function rotuloUltimaMsg(iso: string | null, agoraMs: number): string {
   return d.getUTCFullYear() === anoAgora ? base : `${base} ${d.getUTCFullYear()}`;
 }
 
+/** Data pura `YYYY-MM-DD` curta: "30 out", com o ano só quando não é o atual. */
+export function diaEMes(data: string | null, agoraMs: number): string {
+  if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data)) return '—';
+  const base = `${Number(data.slice(8, 10))} ${MESES[Number(data.slice(5, 7)) - 1] ?? ''}`;
+  const anoAgora = new Date(agoraMs - OFFSET_MS).getUTCFullYear();
+  return Number(data.slice(0, 4)) === anoAgora ? base : `${base} ${data.slice(0, 4)}`;
+}
+
 /** Dias até o fim do contrato (0 = vence hoje, negativo = já venceu); sem fim → null. */
 export function diasAteFim(c: Contrato, agoraMs: number): number | null {
   return c.fim ? diaNumDaData(c.fim) - diaNum(agoraMs) : null;

@@ -239,3 +239,17 @@ describe('totaisDaTabela', () => {
     expect(t).toEqual({ clientes: 5, somaMensal: 2400, acima: 1, entregas30d: 4, esperando: 1 });
   });
 });
+
+// ── data pura curta, para a renovação ────────────────────────────────────────
+import { diaEMes } from './clientes-tabela';
+
+describe('diaEMes', () => {
+  it('dia e mês; o ano só quando não é o atual', () => {
+    expect(diaEMes('2026-10-30', AGORA)).toBe('30 out');
+    expect(diaEMes('2027-01-02', AGORA)).toBe('2 jan 2027');
+  });
+  it('vazio ou inválido vira travessão', () => {
+    expect(diaEMes(null, AGORA)).toBe('—');
+    expect(diaEMes('31/12/2026', AGORA)).toBe('—');
+  });
+});
