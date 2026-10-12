@@ -1,6 +1,7 @@
 /**
- * Semana da agenda em horário de Brasília: dias, janela de busca, layout da grade
- * e o rascunho do formulário. Puro: roda no navegador, no servidor e no MCP.
+ * Semana da agenda em horário de Brasília: dias, janela de busca, cabeçalho, layout
+ * da grade, painel do evento e o rascunho do formulário. Puro: roda no navegador,
+ * no servidor e no MCP.
  */
 import { type EntradaEvento, type Evento, OFFSET_BRT, somarDias } from './google/evento';
 
@@ -11,6 +12,23 @@ const DIA_MS = 86_400_000;
 const OFFSET_MS = 3 * 3_600_000;
 const ALTURA_MINIMA_MIN = 20;
 const DIAS_CURTOS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const MESES_CURTOS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const MESES = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
+/** Nome de chat mais curto que isto não liga evento a conversa: "Ana" casaria com tudo. */
+const NOME_MINIMO = 5;
 
 export function diaBrt(ms: number): string {
   return new Date(ms - OFFSET_MS).toISOString().slice(0, 10);
@@ -47,6 +65,117 @@ export function rotuloDaSemana(dias: string[]): string {
   const a = dias[0] ?? '';
   const b = dias[dias.length - 1] ?? '';
   return `${a.slice(8, 10)}/${a.slice(5, 7)} – ${b.slice(8, 10)}/${b.slice(5, 7)}/${b.slice(0, 4)}`;
+}
+
+/** Número da semana ISO 8601: a semana pertence ao ano em que cai a quinta-feira. */
+export function numeroDaSemana(dia: string): number {
+  const ms = Date.parse(`${dia}T00:00:00Z`);
+  const desdeSegunda = (new Date(ms).getUTCDay() + 6) % 7;
+  const quinta = ms + (3 - desdeSegunda) * DIA_MS;
+  const inicioDoAno = Date.UTC(new Date(quinta).getUTCFullYear(), 0, 1);
+  return 1 + Math.floor((quinta - inicioDoAno) / (7 * DIA_MS));
+}
+
+const maiuscula = (s: string) => s.charAt(0).toLocaleUpperCase('pt-BR') + s.slice(1);
+
+/** Título da semana: "Outubro 2026", "Set – Out 2026" ou "Dez 2026 – Jan 2027". */
+export function rotuloDoMes(dias: string[]): string {
+  const a = dias[0] ?? '';
+  const b = dias[dias.length - 1] ?? '';
+  const [anoA, mesA] = [a.slice(0, 4), Number(a.slice(5, 7)) - 1];
+  const [anoB, mesB] = [b.slice(0, 4), Number(b.slice(5, 7)) - 1];
+  const curto = (m: number) => maiuscula(MESES_CURTOS[m] ?? '');
+  if (anoA === anoB && mesA === mesB) return `${MESES[mesA] ?? ''} ${anoA}`;
+  if (anoA === anoB) return `${curto(mesA)} – ${curto(mesB)} ${anoA}`;
+  return `${curto(mesA)} ${anoA} – ${curto(mesB)} ${anoB}`;
+}
+
+/** "qua, 7 out". */
+function diaPorExtenso(dia: string): string {
+  const semana = DIAS_CURTOS[new Date(`${dia}T00:00:00Z`).getUTCDay()];
+  return `${semana}, ${Number(dia.slice(8, 10))} ${MESES_CURTOS[Number(dia.slice(5, 7)) - 1]}`;
+}
+
+/** Quando, para o painel do evento: "qua, 7 out · 11:00–12:00". */
+export function rotuloDoEvento(ev: Evento): string {
+  if (ev.diaInteiro) {
+    const ultimo = somarDias(ev.fim, -1);
+    return ultimo <= ev.inicio
+      ? `${diaPorExtenso(ev.inicio)} · dia inteiro`
+      : `${diaPorExtenso(ev.inicio)} → ${diaPorExtenso(ultimo)} · dia inteiro`;
+  }
+  const s = Date.parse(ev.inicio);
+  const e = Date.parse(ev.fim);
+  const d1 = diaBrt(s);
+  const d2 = diaBrt(e);
+  return d1 === d2
+    ? `${diaPorExtenso(d1)} · ${hhmm(minutosBrt(s))}–${hhmm(minutosBrt(e))}`
+    : `${diaPorExtenso(d1)} ${hhmm(minutosBrt(s))} → ${diaPorExtenso(d2)} ${hhmm(minutosBrt(e))}`;
+}
+
+export interface ChatDaAgenda {
+  slug: string;
+  nome: string;
+}
+
+/** Sem acento, sem caixa e com pontuação e emoji virando espaço. */
+function normalizarNome(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLocaleLowerCase('pt-BR')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+const escaparRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * A conversa de que o evento trata, para abrir dali: primeiro o slug escrito no texto
+ * (os lembretes do radar levam o slug na descrição), depois o nome do chat como
+ * palavras inteiras no título, na descrição ou no local. Entre nomes, o mais longo ganha.
+ */
+export function conversaDoEvento<T extends ChatDaAgenda>(
+  ev: Pick<Evento, 'titulo' | 'descricao' | 'local'>,
+  chats: T[],
+): T | null {
+  const texto = [ev.titulo, ev.descricao ?? '', ev.local ?? ''].join('\n');
+  const minusculo = texto.toLowerCase();
+  const porSlug = chats.filter((c) => c.slug.length >= 4).sort((a, b) => b.slug.length - a.slug.length);
+  for (const c of porSlug) {
+    const slug = escaparRegex(c.slug.toLowerCase());
+    if (new RegExp(`(^|[^a-z0-9-])${slug}($|[^a-z0-9-])`).test(minusculo)) return c;
+  }
+  const alvo = ` ${normalizarNome(texto)} `;
+  let achado: T | null = null;
+  let tamanho = 0;
+  for (const c of chats) {
+    const nome = normalizarNome(c.nome);
+    if (nome.length < NOME_MINIMO || nome.length <= tamanho) continue;
+    if (alvo.includes(` ${nome} `)) {
+      achado = c;
+      tamanho = nome.length;
+    }
+  }
+  return achado;
+}
+
+/** O evento que o painel abre sozinho: o que está acontecendo, senão o próximo. Dia inteiro não conta. */
+export function eventoEmFoco(eventos: Evento[], agoraMs: number): Evento | null {
+  let agora: Evento | null = null;
+  let proximo: Evento | null = null;
+  for (const ev of eventos) {
+    if (ev.diaInteiro) continue;
+    const s = Date.parse(ev.inicio);
+    const e = Date.parse(ev.fim);
+    if (Number.isNaN(s) || Number.isNaN(e)) continue;
+    if (s <= agoraMs && agoraMs < e) {
+      if (!agora || s < Date.parse(agora.inicio)) agora = ev;
+    } else if (s > agoraMs && (!proximo || s < Date.parse(proximo.inicio))) {
+      proximo = ev;
+    }
+  }
+  return agora ?? proximo;
 }
 
 /** Quando, em texto curto de Brasília (para o MCP e a grade). */
