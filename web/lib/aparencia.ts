@@ -88,3 +88,37 @@ export function fracaoAnel(ms: number): number {
   if (!Number.isFinite(ms) || ms <= 0) return 0;
   return Math.min(1, ms / LIMITE_URGENTE);
 }
+
+/**
+ * Posições do medidor de uso, em % da trilha. A trilha vai até 10% além do
+ * maior entre valor e limite, para a marca do limite nunca encostar no fim.
+ * Até o limite a barra é azul; o que passa dele vira o trecho âmbar.
+ */
+export function medidaDoUso(valor: number, limite: number): { cheio: number; excesso: number; marca: number } {
+  const v = Number.isFinite(valor) && valor > 0 ? valor : 0;
+  const l = Number.isFinite(limite) && limite > 0 ? limite : 0;
+  const teto = Math.max(v, l) * 1.1;
+  if (teto === 0) return { cheio: 0, excesso: 0, marca: 0 };
+  return {
+    cheio: (Math.min(v, l) / teto) * 100,
+    excesso: v > l ? ((v - l) / teto) * 100 : 0,
+    marca: (l / teto) * 100,
+  };
+}
+
+/**
+ * Minibarras de atividade (uma por dia): a maior ocupa a altura toda, e dia
+ * sem mensagem fica com 2 px para a série não ter buracos. Com limite diário,
+ * o dia que passa 15% dele fica marcado.
+ */
+export function barrasDaAtividade(
+  valores: number[],
+  { altura = 20, limiteDiario }: { altura?: number; limiteDiario?: number } = {},
+): { altura: number; acima: boolean }[] {
+  const limpos = valores.map((v) => (Number.isFinite(v) && v > 0 ? v : 0));
+  const maior = Math.max(0, ...limpos);
+  return limpos.map((v) => ({
+    altura: Math.max(2, maior > 0 ? (v / maior) * altura : 0),
+    acima: limiteDiario !== undefined && limiteDiario > 0 && v > limiteDiario * 1.15,
+  }));
+}

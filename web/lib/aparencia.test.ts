@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   MATIZES,
+  barrasDaAtividade,
+  medidaDoUso,
   corDoMatiz,
   formatarEspera,
   fracaoAnel,
@@ -150,5 +152,45 @@ describe('fracaoAnel', () => {
   it('negativo ou inválido é 0', () => {
     expect(fracaoAnel(-1)).toBe(0);
     expect(fracaoAnel(Number.NaN)).toBe(0);
+  });
+});
+
+describe('medidaDoUso', () => {
+  it('dentro do limite: barra até o valor e marca no limite, com folga de 10%', () => {
+    const m = medidaDoUso(142, 150);
+    expect(m.cheio).toBeCloseTo((142 / 165) * 100);
+    expect(m.excesso).toBe(0);
+    expect(m.marca).toBeCloseTo((150 / 165) * 100);
+  });
+  it('acima do limite: azul até o limite e âmbar do limite até o valor', () => {
+    const m = medidaDoUso(412, 300);
+    const teto = 412 * 1.1;
+    expect(m.cheio).toBeCloseTo((300 / teto) * 100);
+    expect(m.excesso).toBeCloseTo((112 / teto) * 100);
+    expect(m.marca).toBeCloseTo(m.cheio);
+  });
+  it('zero de zero não divide por zero', () => {
+    expect(medidaDoUso(0, 0)).toEqual({ cheio: 0, excesso: 0, marca: 0 });
+  });
+  it('valor negativo ou inválido conta como zero', () => {
+    expect(medidaDoUso(-5, 100).cheio).toBe(0);
+    expect(medidaDoUso(Number.NaN, 100).cheio).toBe(0);
+  });
+});
+
+describe('barrasDaAtividade', () => {
+  it('a maior barra ocupa a altura toda e o resto é proporcional', () => {
+    const b = barrasDaAtividade([0, 5, 10], { altura: 20 });
+    expect(b.map((x) => x.altura)).toEqual([2, 10, 20]);
+  });
+  it('dia sem mensagem ainda aparece com o mínimo de 2 px', () => {
+    expect(barrasDaAtividade([0, 0], { altura: 20 }).map((x) => x.altura)).toEqual([2, 2]);
+  });
+  it('marca acima quem passa 15% do limite diário', () => {
+    const b = barrasDaAtividade([10, 11.5, 11.6], { altura: 20, limiteDiario: 10 });
+    expect(b.map((x) => x.acima)).toEqual([false, false, true]);
+  });
+  it('sem limite diário nenhuma barra fica acima', () => {
+    expect(barrasDaAtividade([1, 999]).every((x) => !x.acima)).toBe(true);
   });
 });
