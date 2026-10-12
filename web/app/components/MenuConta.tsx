@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 import { usePromptInstalacao } from "./InstallButton";
 import { useTema } from "./ThemeToggle";
 
@@ -13,7 +13,7 @@ const LINKS: Array<{ href: string; rotulo: string }> = [
 ];
 
 const ITEM =
-  "flex h-9 w-full items-center gap-2.5 rounded-[8px] px-3 text-left text-[13.5px] text-fg outline-none hover:bg-elevated focus-visible:bg-elevated";
+  "flex h-9 w-full items-center gap-2.5 rounded-[8px] px-3 text-left text-[13.5px] text-fg outline-none hover:bg-elevated focus-visible:bg-elevated focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent";
 
 /**
  * Menu da conta (avatar no trilho, "Mais" na barra do celular): seções secundárias,
@@ -24,11 +24,14 @@ export function MenuConta({
   aberto,
   onFechar,
   ancora,
+  gatilho,
 }: {
   usuario: string;
   aberto: boolean;
   onFechar: () => void;
   ancora: "trilho" | "barra";
+  /** Botão que abre o menu: clicar nele com o menu aberto é "fechar", não "clique fora". */
+  gatilho?: RefObject<HTMLElement | null>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const { escuro, alternar } = useTema();
@@ -53,7 +56,9 @@ export function MenuConta({
       }
     };
     const fora = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onFechar();
+      const alvo = e.target as Node;
+      if (gatilho?.current?.contains(alvo)) return;
+      if (ref.current && !ref.current.contains(alvo)) onFechar();
     };
     document.addEventListener("keydown", tecla);
     document.addEventListener("pointerdown", fora);
@@ -61,7 +66,7 @@ export function MenuConta({
       document.removeEventListener("keydown", tecla);
       document.removeEventListener("pointerdown", fora);
     };
-  }, [aberto, onFechar]);
+  }, [aberto, onFechar, gatilho]);
 
   if (!aberto) return null;
 
@@ -77,6 +82,17 @@ export function MenuConta({
       <div className="px-3 pb-2 pt-1.5 text-[12.5px] text-fg-faint">
         Conectado como <span className="font-medium text-fg">{usuario}</span>
       </div>
+      <button
+        type="button"
+        role="menuitem"
+        className={ITEM}
+        onClick={() => {
+          onFechar();
+          window.dispatchEvent(new Event("cmdk:open"));
+        }}
+      >
+        Buscar ou ir para
+      </button>
       {LINKS.map((l) => (
         <Link key={l.href} href={l.href} role="menuitem" className={ITEM} onClick={onFechar}>
           {l.rotulo}

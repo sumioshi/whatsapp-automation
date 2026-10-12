@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { iniciais, tipoPeloSlug } from "@/lib/aparencia";
 import type { GroupSummary } from "@/lib/data";
-import { useStatusColetor } from "./ConnectionDot";
+import { PontoDeConexao, useStatusColetor } from "./ConnectionDot";
 import { MenuConta } from "./MenuConta";
 import { useRotas } from "./RotasPainel";
 import { Avatar } from "./ui/Avatar";
@@ -77,7 +77,8 @@ const ITEM_BASE =
 export function Trilho({ groups, usuario }: { groups: GroupSummary[]; usuario: string }) {
   const pathname = usePathname();
   const rotas = useRotas();
-  const { open } = useStatusColetor();
+  const { open, pairing } = useStatusColetor();
+  const estadoConexao = open ? "conectado" : pairing ? "pareando" : "desconectado";
   const [menu, setMenu] = useState<null | "trilho" | "barra">(null);
   const gatilho = useRef<HTMLButtonElement>(null);
   const gatilhoBarra = useRef<HTMLButtonElement>(null);
@@ -102,6 +103,9 @@ export function Trilho({ groups, usuario }: { groups: GroupSummary[]; usuario: s
         className="relative mb-3.5 grid h-8 w-8 place-items-center rounded-[9px] bg-ink max-[860px]:hidden"
       >
         <span className="h-[3px] w-3.5 rounded-sm bg-on-ink shadow-[0_-6px_0_-0.5px_color-mix(in_srgb,var(--color-on-ink)_55%,transparent)]" />
+        <span data-conexao className="absolute -right-1 -top-1 grid place-items-center rounded-full bg-rail p-[3px]">
+          <PontoDeConexao open={open} pairing={pairing} />
+        </span>
       </Link>
 
       {SECOES.map((s) => {
@@ -183,15 +187,16 @@ export function Trilho({ groups, usuario }: { groups: GroupSummary[]; usuario: s
           aria-haspopup="menu"
           aria-expanded={menu === "trilho"}
           onClick={() => setMenu((m) => (m === "trilho" ? null : "trilho"))}
-          title={`${usuario}, coletor ${open ? "conectado" : "desconectado"}`}
+          title={`${usuario}, coletor ${estadoConexao}`}
+          aria-label={`Conta de ${usuario}, coletor ${estadoConexao}`}
           className="relative mt-1.5 grid h-8 w-8 place-items-center rounded-[9px] border border-line bg-elevated text-xs font-semibold text-fg-dim hover:text-fg"
         >
           {iniciais(usuario)}
           <span
-            className={`absolute -bottom-0.5 -right-0.5 h-[9px] w-[9px] rounded-full shadow-[0_0_0_2px_var(--color-rail)] ${open ? "bg-ok" : "bg-danger"}`}
+            className={`absolute -bottom-0.5 -right-0.5 h-[9px] w-[9px] rounded-full shadow-[0_0_0_2px_var(--color-rail)] ${open ? "bg-ok" : pairing ? "bg-accent" : "bg-danger"}`}
           />
         </button>
-        <MenuConta usuario={usuario} aberto={menu === "trilho"} onFechar={fecharMenu} ancora="trilho" />
+        <MenuConta usuario={usuario} aberto={menu === "trilho"} onFechar={fecharMenu} ancora="trilho" gatilho={gatilho} />
       </div>
 
       <div className="relative hidden max-[860px]:flex max-[860px]:max-w-[76px] max-[860px]:flex-1">
@@ -201,6 +206,7 @@ export function Trilho({ groups, usuario }: { groups: GroupSummary[]; usuario: s
           aria-haspopup="menu"
           aria-expanded={menu === "barra"}
           onClick={() => setMenu((m) => (m === "barra" ? null : "barra"))}
+          aria-label={`Mais, coletor ${estadoConexao}`}
           className={`${ITEM_BASE} w-full pb-1.5 pt-2 text-fg-faint hover:bg-elevated hover:text-fg`}
         >
           {icone(
@@ -211,8 +217,11 @@ export function Trilho({ groups, usuario }: { groups: GroupSummary[]; usuario: s
             </>,
           )}
           Mais
+          <span data-conexao className="absolute right-[calc(50%-16px)] top-[5px]" title={`Coletor ${estadoConexao}`}>
+            <PontoDeConexao open={open} pairing={pairing} />
+          </span>
         </button>
-        <MenuConta usuario={usuario} aberto={menu === "barra"} onFechar={fecharMenu} ancora="barra" />
+        <MenuConta usuario={usuario} aberto={menu === "barra"} onFechar={fecharMenu} ancora="barra" gatilho={gatilhoBarra} />
       </div>
     </nav>
   );

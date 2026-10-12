@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useCallback, useState } from "react";
 import { corDoMatiz, iniciais, matizDoNome } from "@/lib/aparencia";
 import { cn } from "./cn";
 
@@ -33,7 +33,16 @@ export interface AvatarProps {
 }
 
 export function Avatar({ nome, tipo = "grupo", fotoUrl, tamanho = "md", className, decorativo = true }: AvatarProps) {
-  const [falhou, setFalhou] = useState(false);
+  // Guarda QUAL url falhou: trocar a foto volta a tentar, sem estado preso.
+  const [urlQuebrada, setUrlQuebrada] = useState<string | null>(null);
+  const falhou = Boolean(fotoUrl) && urlQuebrada === fotoUrl;
+  // O <img> vem do servidor; se o erro chega antes da hidratação, o onError não dispara.
+  const conferir = useCallback(
+    (img: HTMLImageElement | null) => {
+      if (img && fotoUrl && img.complete && img.naturalWidth === 0) setUrlQuebrada(fotoUrl);
+    },
+    [fotoUrl],
+  );
   const forma = tipo === "dm" ? "rounded-full" : RAIO_GRUPO[tamanho];
 
   if (fotoUrl && !falhou) {
@@ -43,7 +52,8 @@ export function Avatar({ nome, tipo = "grupo", fotoUrl, tamanho = "md", classNam
         src={fotoUrl}
         alt={decorativo ? "" : nome}
         aria-hidden={decorativo || undefined}
-        onError={() => setFalhou(true)}
+        ref={conferir}
+        onError={() => setUrlQuebrada(fotoUrl)}
         className={cn(TAMANHO[tamanho], forma, "shrink-0 border border-line object-cover", className)}
       />
     );
