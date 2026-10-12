@@ -1,49 +1,62 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import type { ClienteCard } from "@/lib/clientes";
+import { useEffect, useMemo, useState } from "react";
+import { Button, CabecalhoPagina, EmptyState, Segmentado } from "@/app/components/ui";
+import type { ClienteLinha } from "@/lib/clientes";
+import { type ColunaId, type EscolhaColunas, alternarColuna, colunasDoHtml } from "@/lib/clientes-colunas";
+import { type ChaveOrdem, type Ordem, ehTrabalho, filtrarLinhas, ordenarLinhas, totaisDaTabela } from "@/lib/clientes-tabela";
 import type { KanbanState } from "@/lib/kanban";
-import { ClientesGrid } from "./ClientesGrid";
-import { Etiqueta } from "@/app/components/ui";
-import { MetricasResumo } from "./MetricasResumo";
-import { RadarBadge } from "./RadarBadge";
-import { SyncWidget } from "./SyncWidget";
+import { BarraClientes, type FiltrosExtras } from "./BarraClientes";
 import { KanbanBoard } from "./KanbanBoard";
+import { MetricasResumo } from "./MetricasResumo";
+import { SyncWidget } from "./SyncWidget";
+import { TabelaClientes } from "./TabelaClientes";
 
-type Modo = "grade" | "kanban";
-type Filtro = "todos" | "aguardando" | "grupos" | "dms";
-
-const FILTROS: Array<{ id: Filtro; rotulo: string }> = [
-  { id: "todos", rotulo: "Todos" },
-  { id: "aguardando", rotulo: "Aguardando" },
-  { id: "grupos", rotulo: "Grupos" },
-  { id: "dms", rotulo: "DMs" },
-];
+type Modo = "tabela" | "quadro";
 type Contexto = "trabalho" | "tudo";
-const CHAVE_CTX = "wac-clientes-contexto";
 
-/** true se o card pertence ao contexto de trabalho (padrão da tela). */
-function ehTrabalho(c: ClienteCard): boolean {
-  const empresas = c.etiquetas.filter((e) => e !== "Pessoal");
-  if (c.etiquetas.includes("Pessoal") && empresas.length === 0) return false;
-  if (c.tipo === "grupo") return true; // grupo monitorado é trabalho por definição
-  return empresas.length > 0; // DM sem etiqueta de empresa = conversa solta
-}
-const CHAVE = "wac-clientes-modo";
+/** O valor antigo "kanban" continua abrindo no Quadro. */
+const CHAVE_MODO = "wac-clientes-modo";
+const CHAVE_CTX = "wac-clientes-contexto";
+const CHAVE_ORDEM = "wac-clientes-ordem";
+const CHAVE_COLUNAS = "wac-clientes-colunas";
+const CHAVE_METRICAS = "wac-metricas-aberto";
 /** Etiquetas sugeridas antes do primeiro uso (as em uso nos chats somam a estas). */
 const SEMENTES = ["Pessoal"];
+const ORDEM_PADRAO: Ordem = { chave: "espera", desc: true };
+const SEM_FILTRO: FiltrosExtras = { esperando: false, tipo: null, etiqueta: null, contrato: null };
+const CHAVES_ORDEM: ChaveOrdem[] = ["espera", "uso", "atividade", "entregas", "ultima", "nome", "contrato"];
 
-/** Alterna Grade ⇄ Kanban; a preferência fica no navegador. */
-export function ClientesView({ cards, kanban }: { cards: ClienteCard[]; kanban: KanbanState }) {
+function ler(chave: string): string | null {
+  try {
+    return window.localStorage.getItem(chave);
+  } catch {
+    return null;
+  }
+}
+
+function gravar(chave: string, valor: string | null) {
+  try {
+    if (valor === null) window.localStorage.removeItem(chave);
+    else window.localStorage.setItem(chave, valor);
+  } catch {
+    // Sem armazenamento local, a escolha vale só até recarregar.
+  }
+}
+
+/** Tabela e Quadro dos clientes, com os filtros, a ordem e as colunas guardados no navegador. */
+export function ClientesView({ linhas, kanban, agoraMs }: { linhas: ClienteLinha[]; kanban: KanbanState; agoraMs: number }) {
   const router = useRouter();
-  const [modo, setModo] = useState<Modo>("grade");
+  const [modo, setModo] = useState<Modo>("tabela");
   const [contexto, setContexto] = useState<Contexto>("trabalho");
-  const [filtro, setFiltro] = useState<Filtro>("todos");
+  const [filtros, setFiltros] = useState<FiltrosExtras>(SEM_FILTRO);
   const [busca, setBusca] = useState("");
-  const [etiqueta, setEtiqueta] = useState<string | null>(null);
+  const [ordem, setOrdem] = useState<Ordem>(ORDEM_PADRAO);
+  const [escolha, setEscolha] = useState<EscolhaColunas>(null);
+  const [metricas, setMetricas] = useState(false);
 
-  // Mantém a tela viva: refresh de 15s, pausado com a aba oculta.
+  // Mantém a tela viva: atualiza a cada 15 s, parado com a aba escondida.
   useEffect(() => {
     const id = setInterval(() => {
       if (document.visibilityState === "visible") router.refresh();
@@ -51,125 +64,154 @@ export function ClientesView({ cards, kanban }: { cards: ClienteCard[]; kanban: 
     return () => clearInterval(id);
   }, [router]);
 
-  const conhecidas = [
-    ...new Set([...SEMENTES, ...cards.flatMap((c) => c.etiquetas)]),
-  ];
-  const q = busca.trim().toLowerCase();
-  const visiveis = (contexto === "trabalho" ? cards.filter(ehTrabalho) : cards).filter((c) => {
-    if (filtro === "aguardando" && !c.aguardando) return false;
-    if (filtro === "grupos" && c.tipo !== "grupo") return false;
-    if (filtro === "dms" && c.tipo !== "dm") return false;
-    if (etiqueta && !c.etiquetas.includes(etiqueta)) return false;
-    if (q && !c.nome.toLowerCase().includes(q)) return false;
-    return true;
-  });
-
   useEffect(() => {
-    const salvo = window.localStorage.getItem(CHAVE);
-    if (salvo === "kanban") setModo("kanban");
-    if (window.localStorage.getItem(CHAVE_CTX) === "tudo") setContexto("tudo");
+    if (ler(CHAVE_MODO) === "kanban") setModo("quadro");
+    if (ler(CHAVE_CTX) === "tudo") setContexto("tudo");
+    if (ler(CHAVE_METRICAS) === "1") setMetricas(true);
+    try {
+      const o = JSON.parse(ler(CHAVE_ORDEM) ?? "null") as Partial<Ordem> | null;
+      if (o && CHAVES_ORDEM.includes(o.chave as ChaveOrdem)) setOrdem({ chave: o.chave as ChaveOrdem, desc: o.desc !== false });
+      const c = JSON.parse(ler(CHAVE_COLUNAS) ?? "null") as unknown;
+      if (c && typeof c === "object" && !Array.isArray(c)) setEscolha(c as EscolhaColunas);
+    } catch {
+      // Escolha guardada ilegível: fica o padrão.
+    }
   }, []);
 
-  function trocarContexto(ctx: Contexto) {
-    setContexto(ctx);
-    window.localStorage.setItem(CHAVE_CTX, ctx);
+  const conhecidas = useMemo(() => [...new Set([...SEMENTES, ...linhas.flatMap((c) => c.etiquetas)])], [linhas]);
+  const doContexto = contexto === "trabalho" ? linhas.filter(ehTrabalho) : linhas;
+  const esperando = doContexto.filter((l) => l.aguardando && !l.silenciado).length;
+  const visiveis = ordenarLinhas(filtrarLinhas(linhas, { contexto, busca, ...filtros }, agoraMs), ordem);
+  const comFiltro = busca.trim() !== "" || Object.values(filtros).some((v) => v !== null && v !== false);
+
+  function trocarModo(m: Modo) {
+    setModo(m);
+    gravar(CHAVE_MODO, m === "quadro" ? "kanban" : "grade");
+  }
+  function trocarContexto(c: Contexto) {
+    setContexto(c);
+    gravar(CHAVE_CTX, c);
+  }
+  function trocarOrdem(o: Ordem) {
+    setOrdem(o);
+    gravar(CHAVE_ORDEM, JSON.stringify(o));
+  }
+  /** Clique no cabeçalho: a mesma coluna inverte o sentido; outra começa do maior (nome, de A a Z). */
+  function ordenarPor(chave: ChaveOrdem) {
+    trocarOrdem(ordem.chave === chave && chave !== "espera" ? { chave, desc: !ordem.desc } : { chave, desc: chave !== "nome" });
+  }
+  function alternar(id: ColunaId) {
+    const nova = alternarColuna(escolha, id, window.matchMedia("(min-width: 1600px)").matches);
+    setEscolha(nova);
+    gravar(CHAVE_COLUNAS, JSON.stringify(nova));
+  }
+  function restaurarColunas() {
+    setEscolha(null);
+    gravar(CHAVE_COLUNAS, null);
+  }
+  function alternarMetricas() {
+    setMetricas((m) => {
+      gravar(CHAVE_METRICAS, m ? "0" : "1");
+      return !m;
+    });
+  }
+  function limparFiltros() {
+    setFiltros(SEM_FILTRO);
+    setBusca("");
   }
 
-  function trocar(m: Modo) {
-    setModo(m);
-    window.localStorage.setItem(CHAVE, m);
-  }
+  const total = doContexto.length;
+  const subtitulo =
+    contexto === "trabalho"
+      ? `${total} ${total === 1 ? "cliente" : "clientes"}`
+      : `${total} ${total === 1 ? "conversa" : "conversas"}, pessoais incluídas`;
+
+  const vazio = comFiltro ? (
+    <EmptyState
+      title="Nenhum cliente com esses filtros"
+      description={
+        <>
+          <p>Tire um filtro ou mude a busca para ver mais gente.</p>
+          <Button variant="subtle" size="sm" className="mt-3" onClick={limparFiltros}>
+            Limpar filtros
+          </Button>
+        </>
+      }
+    />
+  ) : (
+    <EmptyState
+      title={contexto === "trabalho" ? "Nenhum cliente ainda" : "Nenhuma conversa ainda"}
+      description={
+        contexto === "trabalho"
+          ? "Grupos monitorados e conversas com etiqueta de empresa, contrato ou entrega aparecem aqui. As outras ficam em Todas as conversas."
+          : "As conversas aparecem aqui assim que o coletor guardar a primeira mensagem."
+      }
+    />
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-5 py-2">
-        {/* busca — primeiro porque é a ação mais frequente */}
-        <input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar…"
-          aria-label="Buscar cliente pelo nome"
-          className="w-52 rounded-[6px] border border-line bg-transparent px-2.5 py-1 text-sm text-fg placeholder:text-fg-faint focus:border-line-2 focus:outline-none"
+      <CabecalhoPagina
+        variante="barra"
+        titulo="Clientes"
+        subtitulo={
+          <span className="max-[860px]:hidden">
+            {subtitulo}
+            {esperando > 0 && (
+              <>
+                {" · "}
+                <span className="font-mono tabular-nums">{esperando}</span> esperando resposta
+              </>
+            )}
+          </span>
+        }
+        acoes={
+          <>
+            <SyncWidget />
+            <Segmentado<Modo>
+              rotulo="Exibição"
+              opcoes={[
+                { valor: "tabela", rotulo: "Tabela" },
+                { valor: "quadro", rotulo: "Quadro" },
+              ]}
+              valor={modo}
+              aoMudar={trocarModo}
+            />
+          </>
+        }
+      />
+      <BarraClientes
+        contexto={contexto}
+        aoMudarContexto={trocarContexto}
+        filtros={filtros}
+        aoMudarFiltros={setFiltros}
+        busca={busca}
+        aoBuscar={setBusca}
+        etiquetas={conhecidas}
+        ordem={ordem}
+        aoOrdenar={trocarOrdem}
+        escolha={escolha}
+        aoAlternarColuna={alternar}
+        aoRestaurarColunas={restaurarColunas}
+        mostrarColunas={modo === "tabela"}
+        metricasAbertas={metricas}
+        aoAlternarMetricas={alternarMetricas}
+      />
+      {metricas && <MetricasResumo />}
+      {modo === "tabela" ? (
+        <TabelaClientes
+          linhas={visiveis}
+          colunas={colunasDoHtml(escolha)}
+          escolha={escolha}
+          ordem={ordem}
+          aoOrdenar={ordenarPor}
+          totais={totaisDaTabela(visiveis, agoraMs)}
+          conhecidas={conhecidas}
+          agoraMs={agoraMs}
+          vazio={vazio}
         />
-
-        <div className="flex rounded-[6px] border border-line p-0.5">
-          {FILTROS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => setFiltro(f.id)}
-              className={`rounded-[5px] px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                filtro === f.id ? "bg-surface-2 text-fg" : "text-fg-dim hover:text-fg"
-              }`}
-            >
-              {f.rotulo}
-            </button>
-          ))}
-        </div>
-
-        {conhecidas.map((e) => (
-          <button
-            key={e}
-            type="button"
-            aria-pressed={etiqueta === e}
-            onClick={() => setEtiqueta((atual) => (atual === e ? null : e))}
-            className={`rounded-full transition-opacity ${
-              etiqueta === null || etiqueta === e ? "" : "opacity-35 hover:opacity-70"
-            }`}
-          >
-            <Etiqueta nome={e} />
-          </button>
-        ))}
-
-        <span className="ml-auto flex items-center gap-2">
-          <div className="flex rounded-[6px] border border-line p-0.5">
-            {(
-              [
-                ["trabalho", "Trabalho"],
-                ["tudo", "Tudo"],
-              ] as Array<[Contexto, string]>
-            ).map(([ctx, rotulo]) => (
-              <button
-                key={ctx}
-                type="button"
-                onClick={() => trocarContexto(ctx)}
-                title={ctx === "trabalho" ? "Grupos monitorados + chats com etiqueta de empresa" : "Inclui pessoal e conversas soltas"}
-                className={`rounded-[5px] px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                  contexto === ctx ? "bg-surface-2 text-fg" : "text-fg-dim hover:text-fg"
-                }`}
-              >
-                {rotulo}
-              </button>
-            ))}
-          </div>
-          <div className="flex rounded-[6px] border border-line p-0.5">
-            {(
-              [
-                ["grade", "Grade"],
-                ["kanban", "Kanban"],
-              ] as Array<[Modo, string]>
-            ).map(([m, rotulo]) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => trocar(m)}
-                className={`rounded-[5px] px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                  modo === m ? "bg-surface-2 text-fg" : "text-fg-dim hover:text-fg"
-                }`}
-              >
-                {rotulo}
-              </button>
-            ))}
-          </div>
-          <RadarBadge onClick={() => setFiltro("aguardando")} />
-          <SyncWidget />
-        </span>
-      </div>
-
-      <MetricasResumo />
-
-      {modo === "grade" ? (
-        <ClientesGrid cards={visiveis} conhecidas={conhecidas} />
+      ) : visiveis.length === 0 ? (
+        <div className="flex-1 bg-bg">{vazio}</div>
       ) : (
         <KanbanBoard cards={visiveis} inicial={kanban} conhecidas={conhecidas} />
       )}

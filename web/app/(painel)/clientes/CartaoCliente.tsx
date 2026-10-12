@@ -2,105 +2,57 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { EmptyState } from "@/app/components/ui";
-import { ChipEtiqueta, EditorEtiquetas } from "@/app/components/Etiqueta";
+import { EditorEtiquetas } from "@/app/components/Etiqueta";
+import { useRotas } from "@/app/components/RotasPainel";
+import { AnelEspera, Avatar, Contador, Etiqueta, cn } from "@/app/components/ui";
 import type { ClienteCard } from "@/lib/clientes";
-import { BAND_LABEL_CLASS } from "@/lib/sla";
+import { IcMais, IcNota, IcSilencio, IcSincronizar } from "./icones";
 
-/** Grade CRM dos chats — filtros/busca vivem na toolbar do ClientesView. */
-export function ClientesGrid({ cards, conhecidas = [] }: { cards: ClienteCard[]; conhecidas?: string[] }) {
-  return (
-    <div className="flex-1 overflow-y-auto px-4 py-5 md:px-8">
-      <div className="mx-auto max-w-6xl">
-        {cards.length === 0 ? (
-          <EmptyState
-            title="Nada por aqui"
-            description="Nenhuma conversa bate com o filtro atual."
-            className="mt-12"
-          />
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {cards.map((c) => (
-              <CardCliente key={c.slug} c={c} conhecidas={conhecidas} />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** Iniciais pro avatar de fallback (até 2 letras). */
-function iniciais(nome: string): string {
-  const partes = nome
-    .split(/\s+/)
-    .filter((p) => /^[\p{L}\p{N}]/u.test(p))
-    .slice(0, 2);
-  return partes.map((p) => [...p][0]?.toUpperCase() ?? "").join("") || "?";
-}
-
-export function CardCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecidas?: string[] }) {
+/**
+ * Cartão do cliente no Quadro: conversa, etiquetas (com o editor), nota e quanto espera.
+ * O nome é o link e cobre o cartão inteiro; o editor de etiquetas fica por cima dele.
+ */
+export function CartaoCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecidas?: string[] }) {
+  const rotas = useRotas();
   const [etiquetas, setEtiquetas] = useState<string[]>(c.etiquetas);
   const [editando, setEditando] = useState(false);
-  // Badge só quando há algo a dizer — "em dia" é a ausência de badge.
-  const badge = c.aguardando ? (
-    <span
-      className={`mono shrink-0 text-[11px] font-medium ${c.band ? BAND_LABEL_CLASS[c.band] : "text-fg-dim"}`}
-      title={`Cliente aguardando resposta ${c.waitingLabel ?? ""}`}
-    >
-      ● {c.waitingLabel ?? "aguardando"}
-    </span>
-  ) : null;
 
   return (
-    <Link
-      href={`/g/${c.slug}`}
-      className={`group flex flex-col gap-2 rounded-card border border-line bg-surface p-4 transition-colors hover:border-line-2 ${
-        c.silenciado ? "opacity-55" : ""
-      }`}
+    <div
+      className={cn(
+        "group relative flex flex-col gap-2 rounded-card border border-line bg-surface p-3.5 [box-shadow:var(--shadow-card)] transition-colors hover:border-line-2 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-1 has-[a:focus-visible]:outline-accent",
+        c.silenciado && "opacity-60",
+      )}
     >
-      <div className="flex items-center gap-3">
-        {c.avatarPath ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/api/media/${c.avatarPath.split("/").map(encodeURIComponent).join("/")}`}
-            alt=""
-            className="h-11 w-11 shrink-0 rounded-[12px] border border-line object-cover"
-          />
-        ) : (
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] border border-line bg-surface-2 text-sm font-semibold text-fg-dim">
-            {iniciais(c.nome)}
-          </div>
-        )}
-        <span className="min-w-0 flex-1 truncate text-base font-semibold text-fg" title={c.nome}>
+      <div className="flex items-center gap-2.5">
+        <Avatar nome={c.nome} tipo={c.tipo} fotoUrl={c.avatarPath ? rotas.midia(c.avatarPath) : null} tamanho="md" />
+        <Link
+          href={rotas.chat(c.slug)}
+          title={c.nome}
+          className="min-w-0 flex-1 truncate text-[14px] font-semibold text-fg outline-none after:absolute after:inset-0 after:rounded-card after:content-['']"
+        >
           {c.nome}
-        </span>
-        {c.naoLidas > 0 && (
-          <span
-            className="mono shrink-0 rounded-full bg-accent px-1.5 py-px text-[10px] font-semibold text-accent-ink"
-            title={`${c.naoLidas} mensagens novas desde a última visita`}
-          >
-            {c.naoLidas > 99 ? "99+" : c.naoLidas}
-          </span>
-        )}
-        {badge}
+        </Link>
+        <Contador n={c.naoLidas} destaque={!c.silenciado} />
+        {c.aguardando && <AnelEspera ms={c.waitingMs} />}
       </div>
 
-      <div className="relative flex flex-wrap items-center gap-1">
+      <div className="relative z-10 flex flex-wrap items-center gap-1 self-start">
         {etiquetas.map((e) => (
-          <ChipEtiqueta key={e} nome={e} />
+          <Etiqueta key={e} nome={e} tamanho="sm" />
         ))}
         <button
           type="button"
-          title="Etiquetas"
-          onClick={(ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            setEditando((v) => !v);
-          }}
-          className="rounded-full border border-dashed border-line px-1.5 text-[10px] text-fg-faint opacity-0 transition-all group-hover:opacity-100 hover:border-line-2 hover:text-fg"
+          aria-label={etiquetas.length ? "Editar etiquetas" : "Pôr etiqueta"}
+          aria-expanded={editando}
+          onClick={() => setEditando((v) => !v)}
+          className={cn(
+            "inline-flex h-5 items-center gap-1 rounded-full border border-dashed border-line-2 px-1.5 text-[11.5px] text-fg-faint transition-opacity hover:border-fg-mute hover:text-fg focus-visible:opacity-100 group-hover:opacity-100",
+            editando ? "opacity-100" : "opacity-0",
+          )}
         >
-          {etiquetas.length === 0 ? "+ etiqueta" : "+"}
+          <IcMais className="h-3 w-3" />
+          {etiquetas.length === 0 && "etiqueta"}
         </button>
         {editando && (
           <EditorEtiquetas
@@ -120,31 +72,42 @@ export function CardCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecidas
       )}
 
       {c.nota && (
-        <p className="truncate text-xs text-fg-faint" title={c.nota}>
-          📝 {c.nota}
+        <p className="flex items-center gap-1.5 text-[12.5px] text-fg-faint" title={c.nota}>
+          <IcNota className="h-3.5 w-3.5" />
+          <span className="truncate">{c.nota}</span>
         </p>
       )}
 
       {c.desatualizado && (
-        <p className="mono text-[11px] text-warn" title="O WhatsApp registra atividade mais nova que a última mensagem capturada — a sincronização automática vai tentar preencher.">
-          ⟳ pode estar desatualizado
+        <p
+          className="flex items-center gap-1.5 text-[12px] text-warn"
+          title="O WhatsApp tem atividade mais nova que a última mensagem guardada; a sincronização vai buscar."
+        >
+          <IcSincronizar className="h-3.5 w-3.5" />
+          Pode estar desatualizado
         </p>
       )}
-      <div className="mono mt-auto flex items-center gap-2 pt-1 text-[10px] text-fg-faint">
-        <span>{c.mensagens} msgs</span>
+
+      <div className="mt-auto flex items-center gap-1.5 pt-0.5 text-[12px] text-fg-faint">
+        <span>
+          <span className="font-mono tabular-nums">{c.mensagens}</span> mensagens
+        </span>
         {c.atividadeLabel && (
           <>
-            <span>·</span>
+            <span aria-hidden>·</span>
             <span>{c.atividadeLabel}</span>
           </>
         )}
         {c.silenciado && (
           <>
-            <span>·</span>
-            <span>silenciado</span>
+            <span aria-hidden>·</span>
+            <span className="inline-flex items-center gap-1">
+              <IcSilencio className="h-3 w-3" />
+              silenciado
+            </span>
           </>
         )}
       </div>
-    </Link>
+    </div>
   );
 }
