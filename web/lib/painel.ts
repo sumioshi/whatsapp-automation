@@ -1,4 +1,5 @@
 import { diaBrt, minutosBrt } from './agenda-semana';
+import { formatarEspera } from './aparencia';
 import type { Origem } from './data';
 
 /**
@@ -97,6 +98,11 @@ export function mediana(valores: number[]): number | null {
   const v = [...valores].sort((a, b) => a - b);
   const meio = Math.floor(v.length / 2);
   return v.length % 2 ? (v[meio] as number) : ((v[meio - 1] as number) + (v[meio] as number)) / 2;
+}
+
+/** Tempo de resposta em número e unidade ("18 min", "1h 05m"); abaixo de um minuto, "<1 min". */
+export function partesDoTempo(ms: number): { valor: string; unidade: string }[] {
+  return ms < MIN_MS ? [{ valor: '<1', unidade: 'min' }] : formatarEspera(ms);
 }
 
 /** Variação em fração do anterior (0,2 = +20%); sem base, não há variação. */
@@ -352,7 +358,23 @@ export function montarPainel(
   };
 }
 
-/** O dia de hoje para a faixa de situação: primeira resposta e o que a IA enviou. */
+/**
+ * Conversas que entram nas contas: fica de fora o que o painel silenciou, o que
+ * só tem a etiqueta "Pessoal" e a conversa da conta consigo mesma (resumos e
+ * avisos do sistema, não atendimento).
+ */
+export function conversaDeTrabalho(
+  g: { slug: string; etiquetas?: string[] },
+  silenciada: boolean,
+  idsDaConta: ReadonlySet<string>,
+): boolean {
+  if (silenciada) return false;
+  const etiquetas = g.etiquetas ?? [];
+  if (etiquetas.includes('Pessoal') && etiquetas.every((e) => e === 'Pessoal')) return false;
+  return !(g.slug.startsWith('dm-') && idsDaConta.has(g.slug.slice(3)));
+}
+
+/** O dia de hoje para a faixa de situação e a IA: primeira resposta e o que a IA enviou. */
 export function resumoDeHoje(
   conversas: ConversaPainel[],
   agoraMs: number,

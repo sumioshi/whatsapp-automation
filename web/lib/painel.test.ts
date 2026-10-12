@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   autorDaMensagem,
   type ConversaPainel,
+  conversaDeTrabalho,
   diasDoPeriodo,
   entregasPorMes,
   faixasDeResposta,
   mediana,
   type MsgAtendimento,
   montarPainel,
+  partesDoTempo,
   periodoDe,
   respostasDaConversa,
   resumoDeHoje,
@@ -77,6 +79,17 @@ describe('mediana', () => {
     expect(mediana([])).toBeNull();
     expect(mediana([5, 1, 3])).toBe(3);
     expect(mediana([4, 1, 3, 2])).toBe(2.5);
+  });
+});
+
+describe('partesDoTempo', () => {
+  it('menos de um minuto não vira zero; o resto segue a régua da espera', () => {
+    expect(partesDoTempo(20_000)).toEqual([{ valor: '<1', unidade: 'min' }]);
+    expect(partesDoTempo(18 * MIN)).toEqual([{ valor: '18', unidade: 'min' }]);
+    expect(partesDoTempo(65 * MIN)).toEqual([
+      { valor: '1', unidade: 'h' },
+      { valor: '05', unidade: 'm' },
+    ]);
   });
 });
 
@@ -211,6 +224,18 @@ describe('montarPainel', () => {
     const q = montarPainel([conversa('x', [['2026-10-12T10:00:00Z', 'cliente'], ['2026-10-12T10:01:00Z', 'sem-registro']])], [], AGORA, 7).quem;
     expect(q.map((x) => x.id)).toEqual(['celular', 'painel', 'equipe', 'ia', 'sem-registro']);
     expect(q.at(-1)?.pct).toBe(100);
+  });
+});
+
+describe('conversaDeTrabalho', () => {
+  const dono = new Set(['5511999990000']);
+  it('fica de fora o que o painel silenciou, o que é só pessoal e a conversa consigo mesmo', () => {
+    expect(conversaDeTrabalho({ slug: 'norte', etiquetas: ['Contrato'] }, false, dono)).toBe(true);
+    expect(conversaDeTrabalho({ slug: 'dm-551188887777' }, false, dono)).toBe(true);
+    expect(conversaDeTrabalho({ slug: 'norte' }, true, dono)).toBe(false);
+    expect(conversaDeTrabalho({ slug: 'dm-1', etiquetas: ['Pessoal'] }, false, dono)).toBe(false);
+    expect(conversaDeTrabalho({ slug: 'dm-1', etiquetas: ['Pessoal', 'Lead'] }, false, dono)).toBe(true);
+    expect(conversaDeTrabalho({ slug: 'dm-5511999990000' }, false, dono)).toBe(false);
   });
 });
 

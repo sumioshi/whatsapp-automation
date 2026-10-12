@@ -65,7 +65,7 @@ export type EstadoColetor = 'conectado' | 'pareando' | 'desconectado';
 /** Mesma leitura do ponto de conexão do trilho. */
 export function estadoDoColetor(s: { connection?: string; qr?: string | null } | null): EstadoColetor {
   if (s?.connection === 'open') return 'conectado';
-  if (s?.qr || s?.connection === 'connecting') return 'pareando';
+  if (s?.qr || s?.connection === 'connecting' || s?.connection === 'qr') return 'pareando';
   return 'desconectado';
 }
 
@@ -220,6 +220,17 @@ export function textoDaFila(r: ResumoFila | null): string {
   return 'nada na fila';
 }
 
+/** Tickets distintos que a fila registrou como interrompidos hoje (`.entregas.jsonl`). */
+export function interrompidasHoje(linhas: Array<{ ts: string; ticket: string; estado: string }>, agoraMs: number): number {
+  const hoje = diaBrt(agoraMs);
+  const tickets = new Set<string>();
+  for (const l of linhas) {
+    const t = Date.parse(l.ts);
+    if (l.estado === 'interrompido' && !Number.isNaN(t) && t <= agoraMs && diaBrt(t) === hoje) tickets.add(l.ticket);
+  }
+  return tickets.size;
+}
+
 // ── Agenda do dia ──────────────────────────────────────────────────────────
 
 export type EstadoItemAgenda = 'passado' | 'agora' | 'proximo' | 'normal';
@@ -288,8 +299,13 @@ export function agendaDoDia(eventos: Evento[], agoraMs: number, maxItens = 4): A
   const doDia = comHorarioDeHoje(eventos, agoraMs);
   const minutos = (t: number) => (t - inicioDoDia) / MIN_MS;
 
-  const inicioH = Math.max(0, Math.min(8, ...doDia.map((x) => Math.floor(minutos(x.s) / 60))));
-  const fimH = Math.min(24, Math.max(20, ...doDia.map((x) => Math.ceil(minutos(x.e) / 60))));
+  let inicioH = Math.max(0, Math.min(8, ...doDia.map((x) => Math.floor(minutos(x.s) / 60))));
+  let fimH = Math.min(24, Math.max(20, ...doDia.map((x) => Math.ceil(minutos(x.e) / 60))));
+  // As cinco marcas ficam distribuídas por igual: a faixa fecha em múltiplo de 4 h.
+  while ((fimH - inicioH) % 4 !== 0) {
+    if (fimH < 24) fimH++;
+    else inicioH--;
+  }
   const faixaMin = (fimH - inicioH) * 60;
   const pct = (min: number) => ((min - inicioH * 60) / faixaMin) * 100;
   const agoraMin = minutos(agoraMs);
@@ -329,7 +345,7 @@ export function agendaDoDia(eventos: Evento[], agoraMs: number, maxItens = 4): A
   return {
     inicioH,
     fimH,
-    marcas: Array.from({ length: 5 }, (_, k) => Math.round(inicioH + (k * (fimH - inicioH)) / 4)),
+    marcas: Array.from({ length: 5 }, (_, k) => inicioH + (k * (fimH - inicioH)) / 4),
     blocos,
     agora: agoraMin >= inicioH * 60 && agoraMin <= fimH * 60 ? pct(agoraMin) : null,
     itens,

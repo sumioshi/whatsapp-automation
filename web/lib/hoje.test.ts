@@ -8,6 +8,7 @@ import {
   dataPorExtenso,
   estadoDoColetor,
   fraseDoDia,
+  interrompidasHoje,
   ordenarTickets,
   resumoDaFila,
   resumoEsperando,
@@ -70,6 +71,7 @@ describe('estadoDoColetor', () => {
     expect(estadoDoColetor({ connection: 'open' })).toBe('conectado');
     expect(estadoDoColetor({ connection: 'close', qr: 'abc' })).toBe('pareando');
     expect(estadoDoColetor({ connection: 'connecting' })).toBe('pareando');
+    expect(estadoDoColetor({ connection: 'qr' })).toBe('pareando');
     expect(estadoDoColetor({ connection: 'close' })).toBe('desconectado');
     expect(estadoDoColetor(null)).toBe('desconectado');
   });
@@ -178,6 +180,20 @@ describe('fila da IA', () => {
   });
 });
 
+describe('interrompidasHoje', () => {
+  it('tickets distintos interrompidos hoje (Brasília) no registro de entregas', () => {
+    const linhas = [
+      { ts: '2026-10-12T12:00:00Z', ticket: 'a', estado: 'agendado' },
+      { ts: '2026-10-12T12:01:00Z', ticket: 'a', estado: 'interrompido' },
+      { ts: '2026-10-12T12:01:00Z', ticket: 'a', estado: 'interrompido' },
+      { ts: '2026-10-12T14:00:00Z', ticket: 'b', estado: 'interrompido' },
+      { ts: '2026-10-12T02:00:00Z', ticket: 'c', estado: 'interrompido' }, // dia 11 em Brasília
+      { ts: '2026-10-12T15:00:00Z', ticket: 'd', estado: 'entregue' },
+    ];
+    expect(interrompidasHoje(linhas, AGORA)).toBe(2);
+  });
+});
+
 describe('agenda do dia', () => {
   const ev = (id: string, inicio: string, fim: string, extra: Partial<Evento> = {}): Evento => ({
     id,
@@ -233,9 +249,14 @@ describe('agenda do dia', () => {
     const a = agendaDoDia([ev('rapido', '2026-10-12T10:00:00-03:00', '2026-10-12T10:05:00-03:00')], AGORA);
     expect(a.blocos[0]?.largura).toBeCloseTo(1.6);
   });
-  it('evento cedo ou tarde estica a faixa', () => {
-    const a = agendaDoDia([ev('cedo', '2026-10-12T06:30:00-03:00', '2026-10-12T07:00:00-03:00'), ev('tarde', '2026-10-12T21:00:00-03:00', '2026-10-12T22:10:00-03:00')], AGORA);
-    expect([a.inicioH, a.fimH]).toEqual([6, 23]);
+  it('evento cedo ou tarde estica a faixa, que fecha em múltiplo de 4 h para as marcas caírem em horas cheias', () => {
+    const tarde = agendaDoDia([ev('tarde', '2026-10-12T21:00:00-03:00', '2026-10-12T22:10:00-03:00')], AGORA);
+    expect([tarde.inicioH, tarde.fimH, tarde.marcas]).toEqual([8, 24, [8, 12, 16, 20, 24]]);
+    const ambos = agendaDoDia(
+      [ev('cedo', '2026-10-12T06:30:00-03:00', '2026-10-12T07:00:00-03:00'), ev('tarde', '2026-10-12T21:00:00-03:00', '2026-10-12T22:10:00-03:00')],
+      AGORA,
+    );
+    expect([ambos.inicioH, ambos.fimH, ambos.marcas]).toEqual([4, 24, [4, 9, 14, 19, 24]]);
   });
   it('próximo distante mostra horas e minutos', () => {
     const a = agendaDoDia([ev('longe', '2026-10-12T17:20:00-03:00', '2026-10-12T18:00:00-03:00')], AGORA);
