@@ -22,9 +22,15 @@ export function CommandPalette({ groups }: { groups: GroupSummary[] }) {
       router.push(path);
     };
     return [
-      { id: "inbox", label: "Caixa de entrada", section: "Ações", run: go("/inbox") },
+      { id: "inbox", label: "Caixa de entrada", section: "Ir para", run: go("/inbox") },
+      { id: "clientes", label: "Clientes", section: "Ir para", run: go("/clientes") },
+      { id: "agenda", label: "Agenda", section: "Ir para", run: go("/agenda") },
+      { id: "painel", label: "Painel", section: "Ir para", run: go("/dashboard") },
+      { id: "equipe", label: "Equipe", section: "Ir para", run: go("/equipe") },
+      { id: "links", label: "Links de projeto", section: "Ir para", run: go("/links") },
+      { id: "contatos", label: "Contatos", section: "Ir para", run: go("/novo?modo=contato") },
+      { id: "config", label: "Configurações", section: "Ir para", run: go("/config") },
       { id: "novo", label: "Nova conversa", section: "Ações", run: go("/novo") },
-      { id: "config", label: "Configurações", section: "Ações", run: go("/config") },
       ...groups.map((g) => ({
         id: `g-${g.slug}`,
         label: g.name,

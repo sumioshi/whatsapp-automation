@@ -7,12 +7,8 @@ interface PromptInstalacao extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-/**
- * Botão "Instalar" do PWA: só existe quando o navegador ofereceu a instalação
- * (beforeinstallprompt) — some sozinho depois de instalado, rodando standalone
- * ou em navegador sem suporte (Safari usa Arquivo → Adicionar à Dock).
- */
-export function InstallButton() {
+/** Só pode instalar quando o navegador ofereceu (beforeinstallprompt); some depois de instalado. */
+export function usePromptInstalacao(): { podeInstalar: boolean; instalar: () => void } {
   const [prompt, setPrompt] = useState<PromptInstalacao | null>(null);
 
   useEffect(() => {
@@ -30,17 +26,25 @@ export function InstallButton() {
     };
   }, []);
 
-  if (!prompt) return null;
+  return {
+    podeInstalar: prompt !== null,
+    instalar: () => {
+      if (!prompt) return;
+      void prompt.prompt();
+      void prompt.userChoice.then(() => setPrompt(null));
+    },
+  };
+}
 
+export function InstallButton() {
+  const { podeInstalar, instalar } = usePromptInstalacao();
+  if (!podeInstalar) return null;
   return (
     <button
       type="button"
-      onClick={() => {
-        void prompt.prompt();
-        void prompt.userChoice.then(() => setPrompt(null));
-      }}
+      onClick={instalar}
       title="Instalar o Balcão como aplicativo"
-      className="pressable flex h-7 items-center gap-1.5 rounded-[6px] border border-line px-2 text-xs font-medium text-fg-dim transition-colors hover:bg-surface-2 hover:text-fg"
+      className="flex h-7 items-center gap-1.5 rounded-control border border-line-2 px-2 text-xs font-medium text-fg-dim transition-colors hover:bg-elevated hover:text-fg"
     >
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
