@@ -102,7 +102,7 @@ export function CommandPalette({ groups }: { groups: GroupSummary[] }) {
 
   return (
     <div
-      className="overlay-in fixed inset-0 z-50 flex items-start justify-center bg-fg/20 p-4 pt-[12vh] backdrop-blur-[2px]"
+      className="overlay-in fixed inset-0 z-50 flex items-start justify-center bg-scrim p-4 pt-[12vh] backdrop-blur-[2px]"
       onClick={() => setOpen(false)}
       role="presentation"
     >

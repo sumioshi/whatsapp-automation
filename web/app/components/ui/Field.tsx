@@ -17,7 +17,7 @@ export function Field({ label, hint, error, htmlFor, className = "", children }:
       {label && (
         <label
           htmlFor={htmlFor}
-          className="mb-1.5 block text-[12.5px] font-medium text-fg-dim first-letter:uppercase first-letter:uppercase"
+          className="mb-1.5 block text-[12.5px] font-medium text-fg-dim first-letter:uppercase"
         >
           {label}
         </label>

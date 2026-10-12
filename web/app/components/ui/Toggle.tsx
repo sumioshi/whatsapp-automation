@@ -76,7 +76,7 @@ export function Toggle({
           "absolute rounded-full",
           knobSize,
           /* ── knob OFF ── */
-          !checked && "bg-fg-dim [box-shadow:0_1px_2px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)]",
+          !checked && "bg-fg-dim [box-shadow:0_1px_2px_rgb(0_0_0/0.2)]",
           /* ── knob ON ── */
           checked && "bg-accent-ink [box-shadow:0_1px_3px_rgba(0,0,0,0.3)]",
           // deslocamento

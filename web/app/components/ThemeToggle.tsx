@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+/** Cor da barra do navegador/PWA (meta theme-color) acompanha o tema escolhido. */
+function pintarBarraDoApp(tema: "light" | "dark") {
+  const cor = tema === "dark" ? "#0a0b0d" : "#eef0f3";
+  for (const m of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) m.content = cor;
+}
+
 /** Tema atual (escolha salva ou o do sistema) e a troca, que grava a escolha explícita. */
 export function useTema(): { escuro: boolean; alternar: () => void } {
   const [escuro, setEscuro] = useState(false);
@@ -11,13 +17,23 @@ export function useTema(): { escuro: boolean; alternar: () => void } {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const ler = () => setEscuro(raiz.dataset.theme ? raiz.dataset.theme === "dark" : media.matches);
     ler();
+    // Algumas metas de cor chegam depois do script do <head>: repinta com a escolha salva.
+    const salvo = raiz.dataset.theme;
+    if (salvo === "light" || salvo === "dark") pintarBarraDoApp(salvo);
     media.addEventListener("change", ler);
-    return () => media.removeEventListener("change", ler);
+    // Mais de um menu usa o hook (trilho e barra do celular): todos acompanham a troca.
+    const obs = new MutationObserver(ler);
+    obs.observe(raiz, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => {
+      media.removeEventListener("change", ler);
+      obs.disconnect();
+    };
   }, []);
 
   const alternar = useCallback(() => {
     const novo = escuro ? "light" : "dark";
     document.documentElement.dataset.theme = novo;
+    pintarBarraDoApp(novo);
     try {
       window.localStorage.setItem("wac-tema", novo);
     } catch {

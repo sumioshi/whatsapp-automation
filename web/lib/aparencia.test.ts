@@ -70,6 +70,10 @@ describe('iniciais', () => {
   it('ignora emoji', () => {
     expect(iniciais('🚀 Rocket Team')).toBe('RT');
   });
+  it('letras estilizadas de perfil viram letras normais', () => {
+    expect(iniciais('𝓐𝓷𝓪 Lima')).toBe('AL');
+    expect(iniciais('𝐁𝐞𝐭𝐨 𝐒𝐢𝐥𝐯𝐚')).toBe('BS');
+  });
   it('telefone, só emoji ou vazio vira #', () => {
     expect(iniciais('+55 11 99999-0000')).toBe('#');
     expect(iniciais('🎉🎉')).toBe('#');

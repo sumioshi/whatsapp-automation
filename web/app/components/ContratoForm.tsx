@@ -62,8 +62,8 @@ export function ContratoForm({ slug }: { slug: string }) {
   // de quem está digitando no campo seguinte. O aviso "salvando…" basta.
   return (
     <section className="space-y-2 border-t border-line pt-3" aria-label="Contrato do cliente">
-      <div className="flex items-baseline gap-2 text-[12px] text-fg-faint font-medium first-letter:uppercase">
-        contrato
+      <div className="flex items-baseline gap-2 text-[12px] font-medium text-fg-faint">
+        Contrato
         {salvando && <span className="normal-case tracking-normal text-fg-dim" aria-live="polite">salvando…</span>}
       </div>
       <select className={campo} value={c.estado} onChange={(e) => salvar({ estado: e.target.value as EstadoContrato })} aria-label="Estado do contrato">

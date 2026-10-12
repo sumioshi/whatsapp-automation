@@ -460,7 +460,7 @@ export function Timeline({
             type="button"
             onClick={jumpToBottom}
             aria-label="Descer para o fim"
-            className="pop-in absolute right-5 bottom-4 grid h-10 w-10 place-items-center rounded-full border border-line bg-elevated text-fg-dim shadow-lg shadow-black/40 transition-colors hover:text-fg"
+            className="pop-in absolute right-5 bottom-4 grid h-10 w-10 place-items-center rounded-full border border-line bg-elevated text-fg-dim [box-shadow:var(--shadow-pop)] transition-colors hover:text-fg"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

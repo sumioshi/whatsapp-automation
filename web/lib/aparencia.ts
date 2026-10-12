@@ -35,10 +35,11 @@ export function matizDaEtiqueta(nome: string): Matiz {
 
 const TRATAMENTOS = new Set(['dr', 'dra', 'sr', 'sra', 'srta', 'prof', 'profa']);
 
-/** Até duas letras. Telefone, emoji ou vazio viram "#" para o avatar nunca sair em branco. */
+/** Até duas letras. Telefone, emoji ou vazio viram "#" para o avatar nunca sair em branco.
+ *  NFKC transforma letras estilizadas de perfil (𝓐, 𝐁) nas letras normais. */
 export function iniciais(nome: string): string {
   const palavras = nome
-    .normalize('NFC')
+    .normalize('NFKC')
     .split(/\s+/)
     .map((p) => p.replace(/[^\p{L}\p{N}]/gu, ''))
     .filter((p) => /\p{L}/u.test(p))

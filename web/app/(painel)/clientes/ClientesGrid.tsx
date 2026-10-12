@@ -126,7 +126,7 @@ export function CardCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecidas
       )}
 
       {c.desatualizado && (
-        <p className="mono text-[10px] text-[--color-accent-2]" title="O WhatsApp registra atividade mais nova que a última mensagem capturada — a sincronização automática vai tentar preencher.">
+        <p className="mono text-[11px] text-warn" title="O WhatsApp registra atividade mais nova que a última mensagem capturada — a sincronização automática vai tentar preencher.">
           ⟳ pode estar desatualizado
         </p>
       )}

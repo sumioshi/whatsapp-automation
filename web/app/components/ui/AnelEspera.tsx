@@ -37,7 +37,8 @@ export function AnelEspera({ ms, className }: { ms: number; className?: string }
           </>
         )}
       </svg>
-      <span>
+      <span className="sr-only">esperando há {extenso}</span>
+      <span aria-hidden>
         {partes.map((p, i) => (
           <Fragment key={p.unidade}>
             {i > 0 ? " " : ""}

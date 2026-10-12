@@ -51,19 +51,19 @@ export function relativeLabel(waitingMs: number): string {
   return `há ${days} dias`;
 }
 
-/** Cor Tailwind do rótulo de urgência por faixa. */
+/** Cor do rótulo de urgência por faixa, na mesma régua do anel de espera (âmbar até 4 h, vermelho depois). */
 export const BAND_LABEL_CLASS: Record<SlaBand, string> = {
   fresh: "text-fg-faint",
-  mild:  "text-fg-dim",
-  warm:  "text-[--color-accent-2]",
-  hot:   "text-danger",
+  mild:  "text-warn",
+  warm:  "text-danger",
+  hot:   "font-semibold text-danger",
 };
 
 /** Cor da borda esquerda de urgência (fio hairline). */
 export const BAND_BORDER_CLASS: Record<SlaBand, string> = {
   fresh: "border-l-line",
-  mild:  "border-l-line-2",
-  warm:  "border-l-[color:color-mix(in_oklab,var(--color-accent-2)_45%,transparent)]",
+  mild:  "border-l-warn-mark",
+  warm:  "border-l-[color:color-mix(in_oklab,var(--color-danger)_40%,transparent)]",
   hot:   "border-l-[color:color-mix(in_oklab,var(--color-danger)_55%,transparent)]",
 };
 

@@ -189,7 +189,7 @@ export function DashboardView({ dados }: { dados: Dashboard }) {
                         <button
                           type="button"
                           onClick={() => ordenarPor(c.id)}
-                          className={`mono flex items-center gap-1 text-[11px] first-letter:uppercase transition-colors ${ativa ? "text-fg" : "text-fg-faint hover:text-fg-dim"}`}
+                          className={`flex items-center gap-1 text-[12px] font-medium transition-colors ${ativa ? "text-fg" : "text-fg-faint hover:text-fg-dim"}`}
                         >
                           {c.rotulo}
                           {ativa && <span aria-hidden>{ordem === "asc" ? "▲" : "▼"}</span>}

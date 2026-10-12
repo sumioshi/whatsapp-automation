@@ -135,7 +135,7 @@ export function Trilho({ groups, usuario }: { groups: GroupSummary[]; usuario: s
       {fixados.length > 0 && (
         <div
           aria-label="Clientes fixados"
-          className="relative mt-2 flex flex-col items-center gap-2 pt-3 before:absolute before:left-1/2 before:top-0 before:-ml-3.5 before:h-0.5 before:w-7 before:rounded-full before:bg-line max-[860px]:hidden [@media(max-height:860px)]:hidden"
+          className="relative mt-2 flex flex-col items-center gap-2 pt-3 before:absolute before:left-1/2 before:top-0 before:-ml-3.5 before:h-0.5 before:w-7 before:rounded-full before:bg-line max-[860px]:hidden [@media(max-height:640px)]:hidden"
         >
           {fixados.map((g) => (
             <Link

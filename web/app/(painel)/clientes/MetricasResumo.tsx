@@ -71,8 +71,8 @@ export function MetricasResumo() {
   return (
     <section className="border-b border-line bg-bg px-5 py-3" aria-label="Métricas de atividade">
       <div className="flex items-center gap-2">
-        <button type="button" onClick={alternar} className="text-[12px] text-fg-faint hover:text-fg font-medium first-letter:uppercase">
-          {aberto ? "▾" : "▸"} atividade
+        <button type="button" onClick={alternar} className="text-[12px] font-medium text-fg-faint hover:text-fg">
+          {aberto ? "▾" : "▸"} Atividade
         </button>
         <div className="ml-auto flex rounded-[6px] border border-line p-0.5">
           {JANELAS.map((j) => (

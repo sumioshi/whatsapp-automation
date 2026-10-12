@@ -40,7 +40,7 @@ function MessageActions({ slug, m }: { slug: string; m: MessageView }) {
   }
 
   return (
-    <div className="absolute -top-3.5 right-2 z-10 flex items-center gap-0.5 rounded-full border border-line bg-elevated px-1 py-0.5 opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+    <div className="absolute -top-3.5 right-2 z-10 flex items-center gap-0.5 rounded-full border border-line bg-elevated px-1 py-0.5 opacity-0 [box-shadow:var(--shadow-pop)] transition-opacity group-hover:opacity-100 focus-within:opacity-100">
       {QUICK_REACTIONS.map((e) => (
         <button
           key={e}
@@ -194,7 +194,7 @@ function ReceiptMark({
         <div
           role="dialog"
           aria-label="Lido por"
-          className="absolute bottom-full right-0 z-50 mb-1.5 min-w-[140px] max-w-[220px] rounded-control border border-line bg-elevated px-3 py-2 shadow-lg shadow-black/40"
+          className="absolute bottom-full right-0 z-50 mb-1.5 min-w-[140px] max-w-[220px] rounded-control border border-line bg-elevated px-3 py-2 [box-shadow:var(--shadow-pop)]"
         >
           <p className="mb-1.5 text-[12px] text-fg-faint font-medium first-letter:uppercase">
             lido por
@@ -606,8 +606,8 @@ function Transcribe({
   if (transcript) {
     return (
       <div className="reveal mt-2 rounded-control border border-line bg-bg/60 p-2.5 text-sm text-fg/90">
-        <div className="mb-1 flex items-center gap-1.5 text-[12px] text-fg-faint font-medium first-letter:uppercase">
-          <span className="h-1 w-1 rounded-full bg-accent" /> transcrição
+        <div className="mb-1 flex items-center gap-1.5 text-[12px] font-medium text-fg-faint">
+          <span className="h-1 w-1 rounded-full bg-accent" /> Transcrição
         </div>
         <p className="whitespace-pre-wrap leading-relaxed">{transcript}</p>
       </div>

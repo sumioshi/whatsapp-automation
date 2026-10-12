@@ -42,7 +42,7 @@ export default function RootLayout({
           // biome-ignore lint/security/noDangerouslySetInnerHtml: script estático de tema
           dangerouslySetInnerHTML={{
             __html:
-              'try{var t=localStorage.getItem("wac-tema");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}',
+              'try{var t=localStorage.getItem("wac-tema");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;document.querySelectorAll("meta[name=theme-color]").forEach(function(m){m.content=t==="dark"?"#0a0b0d":"#eef0f3"})}}catch(e){}',
           }}
         />
       </head>

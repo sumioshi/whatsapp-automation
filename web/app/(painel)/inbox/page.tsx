@@ -26,17 +26,17 @@ export default async function InboxPage() {
             {/* Contagem por faixa — visível só quando há itens */}
             <span className="ml-auto flex items-center gap-2" aria-label="Contagem por urgência">
               {counts.hot > 0 && (
-                <span className="mono text-[10px] text-danger" title="Aguardando há mais de 24h">
+                <span className="mono text-[11px] font-semibold text-danger" title="Aguardando há mais de 24h">
                   {counts.hot} &gt;24h
                 </span>
               )}
               {counts.warm > 0 && (
-                <span className="mono text-[10px] text-[--color-accent-2]" title="Aguardando entre 4h e 24h">
+                <span className="mono text-[11px] text-danger" title="Aguardando entre 4h e 24h">
                   {counts.warm} 4–24h
                 </span>
               )}
               {counts.mild > 0 && (
-                <span className="mono text-[10px] text-fg-dim" title="Aguardando entre 1h e 4h">
+                <span className="mono text-[11px] text-warn" title="Aguardando entre 1h e 4h">
                   {counts.mild} 1–4h
                 </span>
               )}
