@@ -21,7 +21,7 @@ export function CabecalhoPagina({ titulo, subtitulo, acoes, variante = "pagina",
     return (
       <header
         className={cn(
-          "flex min-h-16 shrink-0 flex-wrap items-center gap-3 border-b border-line bg-bg px-8 py-3 max-[860px]:px-4",
+          "flex min-h-16 shrink-0 flex-wrap items-center gap-3 border-b border-line bg-surface px-8 py-3 max-[860px]:px-4",
           className,
         )}
       >

@@ -41,7 +41,8 @@ export function MedidorUso({ rotulo, avatar, valor, limite, rotuloAcessivel, com
           ) : (
             <span className="min-w-0 truncate">{rotulo}</span>
           ))}
-        <span className="ml-auto whitespace-nowrap font-mono tabular-nums text-fg-faint">
+        {/* Sem rótulo (célula de tabela), o número fica à esquerda, sobre o começo da barra. */}
+        <span className={cn("whitespace-nowrap font-mono tabular-nums text-fg-faint", rotulo !== undefined && "ml-auto")}>
           <b className="font-medium text-fg">{valor}</b> de {limite}
         </span>
       </div>
