@@ -2,16 +2,24 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ThemeToggle } from "@/app/components/ThemeToggle";
-import { saudacaoDoMomento } from "@/lib/login-tela";
+import { configDoEnvio } from "@/lib/equipe/codigo-email";
+import { emailsDoDono } from "@/lib/equipe/login-externo";
+import { configOAuth } from "@/lib/google/oauth";
+import { erroDaVolta, saudacaoDoMomento } from "@/lib/login-tela";
 import { LoginForm } from "./LoginForm";
 import { VitrineBalcao } from "./VitrineBalcao";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Entrar no Balcão" };
 
-export default function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
+  const { erro } = await searchParams;
   // No servidor e pela hora de Brasília: a saudação não muda na hidratação.
   const saudacao = saudacaoDoMomento(new Date());
+  // Google e código só aparecem configurados (e-mail do dono e o serviço de cada um).
+  const temDono = emailsDoDono().length > 0;
+  const googleAtivo = temDono && configOAuth() !== null;
+  const codigoAtivo = temDono && configDoEnvio() !== null;
   return (
     <main className="grid min-h-dvh bg-surface max-[860px]:grid-rows-[auto_1fr] min-[861px]:grid-cols-[minmax(400px,1fr)_minmax(0,1.45fr)]">
       <section className="flex min-h-dvh flex-col px-8 py-6 max-[860px]:min-h-0 max-[860px]:px-5 max-[860px]:pb-8 max-[860px]:pt-5">
@@ -29,10 +37,12 @@ export default function LoginPage() {
           <h1 className="text-balance font-title text-[36px] font-medium leading-[1.05] tracking-[-0.02em] text-fg max-[860px]:text-[30px]">
             {saudacao}
           </h1>
-          <p className="mt-2.5 text-[14.5px] text-fg-dim">Entre com o seu usuário e a sua senha.</p>
+          <p className="mt-2.5 text-[14.5px] text-fg-dim">
+            {googleAtivo || codigoAtivo ? "Como você quer entrar?" : "Entre com o seu usuário e a sua senha."}
+          </p>
           <div className="mt-8">
             <Suspense>
-              <LoginForm />
+              <LoginForm googleAtivo={googleAtivo} codigoAtivo={codigoAtivo} erroInicial={erroDaVolta(erro)} />
             </Suspense>
           </div>
         </div>

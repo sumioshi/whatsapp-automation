@@ -15,3 +15,22 @@ export function textoDoErro(erro: string | null | undefined): string {
   const frase = t.charAt(0).toUpperCase() + t.slice(1);
   return /[.!?]$/.test(frase) ? frase : `${frase}.`;
 }
+
+/** "nome@gmail.com" vira "no••@gmail.com" para mostrar na tela para onde o código foi. */
+export function mascararEmail(email: string): string {
+  const [local = '', dominio = ''] = email.split('@');
+  const visivel = local.length <= 2 ? 1 : 2;
+  return `${local.slice(0, visivel)}${'•'.repeat(Math.max(1, local.length - visivel))}@${dominio}`;
+}
+
+const ERROS_DA_VOLTA: Record<string, string> = {
+  google_cancelado: 'Você cancelou a entrada com o Google.',
+  google_sem_acesso: 'Essa conta do Google não tem acesso a este painel.',
+  google_falhou: 'Não foi possível entrar com o Google. Tente de novo.',
+  google_indisponivel: 'A entrada com Google não está configurada neste painel.',
+};
+
+/** Frase para o ?erro= com que a volta do Google cai no login; código desconhecido não mostra nada. */
+export function erroDaVolta(codigo: string | undefined): string | null {
+  return (codigo && Object.hasOwn(ERROS_DA_VOLTA, codigo) && ERROS_DA_VOLTA[codigo]) || null;
+}

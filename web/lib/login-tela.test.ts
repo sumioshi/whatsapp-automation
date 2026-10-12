@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { saudacaoDoMomento, textoDoErro } from './login-tela';
+import { erroDaVolta, mascararEmail, saudacaoDoMomento, textoDoErro } from './login-tela';
 
 /** Hora de Brasília (UTC-3, sem horário de verão) num dia qualquer. */
 const brt = (h: number, m = 0) => new Date(Date.UTC(2026, 9, 12, h + 3, m));
@@ -35,5 +35,25 @@ describe('textoDoErro', () => {
   it('sem mensagem do servidor, explica o que fazer', () => {
     expect(textoDoErro(undefined)).toBe('Não foi possível entrar. Tente de novo.');
     expect(textoDoErro('   ')).toBe('Não foi possível entrar. Tente de novo.');
+  });
+});
+
+describe('mascararEmail', () => {
+  it('mostra o começo e o domínio', () => {
+    expect(mascararEmail('nome.sobrenome@gmail.com')).toBe('no••••••••••••@gmail.com');
+    expect(mascararEmail('ab@x.com')).toBe('a•@x.com');
+  });
+});
+
+describe('erroDaVolta', () => {
+  it('explica cada volta do Google que não abriu sessão', () => {
+    expect(erroDaVolta('google_cancelado')).toMatch(/cancelou/);
+    expect(erroDaVolta('google_sem_acesso')).toMatch(/não tem acesso/);
+    expect(erroDaVolta('google_falhou')).toMatch(/Tente de novo/);
+    expect(erroDaVolta('google_indisponivel')).toMatch(/não está configurada/);
+  });
+  it('código desconhecido ou ausente não mostra nada', () => {
+    expect(erroDaVolta(undefined)).toBeNull();
+    expect(erroDaVolta('<script>')).toBeNull();
   });
 });
