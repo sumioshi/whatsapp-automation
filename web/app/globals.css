@@ -1,51 +1,165 @@
 @import "tailwindcss";
 
-/* ── Signal Room — design tokens ──────────────────────────────────────────
-   Central de triagem grau-terminal. Base midnight + graphite (Warp/Langbase),
-   bordas hairline "ghost ink", rótulos em mono, acento ember único (Vapi). */
-@theme {
-  /* Paleta "midnight command center": canvas quase-preto e camadas graphite —
-     profundidade por COR (nunca sombra difusa), bordas hairline, 3 níveis de texto. */
-  --color-bg: #08090a;
-  --color-surface: #0f1011;
-  --color-surface-2: #161718;
-  --color-elevated: #1c1e21;
-  --color-line: #23252a;
-  --color-line-2: #323334;
-  --color-fg: #f7f8f8;
-  --color-fg-dim: #8a8f98;
-  --color-fg-faint: #62666d;
-  --color-accent: #ff7a2d;
-  --color-accent-2: #ff9a5c;
-  --color-accent-ink: #1a0f06;
-  --color-ok: #3fb950;
-  --color-danger: #f85149;
-  --color-info: #4da3ff;
+/* ── Balcão: tokens ───────────────────────────────────────────────────────
+   Base clara; o escuro redefine os mesmos nomes mais abaixo. Bordas separam,
+   cor só para ação e estado. "static" garante que as variáveis saiam no CSS
+   mesmo quando só são usadas por style inline (matizes, identidade). */
+@theme static {
+  --color-bg: #eef0f3;
+  --color-surface: #ffffff;
+  --color-surface-2: #f5f6f8;
+  --color-elevated: #eaedf1;
+  --color-line: #d9dde3;
+  --color-line-2: #bfc6cf;
+  --color-fg: #121417;
+  --color-fg-dim: #353c46;
+  --color-fg-faint: #535c68;
+  --color-fg-mute: #8a93a0;
+  --color-accent: #2459d6;
+  --color-accent-2: #1e4bb8;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: #e6eefd;
+  --color-accent-line: #b9cdf7;
+  --color-selected: #e4ecfd;
+  --color-rail: #e6e9ed;
+  --color-ink: #1c1d1f;
+  --color-on-ink: #ffffff;
+  --color-ok: #0f7a4a;
+  --color-ok-bg: #e8f6ef;
+  --color-warn: #8a5a00;
+  --color-warn-bg: #fdf3dc;
+  --color-warn-mark: #d99a0b;
+  --color-danger: #b42318;
+  --color-danger-bg: #fdecea;
+  --color-info: #0090ff;
+  --color-id-celular: #353c46;
+  --color-id-painel: #2459d6;
+  --color-id-equipe: #7a5af8;
+  --color-id-ia: #0e9384;
+  --color-hue-red: #e5484d;
+  --color-hue-orange: #f76b15;
+  --color-hue-amber: #e2a336;
+  --color-hue-green: #30a46c;
+  --color-hue-teal: #12a594;
+  --color-hue-sky: #0090ff;
+  --color-hue-indigo: #3e63dd;
+  --color-hue-violet: #8e4ec6;
+  --color-hue-pink: #d6409f;
+  --color-bubble-mine: color-mix(in srgb, var(--color-accent) 13%, var(--color-surface));
+  --color-bubble-their: #ffffff;
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+  --font-sans: var(--font-onest), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-title: var(--font-source-serif), "Iowan Old Style", Georgia, serif;
 
-  --radius-card: 8px;
-  --radius-control: 6px;
-
-  /* Balões de conversa: superfícies SÓLIDAS sem borda (profundidade por cor),
-     cauda assimétrica. O meu leva um tint escuro do accent; o deles, camada 2. */
-  --color-bubble-mine: color-mix(in oklab, var(--color-accent) 16%, #131416);
-  --color-bubble-their: #1c1e21;
+  --radius-card: 10px;
+  --radius-control: 8px;
+  --radius-tag: 4px;
 }
 
 :root {
-  color-scheme: dark;
-  letter-spacing: -0.01em;
-  /* Easing snap-in (outQuint, Raycast): ataque rápido, assentamento longo, sem bounce. */
+  color-scheme: light;
+  /* Mistura dos matizes com o fundo e o texto: o mesmo matiz serve aos dois temas. */
+  --tint: 15%;
+  --tint-line: 30%;
+  --ink-mix: 68%;
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 1px rgb(16 24 40 / 0.03);
+  --float: 0 2px 3px -2px rgb(28 40 64 / 0.1), 0 12px 28px -8px rgb(28 40 64 / 0.16), 0 0 0 1px var(--color-line);
   --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
-  /* Bevel de tecla pressionável (Raycast, suavizado p/ chips pequenos). */
-  --shadow-key:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 1px rgba(0, 0, 0, 0.4),
-    0 1px 1.5px rgba(0, 0, 0, 0.5);
-  /* Profundidade pressionável de botão (Raycast): topo iluminado + sombra; afunda no active. */
-  --shadow-pressable: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.45);
-  --shadow-pressable-active: inset 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-key: inset 0 -1px 0 rgb(0 0 0 / 0.08), 0 1px 1.5px rgb(0 0 0 / 0.1);
+  --shadow-pressable: 0 1px 1px rgb(16 24 40 / 0.04);
+  --shadow-pressable-active: inset 0 1px 2px rgb(0 0 0 / 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-bg: #0a0b0d;
+    --color-surface: #15171a;
+    --color-surface-2: #1a1c20;
+    --color-elevated: #25282e;
+    --color-line: #2d3137;
+    --color-line-2: #434951;
+    --color-fg: #f5f6f8;
+    --color-fg-dim: #cbd0d8;
+    --color-fg-faint: #a3aab5;
+    --color-fg-mute: #6e7581;
+    --color-accent: #82a9ff;
+    --color-accent-2: #a3c0ff;
+    --color-accent-ink: #0b1020;
+    --color-accent-soft: #1e2a44;
+    --color-accent-line: #364b7c;
+    --color-selected: #1e2a44;
+    --color-rail: #101114;
+    --color-ink: #f2f3f5;
+    --color-on-ink: #0e0f11;
+    --color-ok: #5be3a4;
+    --color-ok-bg: #143224;
+    --color-warn: #f7c95c;
+    --color-warn-bg: #362b12;
+    --color-warn-mark: #f2b83a;
+    --color-danger: #ff8a80;
+    --color-danger-bg: #3d1a17;
+    --color-info: #7cc4ff;
+    --color-id-celular: #cbd0d8;
+    --color-id-painel: #82a9ff;
+    --color-id-equipe: #b19cff;
+    --color-id-ia: #48d6c2;
+    --color-bubble-their: #1e2125;
+    --tint: 20%;
+    --tint-line: 36%;
+    --ink-mix: 62%;
+    --shadow-card: none;
+    --float: 0 0 0 1px var(--color-line-2), 0 16px 36px -10px rgb(0 0 0 / 0.7);
+    --shadow-key: inset 0 -1px 0 rgb(0 0 0 / 0.4), 0 1px 1.5px rgb(0 0 0 / 0.5);
+    --shadow-pressable: none;
+    --shadow-pressable-active: inset 0 1px 2px rgb(0 0 0 / 0.4);
+  }
+}
+
+/* Escolha explícita pelo botão de tema: mesmos valores do bloco acima. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #0a0b0d;
+  --color-surface: #15171a;
+  --color-surface-2: #1a1c20;
+  --color-elevated: #25282e;
+  --color-line: #2d3137;
+  --color-line-2: #434951;
+  --color-fg: #f5f6f8;
+  --color-fg-dim: #cbd0d8;
+  --color-fg-faint: #a3aab5;
+  --color-fg-mute: #6e7581;
+  --color-accent: #82a9ff;
+  --color-accent-2: #a3c0ff;
+  --color-accent-ink: #0b1020;
+  --color-accent-soft: #1e2a44;
+  --color-accent-line: #364b7c;
+  --color-selected: #1e2a44;
+  --color-rail: #101114;
+  --color-ink: #f2f3f5;
+  --color-on-ink: #0e0f11;
+  --color-ok: #5be3a4;
+  --color-ok-bg: #143224;
+  --color-warn: #f7c95c;
+  --color-warn-bg: #362b12;
+  --color-warn-mark: #f2b83a;
+  --color-danger: #ff8a80;
+  --color-danger-bg: #3d1a17;
+  --color-info: #7cc4ff;
+  --color-id-celular: #cbd0d8;
+  --color-id-painel: #82a9ff;
+  --color-id-equipe: #b19cff;
+  --color-id-ia: #48d6c2;
+  --color-bubble-their: #1e2125;
+  --tint: 20%;
+  --tint-line: 36%;
+  --ink-mix: 62%;
+  --shadow-card: none;
+  --float: 0 0 0 1px var(--color-line-2), 0 16px 36px -10px rgb(0 0 0 / 0.7);
+  --shadow-key: inset 0 -1px 0 rgb(0 0 0 / 0.4), 0 1px 1.5px rgb(0 0 0 / 0.5);
+  --shadow-pressable: none;
+  --shadow-pressable-active: inset 0 1px 2px rgb(0 0 0 / 0.4);
 }
 
 /* ── Efeitos reutilizáveis ───────────────────────────────────────────────── */
@@ -72,14 +186,6 @@
   }
 }
 
-/* Atmosfera ember: glow radial contido (Superwhisper spotlight, em ember). */
-.atmosphere-ember {
-  background-image: radial-gradient(
-    120% 90% at 50% -10%,
-    color-mix(in oklab, var(--color-accent) 16%, transparent),
-    transparent 62%
-  );
-}
 
 /* Painel frosted (overlay/command palette) — glass purposeful, não decorativo. */
 .frost {
@@ -130,23 +236,22 @@ body {
   background: var(--color-bg);
   color: var(--color-fg);
   font-family: var(--font-sans);
+  letter-spacing: -0.003em;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  caret-color: var(--color-accent);
 }
 
-/* Grid sutil de terminal — textura de fundo do canvas do chat */
-/* Rótulos técnicos em mono com tracking apertado */
+::selection {
+  background: var(--color-accent-line);
+  color: var(--color-fg);
+}
+
+/* Números, horários e IDs: mono com algarismos de mesma largura. */
 .mono {
   font-family: var(--font-mono);
-  letter-spacing: -0.02em;
-  font-feature-settings: "tnum" 1;
-}
-
-/* Brilho discreto de acento (molduras de mídia / foco) */
-.accent-glow {
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--color-accent) 35%, transparent),
-    0 0 24px -6px color-mix(in oklab, var(--color-accent) 45%, transparent);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Scrollbar discreta */
@@ -273,25 +378,39 @@ body {
   }
 }
 
-/* ── Tema claro ───────────────────────────────────────────────────────────
-   As utilities do Tailwind v4 compilam para var(--color-*), então o tema é
-   só um override de variáveis sob data-theme. Default = dark (identidade);
-   a escolha persiste no navegador e é aplicada antes da 1ª pintura. */
-:root[data-theme="light"] {
-  color-scheme: light;
-  --color-bg: #f7f8f9;
-  --color-surface: #ffffff;
-  --color-surface-2: #f1f2f4;
-  --color-elevated: #e9ebee;
-  --color-line: #e2e4e8;
-  --color-line-2: #cfd3d9;
-  --color-fg: #17181a;
-  --color-fg-dim: #5f646b;
-  --color-fg-faint: #949aa3;
-  --color-bubble-mine: color-mix(in oklab, var(--color-accent) 11%, #ffffff);
-  --color-bubble-their: #eef0f3;
-  /* Profundidade pressionável no claro: luz de cima branca não aparece — usa contorno. */
-  --shadow-pressable: inset 0 -1px 0 rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.1);
-  --shadow-pressable-active: inset 0 1px 2px rgba(0, 0, 0, 0.12);
-  --shadow-key: inset 0 -1px 0 rgba(0, 0, 0, 0.08), 0 1px 1.5px rgba(0, 0, 0, 0.12);
+/* Avatar sem foto: iniciais no matiz do nome (--hue vem do componente). */
+.avatar-matiz {
+  color: color-mix(in srgb, var(--hue) var(--ink-mix), var(--color-fg));
+  background: color-mix(in srgb, var(--hue) var(--tint), var(--color-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hue) var(--tint-line), var(--color-surface));
+}
+
+/* Etiqueta: pílula com ponto de cor, como as labels do Linear. */
+.etiqueta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px 0 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--color-fg-dim);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line-2);
+}
+.etiqueta::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--hue);
+  flex: none;
+}
+.etiqueta.etiqueta-sm {
+  height: 20px;
+  font-size: 11.5px;
+  padding: 0 8px 0 7px;
 }

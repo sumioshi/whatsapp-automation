@@ -96,12 +96,12 @@ export function CommandPalette({ groups }: { groups: GroupSummary[] }) {
 
   return (
     <div
-      className="overlay-in fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-[12vh] backdrop-blur-[2px]"
+      className="overlay-in fixed inset-0 z-50 flex items-start justify-center bg-fg/20 p-4 pt-[12vh] backdrop-blur-[2px]"
       onClick={() => setOpen(false)}
       role="presentation"
     >
       <div
-        className="pop-in frost atmosphere-ember w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-black/60"
+        className="pop-in w-full max-w-xl overflow-hidden rounded-[14px] border border-line bg-surface [box-shadow:var(--float)]"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

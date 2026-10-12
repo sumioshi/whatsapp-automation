@@ -1,13 +1,28 @@
-import type { Metadata } from "next";
-import { GeistMono } from "geist/font/mono";
-import { GeistSans } from "geist/font/sans";
+import type { Metadata, Viewport } from "next";
+import { JetBrains_Mono, Onest, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
+const onest = Onest({ subsets: ["latin"], variable: "--font-onest", display: "swap" });
+const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
+const serif = Source_Serif_4({
+  subsets: ["latin"],
+  axes: ["opsz"],
+  variable: "--font-source-serif",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Signal Room — WhatsApp triage",
-  description: "Central de triagem dos grupos de WhatsApp: capturar, transcrever, responder.",
-  appleWebApp: { capable: true, title: "Signal Room", statusBarStyle: "black-translucent" },
+  title: "Balcão",
+  description: "Atendimento dos clientes no WhatsApp: quem espera, quem respondeu, contratos e agenda.",
+  appleWebApp: { capable: true, title: "Balcão", statusBarStyle: "default" },
   icons: { apple: "/apple-touch-icon.png" },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#eef0f3" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0b0d" },
+  ],
 };
 
 export default function RootLayout({
@@ -16,14 +31,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+    <html
+      lang="pt-BR"
+      className={`${onest.variable} ${jetbrains.variable} ${serif.variable}`}
+      suppressHydrationWarning
+    >
       <head>
-        {/* Aplica o tema salvo ANTES da 1ª pintura — sem flash de tema errado. */}
+        {/* Aplica a escolha de tema salva ANTES da 1ª pintura; sem escolha, segue o sistema. */}
         <script
           // biome-ignore lint/security/noDangerouslySetInnerHtml: script estático de tema
           dangerouslySetInnerHTML={{
             __html:
-              'try{if(localStorage.getItem("wac-tema")==="light")document.documentElement.dataset.theme="light"}catch(e){}',
+              'try{var t=localStorage.getItem("wac-tema");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}',
           }}
         />
       </head>

@@ -39,7 +39,7 @@ export function InstallButton() {
         void prompt.prompt();
         void prompt.userChoice.then(() => setPrompt(null));
       }}
-      title="Instalar o Signal Room como aplicativo"
+      title="Instalar o Balcão como aplicativo"
       className="pressable flex h-7 items-center gap-1.5 rounded-[6px] border border-line px-2 text-xs font-medium text-fg-dim transition-colors hover:bg-surface-2 hover:text-fg"
     >
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
