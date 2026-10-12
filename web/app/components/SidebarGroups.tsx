@@ -68,7 +68,7 @@ export function SidebarGroups({ groups }: { groups: GroupSummary[] }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="px-2 pb-2">
-        <div className="flex items-center gap-2 rounded-control border border-line bg-surface-2 px-2.5 py-1.5 focus-within:border-accent/40">
+        <div className="flex items-center gap-2 rounded-control border border-line-2 bg-surface px-2.5 py-1.5 focus-within:border-accent focus-within:shadow-[0_0_0_3px_var(--color-accent-soft)]">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="14"
@@ -88,7 +88,7 @@ export function SidebarGroups({ groups }: { groups: GroupSummary[] }) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar grupo…"
+            placeholder="Buscar conversa…"
             className="w-full bg-transparent text-sm text-fg placeholder:text-fg-faint focus:outline-none"
           />
           {query && (
@@ -123,7 +123,7 @@ export function SidebarGroups({ groups }: { groups: GroupSummary[] }) {
             {/* Fixados */}
             {pinned.length > 0 && (
               <>
-                <div className="mono flex items-center gap-1.5 px-2 pb-0.5 pt-1 text-[10px] uppercase tracking-wider text-fg-faint">
+                <div className="flex items-center gap-1.5 px-2 pb-0.5 pt-1 text-[12px] font-semibold text-fg-faint">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="9"
@@ -135,7 +135,7 @@ export function SidebarGroups({ groups }: { groups: GroupSummary[] }) {
                   >
                     <path d="M16 12V4h1a1 1 0 0 0 0-2H7a1 1 0 0 0 0 2h1v8l-2 2v2h5v5l1 1 1-1v-5h5v-2l-2-2z" />
                   </svg>
-                  fixados
+                  Fixados
                 </div>
                 {pinned.map((g, i) => renderItem(g, i))}
               </>
@@ -143,8 +143,8 @@ export function SidebarGroups({ groups }: { groups: GroupSummary[] }) {
 
             {/* Ativos */}
             {pinned.length > 0 && active.length > 0 && (
-              <div className="mono px-2 pb-0.5 pt-2 text-[10px] uppercase tracking-wider text-fg-faint">
-                conversas
+              <div className="px-2 pb-0.5 pt-2 text-[12px] font-semibold text-fg-faint">
+                Conversas
               </div>
             )}
             {active.map((g, i) => renderItem(g, pinned.length + i))}
@@ -155,7 +155,7 @@ export function SidebarGroups({ groups }: { groups: GroupSummary[] }) {
                 <button
                   type="button"
                   onClick={() => setShowArchived((v) => !v)}
-                  className="mono flex w-full items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[10px] uppercase tracking-wider text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg-dim"
+                  className="flex w-full items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[12px] font-semibold text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg-dim"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -171,7 +171,7 @@ export function SidebarGroups({ groups }: { groups: GroupSummary[] }) {
                   >
                     <polyline points={showArchived ? "18 15 12 9 6 15" : "6 9 12 15 18 9"} />
                   </svg>
-                  arquivados ({archived.length})
+                  Arquivados ({archived.length})
                 </button>
                 {showArchived &&
                   archived.map((g, i) =>
@@ -183,19 +183,19 @@ export function SidebarGroups({ groups }: { groups: GroupSummary[] }) {
         )}
       </nav>
 
-      {/* Hint de atalhos — discreto, mono, coerente com o estilo terminal */}
-      <div className="mono flex items-center gap-3 border-t border-line px-3 py-2 text-[10px] text-fg-faint">
+      {/* Atalhos de teclado da lista. */}
+      <div className="flex items-center gap-3 border-t border-line px-3 py-2 text-[11.5px] text-fg-faint">
         <span className="flex items-center gap-1">
-          <kbd className="kbd inline-flex items-center rounded px-1 py-0.5 text-[9px] bg-surface-2 border border-line-2 text-fg-faint">j</kbd>
-          <kbd className="kbd inline-flex items-center rounded px-1 py-0.5 text-[9px] bg-surface-2 border border-line-2 text-fg-faint">k</kbd>
+          <kbd className="kbd inline-flex min-w-[18px] items-center justify-center rounded-[4px] border border-line bg-surface-2 px-1 py-0.5 font-mono text-[10.5px] text-fg-faint">j</kbd>
+          <kbd className="kbd inline-flex min-w-[18px] items-center justify-center rounded-[4px] border border-line bg-surface-2 px-1 py-0.5 font-mono text-[10.5px] text-fg-faint">k</kbd>
           <span>navegar</span>
         </span>
         <span className="flex items-center gap-1">
-          <kbd className="kbd inline-flex items-center rounded px-1 py-0.5 text-[9px] bg-surface-2 border border-line-2 text-fg-faint">↵</kbd>
+          <kbd className="kbd inline-flex min-w-[18px] items-center justify-center rounded-[4px] border border-line bg-surface-2 px-1 py-0.5 font-mono text-[10.5px] text-fg-faint">↵</kbd>
           <span>abrir</span>
         </span>
         <span className="flex items-center gap-1">
-          <kbd className="kbd inline-flex items-center rounded px-1 py-0.5 text-[9px] bg-surface-2 border border-line-2 text-fg-faint">u</kbd>
+          <kbd className="kbd inline-flex min-w-[18px] items-center justify-center rounded-[4px] border border-line bg-surface-2 px-1 py-0.5 font-mono text-[10.5px] text-fg-faint">u</kbd>
           <span>não lida</span>
         </span>
       </div>

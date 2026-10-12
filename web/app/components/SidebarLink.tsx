@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { corDoPonto } from "./Etiqueta";
 import type { GroupSummary } from "@/lib/data";
+import { tipoPeloSlug } from "@/lib/aparencia";
+import { Avatar, Contador } from "./ui";
 
 /**
  * Indicador "digitando…" no item ATIVO da sidebar. Só o item aberto faz polling
@@ -89,18 +91,10 @@ export function SidebarLink({ group, isNav = false, onNavEnter }: SidebarLinkPro
   const { prefix, body } = parsePreview(group);
   const typing = useActiveTyping(group.slug, active);
 
-  // Visual hierarchy:
-  //   active  — rota aberta: bg-elevated + ring accent/20
-  //   isNav   — seleção por teclado: bg-surface-2 + ring accent/35 (mais visível que hover,
-  //             mas sem competir com active quando os dois coincidem)
-  //   default — sem fundo; hover via CSS
+  // active: rota aberta (fundo de selecionado); isNav: seleção por teclado; resto: só hover.
   const containerClass = [
-    "group relative flex items-center gap-3 overflow-hidden rounded-control px-2.5 py-2 transition-colors",
-    active
-      ? "bg-elevated"
-      : isNav
-        ? "bg-surface-2 ring-1 ring-inset ring-line-2"
-        : "hover:bg-surface-2",
+    "group relative flex items-center gap-3 overflow-hidden rounded-[8px] px-2.5 py-2 transition-colors",
+    active ? "bg-selected" : isNav ? "bg-elevated ring-1 ring-inset ring-line-2" : "hover:bg-surface-2",
   ].join(" ");
 
   return (
@@ -110,22 +104,14 @@ export function SidebarLink({ group, isNav = false, onNavEnter }: SidebarLinkPro
       onMouseMove={onNavEnter}
       className={containerClass}
     >
-      {group.avatarPath ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={rotas.midia(group.avatarPath)}
-          alt=""
-          className="h-10 w-10 shrink-0 rounded-[10px] border border-line object-cover"
-        />
-      ) : (
-        <div
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border border-line bg-surface-2 text-xs font-semibold text-fg-dim transition-colors group-hover:text-fg"
-        >
-          {group.name.slice(0, 2).toUpperCase()}
-        </div>
-      )}
+      <Avatar
+        nome={group.name}
+        tipo={tipoPeloSlug(group.slug)}
+        fotoUrl={group.avatarPath ? rotas.midia(group.avatarPath) : null}
+        tamanho="lg"
+      />
       <div className="min-w-0 flex-1">
-        <div className={`flex items-center gap-1.5 text-sm font-medium ${active || isNav ? "text-fg" : "text-fg/90"}`}>
+        <div className={`flex items-center gap-1.5 text-[14px] ${group.unread > 0 ? "font-semibold text-fg" : "font-medium text-fg"}`}>
           <span className="truncate">{group.name}</span>
           {(group.etiquetas ?? []).map((e) => (
             <span
@@ -137,11 +123,11 @@ export function SidebarLink({ group, isNav = false, onNavEnter }: SidebarLinkPro
           ))}
         </div>
         <div
-          className={`flex items-baseline gap-1 truncate text-[11px] ${group.unread > 0 ? "text-fg-dim" : "text-fg-faint"}`}
+          className={`flex items-baseline gap-1 truncate text-[12.5px] ${group.unread > 0 ? "text-fg-dim" : "text-fg-faint"}`}
         >
           {typing ? (
-            // Digitando/gravando no chat aberto: ember discreto no lugar da prévia.
-            <span className="mono truncate text-accent">
+            // Digitando/gravando no chat aberto: aparece no lugar da prévia.
+            <span className="mono truncate text-id-ia">
               {typing === "recording" ? "gravando áudio…" : "digitando…"}
             </span>
           ) : (
@@ -177,19 +163,9 @@ export function SidebarLink({ group, isNav = false, onNavEnter }: SidebarLinkPro
               <line x1="8" y1="23" x2="16" y2="23" />
             </svg>
           )}
-          <span className="mono text-[10px] text-fg-faint">{formatWhen(group.lastTimestamp)}</span>
+          <span className="font-mono text-[11px] text-fg-faint">{formatWhen(group.lastTimestamp)}</span>
         </div>
-        {group.unread > 0 && (
-          <span
-            className={`mono inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold ${
-              group.muted
-                ? "bg-surface-2 text-fg-faint ring-1 ring-inset ring-line"
-                : "bg-accent text-accent-ink"
-            }`}
-          >
-            {group.unread > 99 ? "99+" : group.unread}
-          </span>
-        )}
+        <Contador n={group.unread} destaque={!group.muted} />
       </div>
     </Link>
   );
