@@ -35,6 +35,7 @@ import { DATA_DIR, safeDataPath } from "../lib/paths";
 import { marcarRajadas } from "../lib/rajada";
 import { canonicalSlug, matchGrupo } from "../lib/resolve-grupo";
 import { slugify } from "../lib/slug";
+import { skillDeVoz } from "../lib/skill-voz";
 import { filtrarContatos } from "../lib/contatos-filtro";
 import { fundirMensagens, slugsIrmaosDeDm } from "../lib/dm-irmaos";
 import { mediaPathPorId, transcribe, transcribeBatch } from "../lib/transcribe";
@@ -242,12 +243,16 @@ async function resolverMidia(
  * ligado). É o único lugar que garante que a regra chegue ao agente ANTES de ele
  * decidir enviar. Teto de 2KB no Claude Code — o que passar disso é truncado.
  */
+const VOZ = skillDeVoz();
+
 const INSTRUCTIONS = [
   "Coletor de WhatsApp: ler histórico, acompanhar chats e responder por eles.",
   "",
   "ANTES DE ESCREVER QUALQUER MENSAGEM que vá pro WhatsApp (responder,",
   "responder_midia, editar_mensagem), CARREGUE a skill de voz do operador (tool",
-  "Skill): `voz-do-operador`, ou a versão já preenchida que existir nesta máquina.",
+  VOZ.preenchida
+    ? `Skill): \`${VOZ.nome}\`.`
+    : "Skill): `voz-do-operador`, ou a versão já preenchida que existir nesta máquina.",
   "Ela define a grafia, o registro e a camada de venda do operador, medidos no texto",
   "real dele. Escrever sem ela produz mensagem com cara de IA — que é exatamente o",
   "que o operador não quer que o cliente receba. Se ainda estiver com placeholders,",
@@ -880,7 +885,7 @@ server.registerTool(
       "use o `slug_correto` dali em diante; número fora do WhatsApp é recusado com motivo, nada sai. " +
       "Primeiro contato SEMPRE passa pelo OK do operador no texto, mesmo se outros chats rodam em modo autônomo " +
       "(conduta na skill `comunicacao-cliente`). " +
-      "VOZ: carregue a skill de voz do operador (`voz-do-operador` ou a preenchida desta máquina) " +
+      `VOZ: carregue a skill de voz do operador (${VOZ.preenchida ? `\`${VOZ.nome}\`` : "`voz-do-operador` ou a preenchida desta máquina"}) ` +
       "ANTES de redigir — ela define grafia, registro e a camada " +
       "de venda do operador, medidos no texto real dele. Depois `comunicacao-cliente` (conduta: o que " +
       "responder, três modos, erro sem se rebaixar, urgencia). " +
