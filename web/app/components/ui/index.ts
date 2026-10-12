@@ -2,7 +2,7 @@ export { AnelEspera } from "./AnelEspera";
 export { Avatar, type AvatarProps } from "./Avatar";
 export { Badge } from "./Badge";
 export { Button, type ButtonProps } from "./Button";
-export { Card, CardHeader, SectionLabel } from "./Card";
+export { Card, type CardProps, CardHeader, Grade12, SectionLabel } from "./Card";
 export { cn } from "./cn";
 export { Contador } from "./Contador";
 export { EmptyState } from "./EmptyState";

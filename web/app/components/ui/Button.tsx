@@ -9,46 +9,21 @@ type Size = "sm" | "md";
 
 /**
  * Variantes:
- *   primary — fundo ember sólido, texto accent-ink. CTA e ação primária.
- *   ghost   — borda + tint ember muito leve, texto ember. Ação secundária confirmada.
- *   subtle  — borda hairline line, fundo surface-2, texto fg. Ação neutra.
- *   danger  — borda + tint danger. Ação destrutiva.
- *
- * Profundidade via .pressable (shadow-pressable + afunda 1px no :active).
- * Focus via .focus-ring (anel ember ember/14%).
+ *   primary: tinta (preta no claro, branca no escuro). A ação principal de cada tela, uma só.
+ *   subtle:  borda forte e fundo do card. Ação comum.
+ *   ghost:   sem borda nem fundo até o hover. Ação de apoio.
+ *   danger:  fundo vermelho claro. Ação destrutiva.
  */
 const VARIANTS: Record<Variant, string> = {
-  primary: [
-    "bg-accent text-accent-ink border border-accent/0",
-    // topo iluminado + glow contido ember
-    "[box-shadow:inset_0_1px_0_rgba(255,255,255,0.18),0_1px_2px_rgba(0,0,0,0.45),0_0_0_1px_color-mix(in_oklab,var(--color-accent)_40%,transparent)]",
-    "hover:bg-accent-2 hover:[box-shadow:inset_0_1px_0_rgba(255,255,255,0.22),0_1px_3px_rgba(0,0,0,0.5),0_0_0_1px_color-mix(in_oklab,var(--color-accent-2)_45%,transparent)]",
-    "active:[box-shadow:inset_0_1px_2px_rgba(0,0,0,0.4)] active:translate-y-px",
-  ].join(" "),
-
-  ghost: [
-    "border border-accent/30 bg-accent/8 text-accent",
-    "hover:border-accent/50 hover:bg-accent/14",
-    "active:bg-accent/10 active:translate-y-px",
-  ].join(" "),
-
-  subtle: [
-    "border border-line bg-surface-2 text-fg",
-    "[box-shadow:var(--shadow-pressable)]",
-    "hover:border-line-2 hover:bg-elevated hover:text-fg",
-    "active:[box-shadow:var(--shadow-pressable-active)] active:translate-y-px",
-  ].join(" "),
-
-  danger: [
-    "border border-danger/30 bg-danger/8 text-danger",
-    "hover:border-danger/50 hover:bg-danger/14",
-    "active:bg-danger/10 active:translate-y-px",
-  ].join(" "),
+  primary: "border border-ink bg-ink text-on-ink hover:bg-ink/85 active:translate-y-px",
+  subtle: "border border-line-2 bg-surface text-fg hover:border-fg-mute hover:bg-elevated active:translate-y-px",
+  ghost: "border border-transparent bg-transparent text-fg-dim hover:bg-elevated hover:text-fg active:translate-y-px",
+  danger: "border border-transparent bg-danger-bg text-danger hover:border-danger/40 active:translate-y-px",
 };
 
 const SIZES: Record<Size, string> = {
-  sm: "h-7 px-2.5 text-xs gap-1",
-  md: "h-9 px-4  text-sm gap-1.5",
+  sm: "h-7 gap-1.5 px-2.5 text-[12.5px]",
+  md: "h-8 gap-1.5 px-3 text-[13px]",
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
