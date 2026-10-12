@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  type FiltrosClientes,
   type LinhaCliente,
   atividadeDiaria,
   ehTrabalho,
@@ -162,9 +163,8 @@ describe('filtrarLinhas', () => {
     linha({ slug: 'dm-2', nome: 'Mãe', tipo: 'dm', etiquetas: ['Pessoal'] }),
     linha({ slug: 'g3', nome: 'Alfa', tipo: 'grupo', contrato: contrato({ estado: 'ativo', fim: '2026-10-20' }) }),
   ];
-  const base = { contexto: 'trabalho' as const, busca: '', esperando: false, tipo: null, etiqueta: null, contrato: null };
-  const slugs = (f: Partial<typeof base> & Record<string, unknown>) =>
-    filtrarLinhas(linhas, { ...base, ...f } as Parameters<typeof filtrarLinhas>[1], AGORA).map((l) => l.slug);
+  const base: FiltrosClientes = { contexto: 'trabalho', busca: '', esperando: false, tipo: null, etiqueta: null, contrato: null };
+  const slugs = (f: Partial<FiltrosClientes>) => filtrarLinhas(linhas, { ...base, ...f }, AGORA).map((l) => l.slug);
 
   it('contexto de trabalho tira o pessoal; tudo mostra todos', () => {
     expect(slugs({})).toEqual(['g1', 'g2', 'dm-1', 'g3']);
