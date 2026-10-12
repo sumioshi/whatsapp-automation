@@ -12,6 +12,7 @@ import {
   partesDoTempo,
   periodoDe,
   respostasDaConversa,
+  rodapesDosIndicadores,
   resumoDeHoje,
   serieDiaria,
   variacao,
@@ -223,6 +224,7 @@ describe('montarPainel', () => {
   it('resposta sem registro de origem só aparece quando existe', () => {
     const q = montarPainel([conversa('x', [['2026-10-12T10:00:00Z', 'cliente'], ['2026-10-12T10:01:00Z', 'sem-registro']])], [], AGORA, 7).quem;
     expect(q.map((x) => x.id)).toEqual(['celular', 'painel', 'equipe', 'ia', 'sem-registro']);
+    expect(q.at(-1)?.rotulo).toBe('Sem registro');
     expect(q.at(-1)?.pct).toBe(100);
   });
 });
@@ -236,6 +238,33 @@ describe('conversaDeTrabalho', () => {
     expect(conversaDeTrabalho({ slug: 'dm-1', etiquetas: ['Pessoal'] }, false, dono)).toBe(false);
     expect(conversaDeTrabalho({ slug: 'dm-1', etiquetas: ['Pessoal', 'Lead'] }, false, dono)).toBe(true);
     expect(conversaDeTrabalho({ slug: 'dm-5511999990000' }, false, dono)).toBe(false);
+  });
+});
+
+describe('rodapesDosIndicadores', () => {
+  const base = montarPainel([], [], AGORA, 30);
+  it('mais mensagens ganha o chip verde; menos fica neutro; sem base não há chip', () => {
+    const p = { ...base, recebidas: { ...base.recebidas, total: 112, anterior: 100, variacao: 0.12 } };
+    expect(rodapesDosIndicadores(p).recebidas).toEqual({ chip: { texto: '+12%', tom: 'ok' }, texto: 'vs. 30 dias anteriores' });
+    const menos = { ...base, recebidas: { ...base.recebidas, total: 90, anterior: 100, variacao: -0.1 } };
+    expect(rodapesDosIndicadores(menos).recebidas.chip).toEqual({ texto: '−10%', tom: 'neutro' });
+    expect(rodapesDosIndicadores(base).recebidas).toEqual({ chip: null, texto: 'nenhuma nos 30 dias anteriores' });
+  });
+  it('primeira resposta: cair é bom (verde), subir pede atenção', () => {
+    const r = (variacao: number | null, medianaMs: number | null) =>
+      rodapesDosIndicadores({ ...base, primeiraResposta: { ...base.primeiraResposta, variacao, medianaMs } }).resposta;
+    expect(r(-0.09, 18 * MIN)).toEqual({ chip: { texto: '−9%', tom: 'ok' }, texto: 'mais rápido que antes' });
+    expect(r(0.25, 18 * MIN)).toEqual({ chip: { texto: '+25%', tom: 'atencao' }, texto: 'mais lento que antes' });
+    expect(r(0, 18 * MIN)).toEqual({ chip: { texto: '0%', tom: 'neutro' }, texto: 'igual aos 30 dias anteriores' });
+    expect(r(null, 18 * MIN)).toEqual({ chip: null, texto: 'sem respostas nos 30 dias anteriores' });
+    expect(r(null, null)).toEqual({ chip: null, texto: 'sem respostas no período' });
+  });
+  it('entregas: diferença para o mês anterior', () => {
+    const e = (atual: number, anterior: number) =>
+      rodapesDosIndicadores({ ...base, entregas: { ...base.entregas, atual, anterior, nomeMesAnterior: 'setembro' } }).entregas;
+    expect(e(11, 9)).toEqual({ chip: { texto: '+2', tom: 'ok' }, texto: '9 em setembro' });
+    expect(e(3, 9)).toEqual({ chip: { texto: '−6', tom: 'neutro' }, texto: '9 em setembro' });
+    expect(e(0, 0)).toEqual({ chip: null, texto: 'nenhuma em setembro' });
   });
 });
 

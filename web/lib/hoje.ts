@@ -1,6 +1,6 @@
 import { diaBrt, hhmm, minutosBrt } from './agenda-semana';
 import type { Contrato } from './contratos';
-import type { LinhaDashboard, Sinal } from './dashboard';
+import { explicarSinal, type LinhaDashboard, type Sinal } from './dashboard';
 import type { Evento } from './google/evento';
 import { MESES } from './painel';
 
@@ -69,9 +69,7 @@ export function estadoDoColetor(s: { connection?: string; qr?: string | null } |
   return 'desconectado';
 }
 
-export function textoEntregasAnteriores(anterior: number, nomeMesAnterior: string): string {
-  return anterior === 0 ? `nenhuma em ${nomeMesAnterior}` : `${anterior} em ${nomeMesAnterior}`;
-}
+export { textoEntregasAnteriores } from './painel';
 
 // ── Sinais ─────────────────────────────────────────────────────────────────
 
@@ -81,7 +79,10 @@ export interface SinalDoDia {
   chave: string;
   slug: string;
   nome: string;
+  /** Curto, para o chip. */
   texto: string;
+  /** O que o sinal pede, por extenso. */
+  explicacao: string;
   tom: TomSinal;
 }
 
@@ -124,10 +125,13 @@ export function sinaisDoDia(
     if (e.waitingMs <= DIA_MS) continue;
     const horas = Math.floor(e.waitingMs / H_MS);
     const texto = horas < 48 ? `sem resposta há ${horas} h` : `sem resposta há ${Math.floor(e.waitingMs / DIA_MS)} dias`;
-    out.push({ chave: `${e.slug}|espera`, slug: e.slug, nome: e.groupName, texto, tom: 'perigo' });
+    const explicacao = 'cliente esperando resposta há mais de 24 h: responder ou marcar como resolvido na caixa';
+    out.push({ chave: `${e.slug}|espera`, slug: e.slug, nome: e.groupName, texto, explicacao, tom: 'perigo' });
   }
   for (const l of linhas) {
-    for (const s of l.sinais) out.push({ chave: `${l.slug}|${s}`, slug: l.slug, nome: l.nome, ...textoDoSinal(s, l.contrato, hoje) });
+    for (const s of l.sinais) {
+      out.push({ chave: `${l.slug}|${s}`, slug: l.slug, nome: l.nome, explicacao: explicarSinal(s), ...textoDoSinal(s, l.contrato, hoje) });
+    }
   }
   return out.map((s, i) => ({ s, i })).sort((a, b) => ORDEM_TOM[a.s.tom] - ORDEM_TOM[b.s.tom] || a.i - b.i).map(({ s }) => s);
 }

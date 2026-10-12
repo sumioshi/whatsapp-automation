@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import type { Dashboard, LinhaDashboard, Sinal } from "@/lib/dashboard";
-import { explicarSinal } from "@/lib/dashboard";
+import { useEffect, useState } from "react";
+import { Avatar, Badge, Card, cn, Pares } from "@/app/components/ui";
+import { tipoPeloSlug } from "@/lib/aparencia";
+import type { Dashboard, LinhaDashboard } from "@/lib/dashboard";
 import { dataCurta, instanteCurto, instanteLongo } from "@/lib/formatar-data";
+import type { SinalDoDia, TomSinal } from "@/lib/hoje";
+import { rotasPainel } from "@/lib/rotas-painel";
+import { Icone } from "../_hoje/icones";
 
 type Coluna =
   | "nome"
@@ -17,14 +21,14 @@ type Coluna =
 
 type Ordem = "asc" | "desc";
 
-const COLUNAS: Array<{ id: Coluna; rotulo: string }> = [
-  { id: "nome", rotulo: "Nome" },
+const COLUNAS: Array<{ id: Coluna; rotulo: string; direita?: boolean }> = [
+  { id: "nome", rotulo: "Cliente" },
   { id: "contrato", rotulo: "Contrato" },
-  { id: "msgs30d", rotulo: "Msgs 30d (cliente / total)" },
-  { id: "features30d", rotulo: "Entregas 30d / total" },
-  { id: "msgsPorFeature30d", rotulo: "Msgs / entrega" },
-  { id: "valorPorFeature", rotulo: "Valor / entrega" },
-  { id: "ultimaFeatureEm", rotulo: "Última entrega" },
+  { id: "msgs30d", rotulo: "Msgs 30 d (cliente / total)", direita: true },
+  { id: "features30d", rotulo: "Entregas 30 d / total", direita: true },
+  { id: "msgsPorFeature30d", rotulo: "Msgs por entrega", direita: true },
+  { id: "valorPorFeature", rotulo: "Valor por entrega", direita: true },
+  { id: "ultimaFeatureEm", rotulo: "Última entrega", direita: true },
 ];
 
 const ROTULO_ESTADO: Record<LinhaDashboard["contrato"]["estado"], string> = {
@@ -34,7 +38,18 @@ const ROTULO_ESTADO: Record<LinhaDashboard["contrato"]["estado"], string> = {
   sem: "sem contrato",
 };
 
-const TOP = 10;
+const COR_ESTADO: Record<LinhaDashboard["contrato"]["estado"], string> = {
+  ativo: "bg-ok",
+  pausado: "bg-warn-mark",
+  encerrado: "bg-fg-mute",
+  sem: "bg-fg-mute",
+};
+
+const VARIANTE_TOM: Record<TomSinal, "danger" | "warn" | "neutral"> = { perigo: "danger", atencao: "warn", neutro: "neutral" };
+
+const rotas = rotasPainel("dono");
+/** Sinais visíveis antes de "Ver todos": o resto fica a um clique. */
+const SINAIS_INICIAIS = 8;
 const numero = new Intl.NumberFormat("pt-BR");
 const umaCasa = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -61,28 +76,29 @@ function chaveOrdenacao(l: LinhaDashboard, col: Coluna): number | string {
   }
 }
 
-function Cartao({ titulo, valor }: { titulo: string; valor: string }) {
-  return (
-    <div className="rounded-card border border-line bg-surface px-3 py-2">
-      <div className="text-[12px] text-fg-faint font-medium first-letter:uppercase">{titulo}</div>
-      <div className="mono text-lg text-fg">{valor}</div>
-    </div>
-  );
-}
-
-/** Uma linha (cliente) e um dos sinais que ela disparou — a lista achatada da seção Sinais. */
-interface ItemSinal {
-  slug: string;
-  nome: string;
-  sinal: Sinal;
-}
-
-/** Visão de negócio por cliente: contrato × atividade × entregas, ordenável e com sinais para decisão. */
-export function DashboardView({ dados }: { dados: Dashboard }) {
+/**
+ * Contratos e entregas por cliente (últimos 30 dias): os sinais com o que fazer,
+ * os totais e a tabela ordenável. É o que a tela de dashboard sempre mostrou.
+ */
+export function DashboardView({
+  dados,
+  sinais,
+  fotos,
+}: {
+  dados: Dashboard;
+  sinais: SinalDoDia[];
+  fotos: Record<string, string | null>;
+}) {
   // null = estado inicial, mantém a ordem que já vem do modelo (montarDashboard):
   // mais sinais primeiro, depois mais mensagens de cliente, depois slug.
   const [coluna, setColuna] = useState<Coluna | null>(null);
   const [ordem, setOrdem] = useState<Ordem>("asc");
+  const [todosSinais, setTodosSinais] = useState(false);
+
+  // Quem chega pelo "Ver no painel" do Hoje quer a lista inteira.
+  useEffect(() => {
+    if (window.location.hash === "#sinais") setTodosSinais(true);
+  }, []);
 
   function ordenarPor(col: Coluna) {
     if (col === coluna) {
@@ -103,142 +119,168 @@ export function DashboardView({ dados }: { dados: Dashboard }) {
           return ordem === "asc" ? cmp : -cmp;
         });
 
-  // Achata linha × sinal: uma linha com dois sinais vira dois itens na seção.
-  const itensSinal: ItemSinal[] = dados.linhas.flatMap((l) =>
-    l.sinais.map((sinal) => ({ slug: l.slug, nome: l.nome, sinal })),
-  );
-
-  const topEntregas = [...dados.linhas]
-    .filter((l) => l.features30d > 0)
-    .sort((a, b) => b.features30d - a.features30d)
-    .slice(0, TOP);
-  const maxEntregas = Math.max(1, ...topEntregas.map((l) => l.features30d));
+  const foto = (slug: string) => {
+    const p = fotos[slug];
+    return p ? rotas.midia(p) : null;
+  };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-bg">
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-line bg-surface px-5 py-3">
-        <h1 className="font-medium text-fg">Dashboard</h1>
-        <span className="mono text-[11px] text-fg-faint">gerado em {instanteLongo(dados.geradoEm)}</span>
-      </header>
-
-      <div className="space-y-6 px-5 py-5">
-        {/* Totais */}
-        <section aria-label="Totais" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          <Cartao titulo="clientes" valor={numero.format(dados.totais.clientes)} />
-          <Cartao titulo="ativos" valor={numero.format(dados.totais.ativos)} />
-          <Cartao titulo="encerrados" valor={numero.format(dados.totais.encerrados)} />
-          <Cartao titulo="entregas 30d" valor={numero.format(dados.totais.features30d)} />
-          <Cartao titulo="com sinal" valor={numero.format(dados.totais.comSinal)} />
-        </section>
-
-        {/* Sinais */}
-        <section aria-label="Sinais" className="rounded-card border border-line bg-surface p-4">
-          <div className="mb-3 text-[12px] text-fg-faint font-medium first-letter:uppercase">sinais</div>
-          {itensSinal.length === 0 ? (
-            <p className="mono text-xs text-fg-dim">nenhum sinal</p>
+    <>
+      <div id="sinais" className="col-span-8 scroll-mt-6 max-[1020px]:col-span-full">
+        <Card
+          className="h-full"
+          icone={<Icone nome="bandeira" />}
+          titulo="Sinais"
+          meta={<span className="font-mono tabular-nums">{sinais.length}</span>}
+          rodape={
+            <>
+              <span>contrato, prazo e silêncio, o mais grave primeiro</span>
+              {sinais.length > SINAIS_INICIAIS && (
+                <button
+                  type="button"
+                  aria-expanded={todosSinais}
+                  onClick={() => setTodosSinais((t) => !t)}
+                  className="ml-auto shrink-0 font-medium text-accent hover:underline"
+                >
+                  {todosSinais ? "Mostrar menos" : `Ver todos os ${sinais.length}`}
+                </button>
+              )}
+            </>
+          }
+        >
+          {sinais.length === 0 ? (
+            <p className="py-6 text-center text-[12.5px] text-fg-faint">
+              Nenhum sinal: contratos em dia e ninguém sem resposta há mais de 24 h.
+            </p>
           ) : (
-            <ul className="space-y-1.5">
-              {itensSinal.map((item, i) => (
-                <li key={`${item.slug}-${item.sinal}-${i}`} className="text-sm text-fg-dim">
-                  <Link href={`/g/${item.slug}`} className="text-fg hover:text-accent">
-                    {item.nome}
+            <ul>
+              {(todosSinais ? sinais : sinais.slice(0, SINAIS_INICIAIS)).map((s) => (
+                <li key={s.chave}>
+                  <Link
+                    href={rotas.chat(s.slug)}
+                    className="group flex min-h-[52px] items-center gap-3 border-b border-line py-2 text-fg last:border-b-0"
+                  >
+                    <Avatar nome={s.nome} tipo={tipoPeloSlug(s.slug)} fotoUrl={foto(s.slug)} tamanho="sm" />
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate font-medium group-hover:text-accent">{s.nome}</b>
+                      <small className="mt-px block text-[12.5px] text-fg-faint">{s.explicacao}</small>
+                    </span>
+                    <Badge variant={VARIANTE_TOM[s.tom]} className="shrink-0">
+                      {s.texto}
+                    </Badge>
                   </Link>
-                  {" — "}
-                  {explicarSinal(item.sinal)}
                 </li>
               ))}
             </ul>
           )}
-        </section>
-
-        {/* Top 10 por entregas 30d */}
-        <section aria-label="Top 10 por entregas em 30 dias" className="rounded-card border border-line bg-surface p-4">
-          <div className="mb-3 text-[12px] text-fg-faint font-medium first-letter:uppercase">top 10 · entregas em 30 dias</div>
-          {topEntregas.length === 0 ? (
-            <p className="mono text-xs text-fg-dim">sem entregas registradas</p>
-          ) : (
-            <ol className="space-y-1" aria-label="Top 10 por entregas em 30 dias">
-              {topEntregas.map((l) => (
-                <li key={l.slug} className="grid grid-cols-[minmax(0,10rem)_1fr_3rem] items-center gap-2 text-xs">
-                  <span className="truncate text-fg">{l.nome}</span>
-                  <span className="h-2 overflow-hidden rounded-full bg-surface-2" role="img" aria-label={`${l.features30d} entregas`}>
-                    <span className="block h-full rounded-full bg-fg-dim" style={{ width: `${Math.round((l.features30d / maxEntregas) * 100)}%` }} />
-                  </span>
-                  <span className="mono text-right text-fg-dim">{numero.format(l.features30d)}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
-
-        {/* Tabela */}
-        <section aria-label="Tabela de clientes" className="overflow-hidden rounded-card border border-line bg-surface">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
-              <thead>
-                <tr className="border-b border-line text-left">
-                  {COLUNAS.map((c) => {
-                    const ativa = c.id === coluna;
-                    return (
-                      <th
-                        key={c.id}
-                        scope="col"
-                        className="px-3 py-2"
-                        aria-sort={ativa ? (ordem === "asc" ? "ascending" : "descending") : "none"}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => ordenarPor(c.id)}
-                          className={`flex items-center gap-1 text-[12px] font-medium transition-colors ${ativa ? "text-fg" : "text-fg-faint hover:text-fg-dim"}`}
-                        >
-                          {c.rotulo}
-                          {ativa && <span aria-hidden>{ordem === "asc" ? "▲" : "▼"}</span>}
-                        </button>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {linhas.length === 0 ? (
-                  <tr>
-                    <td colSpan={COLUNAS.length} className="mono px-3 py-6 text-center text-xs text-fg-dim">
-                      nenhum cliente monitorado
-                    </td>
-                  </tr>
-                ) : (
-                  linhas.map((l) => (
-                    <tr key={l.slug}>
-                      <td className="px-3 py-2 text-fg">
-                        <Link href={`/g/${l.slug}`} className="hover:text-accent">
-                          {l.nome}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-2 text-fg-dim">
-                        {ROTULO_ESTADO[l.contrato.estado]}
-                        {l.contrato.fim && <span className="mono text-[11px] text-fg-faint"> · até {dataCurta(l.contrato.fim)}</span>}
-                      </td>
-                      <td className="mono px-3 py-2 text-right text-fg-dim">
-                        {numero.format(l.msgsCliente30d)}/{numero.format(l.msgs30d)}
-                      </td>
-                      <td className="mono px-3 py-2 text-right text-fg-dim">
-                        {numero.format(l.features30d)}/{numero.format(l.featuresTotal)}
-                      </td>
-                      <td className="mono px-3 py-2 text-right text-fg-dim">
-                        {l.msgsPorFeature30d !== null ? umaCasa.format(l.msgsPorFeature30d) : "—"}
-                      </td>
-                      <td className="mono px-3 py-2 text-right text-fg-dim">
-                        {l.valorPorFeature !== null ? moeda.format(l.valorPorFeature) : "—"}
-                      </td>
-                      <td className="mono px-3 py-2 text-right text-fg-dim">{instanteCurto(l.ultimaFeatureEm)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        </Card>
       </div>
-    </div>
+
+      <Card largura="p" icone={<Icone nome="tabela" />} titulo="Totais" meta="últimos 30 dias" className="self-start">
+        <Pares
+          className="[&_dd]:font-mono [&_dd]:tabular-nums"
+          itens={[
+            { rotulo: "Clientes", valor: numero.format(dados.totais.clientes) },
+            { rotulo: "Contratos ativos", valor: numero.format(dados.totais.ativos) },
+            { rotulo: "Encerrados", valor: numero.format(dados.totais.encerrados) },
+            { rotulo: "Entregas", valor: numero.format(dados.totais.features30d) },
+            { rotulo: "Com sinal", valor: numero.format(dados.totais.comSinal) },
+          ]}
+        />
+      </Card>
+
+      <Card
+        largura="inteiro"
+        icone={<Icone nome="pacote" />}
+        titulo="Contratos e entregas por cliente"
+        meta="últimos 30 dias"
+        className="[&>div]:px-0 [&>div]:pb-0"
+        rodape={<span className="font-mono tabular-nums">gerado em {instanteLongo(dados.geradoEm)}</span>}
+      >
+        <div className="overflow-x-auto border-t border-line">
+          <table className="w-full min-w-[860px] border-separate border-spacing-0 text-[13px]">
+            <thead>
+              <tr>
+                {COLUNAS.map((c) => {
+                  const ativa = c.id === coluna;
+                  return (
+                    <th
+                      key={c.id}
+                      scope="col"
+                      aria-sort={ativa ? (ordem === "asc" ? "ascending" : "descending") : "none"}
+                      className={cn(
+                        "h-[38px] whitespace-nowrap border-b border-line bg-surface-2 px-3.5 first:pl-5 last:pr-5",
+                        c.direita ? "text-right" : "text-left",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => ordenarPor(c.id)}
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[12px] font-medium transition-colors",
+                          ativa ? "text-fg" : "text-fg-dim hover:text-fg",
+                        )}
+                      >
+                        {c.rotulo}
+                        {ativa && <span aria-hidden>{ordem === "asc" ? "▲" : "▼"}</span>}
+                      </button>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.length === 0 ? (
+                <tr>
+                  <td colSpan={COLUNAS.length} className="px-5 py-8 text-center text-[12.5px] text-fg-faint">
+                    Nenhum cliente com contrato ou entrega ainda. Os grupos monitorados aparecem aqui.
+                  </td>
+                </tr>
+              ) : (
+                linhas.map((l) => (
+                  <tr key={l.slug} className="group/linha hover:[&>td]:bg-surface-2">
+                    <td className="h-12 border-b border-line px-3.5 pl-5 group-last/linha:border-b-0">
+                      <Link href={rotas.chat(l.slug)} className="flex items-center gap-2.5 font-medium text-fg hover:text-accent">
+                        <Avatar nome={l.nome} tipo={tipoPeloSlug(l.slug)} fotoUrl={foto(l.slug)} tamanho="sm" />
+                        <span className="max-w-[260px] truncate">{l.nome}</span>
+                      </Link>
+                    </td>
+                    <td className="h-12 whitespace-nowrap border-b border-line px-3.5 text-fg-dim group-last/linha:border-b-0">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span aria-hidden className={cn("h-2 w-2 rounded-full", COR_ESTADO[l.contrato.estado])} />
+                        {ROTULO_ESTADO[l.contrato.estado]}
+                      </span>
+                      {l.contrato.fim && <span className="font-mono text-[12px] text-fg-faint"> · até {dataCurta(l.contrato.fim)}</span>}
+                    </td>
+                    <Numero>
+                      {numero.format(l.msgsCliente30d)} / {numero.format(l.msgs30d)}
+                    </Numero>
+                    <Numero>
+                      {numero.format(l.features30d)} / {numero.format(l.featuresTotal)}
+                    </Numero>
+                    <Numero>{l.msgsPorFeature30d !== null ? umaCasa.format(l.msgsPorFeature30d) : "—"}</Numero>
+                    <Numero>{l.valorPorFeature !== null ? moeda.format(l.valorPorFeature) : "—"}</Numero>
+                    <Numero ultima>{instanteCurto(l.ultimaFeatureEm)}</Numero>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </>
+  );
+}
+
+function Numero({ children, ultima }: { children: React.ReactNode; ultima?: boolean }) {
+  return (
+    <td
+      className={cn(
+        "h-12 whitespace-nowrap border-b border-line px-3.5 text-right font-mono tabular-nums text-fg-dim group-last/linha:border-b-0",
+        ultima && "pr-5",
+      )}
+    >
+      {children}
+    </td>
   );
 }

@@ -244,7 +244,7 @@ export const ROTULO_QUEM: Record<QuemRespondeu, string> = {
   painel: 'Você, painel',
   equipe: 'Equipe',
   ia: 'IA',
-  'sem-registro': 'Você, sem registro',
+  'sem-registro': 'Sem registro',
 };
 
 export interface Painel {
@@ -372,6 +372,57 @@ export function conversaDeTrabalho(
   const etiquetas = g.etiquetas ?? [];
   if (etiquetas.includes('Pessoal') && etiquetas.every((e) => e === 'Pessoal')) return false;
   return !(g.slug.startsWith('dm-') && idsDaConta.has(g.slug.slice(3)));
+}
+
+export function textoEntregasAnteriores(anterior: number, nomeMesAnterior: string): string {
+  return anterior === 0 ? `nenhuma em ${nomeMesAnterior}` : `${anterior} em ${nomeMesAnterior}`;
+}
+
+export type TomChip = 'ok' | 'atencao' | 'neutro';
+export interface Rodape {
+  chip: { texto: string; tom: TomChip } | null;
+  texto: string;
+}
+
+function porcentagem(fracao: number): string {
+  const p = Math.round(fracao * 100);
+  return p > 0 ? `+${p}%` : p < 0 ? `−${-p}%` : '0%';
+}
+
+/**
+ * A linha de baixo de cada indicador: a variação num chip e o que ela compara.
+ * Mais mensagens e mais entregas ficam verdes; na primeira resposta, verde é cair.
+ */
+export function rodapesDosIndicadores(p: Painel): { recebidas: Rodape; resposta: Rodape; entregas: Rodape } {
+  const dias = `${p.periodo} dias anteriores`;
+  const vr = p.recebidas.variacao;
+  const recebidas: Rodape =
+    vr === null
+      ? { chip: null, texto: p.recebidas.anterior === 0 ? `nenhuma nos ${dias}` : `vs. ${dias}` }
+      : { chip: { texto: porcentagem(vr), tom: Math.round(vr * 100) > 0 ? 'ok' : 'neutro' }, texto: `vs. ${dias}` };
+
+  const vp = p.primeiraResposta.variacao;
+  let resposta: Rodape;
+  if (vp === null) {
+    resposta = { chip: null, texto: p.primeiraResposta.medianaMs === null ? 'sem respostas no período' : `sem respostas nos ${dias}` };
+  } else {
+    const pct = Math.round(vp * 100);
+    resposta = {
+      chip: { texto: porcentagem(vp), tom: pct < 0 ? 'ok' : pct > 0 ? 'atencao' : 'neutro' },
+      texto: pct < 0 ? 'mais rápido que antes' : pct > 0 ? 'mais lento que antes' : `igual aos ${dias}`,
+    };
+  }
+
+  const { atual, anterior, nomeMesAnterior } = p.entregas;
+  const delta = atual - anterior;
+  const entregas: Rodape = {
+    chip:
+      atual === 0 && anterior === 0
+        ? null
+        : { texto: delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : '0', tom: delta > 0 ? 'ok' : 'neutro' },
+    texto: textoEntregasAnteriores(anterior, nomeMesAnterior),
+  };
+  return { recebidas, resposta, entregas };
 }
 
 /** O dia de hoje para a faixa de situação e a IA: primeira resposta e o que a IA enviou. */

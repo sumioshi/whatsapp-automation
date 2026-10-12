@@ -119,6 +119,14 @@ describe('sinaisDoDia', () => {
   it('cada item tem chave única', () => {
     expect(new Set(s.map((x) => x.chave)).size).toBe(s.length);
   });
+  it('cada item explica o que fazer, como a lista do painel', () => {
+    expect(s.find((x) => x.slug === 'norte')?.explicacao).toBe(
+      'cliente esperando resposta há mais de 24 h: responder ou marcar como resolvido na caixa',
+    );
+    expect(s.find((x) => x.slug === 'rota')?.explicacao).toBe(
+      'cliente ativo e pagando, sem nenhuma entrega registrada em 30 dias',
+    );
+  });
 });
 
 describe('contratosNoLimite', () => {
