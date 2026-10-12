@@ -10,14 +10,14 @@ export interface FieldProps {
   children: ReactNode;
 }
 
-/** Wrapper de campo: rótulo mono uppercase + controle + hint/erro. */
+/** Wrapper de campo: rótulo em texto normal + controle + dica/erro. */
 export function Field({ label, hint, error, htmlFor, className = "", children }: FieldProps) {
   return (
     <div className={cn("block", className)}>
       {label && (
         <label
           htmlFor={htmlFor}
-          className="mono mb-1.5 block text-[11px] uppercase tracking-wider text-fg-faint"
+          className="mb-1.5 block text-[12.5px] font-medium text-fg-dim first-letter:uppercase first-letter:uppercase"
         >
           {label}
         </label>

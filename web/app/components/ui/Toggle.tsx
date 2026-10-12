@@ -78,7 +78,7 @@ export function Toggle({
           /* ── knob OFF ── */
           !checked && "bg-fg-dim [box-shadow:0_1px_2px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)]",
           /* ── knob ON ── */
-          checked && "bg-white [box-shadow:0_1px_3px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.5)]",
+          checked && "bg-accent-ink [box-shadow:0_1px_3px_rgba(0,0,0,0.3)]",
           // deslocamento
           checked ? knobOn : knobOff,
           // transição suave do knob

@@ -191,7 +191,7 @@ export default function NovoPage() {
   return (
     <div className="flex-1 overflow-y-auto bg-bg px-6 py-8">
       <div className="mx-auto max-w-2xl space-y-5">
-        <h1 className="mono text-sm uppercase tracking-wider text-fg-faint">Nova conversa</h1>
+        <h1 className="font-title text-[22px] font-medium tracking-[-0.01em] text-fg">Nova conversa</h1>
 
         {/* Seletor de modo */}
         <div className="inline-flex rounded-control border border-line bg-surface-2 p-0.5">
@@ -201,7 +201,7 @@ export default function NovoPage() {
               type="button"
               onClick={() => switchMode(m)}
               className={[
-                "mono rounded-[calc(var(--radius-control)-2px)] px-4 py-1.5 text-xs uppercase tracking-wide transition-colors",
+                "rounded-[calc(var(--radius-control)-2px)] px-4 py-1.5 text-[12.5px] font-medium transition-colors first-letter:uppercase",
                 mode === m
                   ? "bg-surface text-fg [box-shadow:var(--shadow-pressable)]"
                   : "text-fg-dim hover:text-fg",
@@ -340,7 +340,7 @@ export default function NovoPage() {
               /* Etapa 1b: número manual */
               <Card className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="mono text-xs uppercase tracking-wide text-fg-faint">
+                  <span className="inline-block text-[12px] text-fg-faint font-medium first-letter:uppercase">
                     Número manual
                   </span>
                   <button

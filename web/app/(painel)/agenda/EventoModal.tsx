@@ -62,7 +62,7 @@ export function EventoModal({ rascunho, agendas, aoFechar, aoSalvar, aoRecarrega
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 grid place-items-center bg-fg/20 p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) aoFechar();
       }}

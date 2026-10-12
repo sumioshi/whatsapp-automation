@@ -71,7 +71,7 @@ export function KanbanBoard({
       {aguardando.length > 0 && (
         <section className="border-b border-line px-4 py-3 md:px-8">
           <h2 className="mb-2 flex items-center gap-2 text-[13px] font-medium text-fg">
-            <span className="h-2 w-2 rounded-full bg-amber-400" />
+            <span className="h-2 w-2 rounded-full bg-warn-mark" />
             Aguardando resposta
             <span className="mono text-[11px] font-normal text-fg-faint">{aguardando.length}</span>
           </h2>

@@ -111,7 +111,7 @@ export function LiveAudio({ src }: { src: string }) {
             />
           ))}
         </span>
-        <span className="mono text-[10px] uppercase tracking-wider text-fg-faint">
+        <span className="inline-block text-[12px] text-fg-faint font-medium first-letter:uppercase">
           {playing ? "ouvindo" : "voz"}
         </span>
       </div>

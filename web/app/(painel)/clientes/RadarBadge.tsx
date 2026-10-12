@@ -45,7 +45,7 @@ export function RadarBadge({ onClick }: { onClick?: () => void }) {
       type="button"
       onClick={onClick}
       title={pendencias.map((p) => `${p.nome} (${p.horas}h)`).join(" · ")}
-      className="pressable inline-flex items-center gap-1.5 rounded-control border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-400 transition-colors hover:bg-amber-500/15"
+      className="pressable inline-flex items-center gap-1.5 rounded-control border border-warn/30 bg-warn-bg px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:border-warn/50"
     >
       <span aria-hidden>⏰</span>
       {pendencias.length} aguardando

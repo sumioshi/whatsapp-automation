@@ -27,7 +27,7 @@ export default function ConfigPage() {
   return (
     <div className="flex-1 overflow-y-auto bg-bg px-6 py-8">
       <div className="mx-auto max-w-2xl space-y-6">
-        <h1 className="mono text-[13px] uppercase tracking-wider text-fg-dim">Configurações</h1>
+        <h1 className="font-title text-[22px] font-medium tracking-[-0.01em] text-fg">Configurações</h1>
         <ConnectionCard />
         <SyncCard />
         <RadarCard />

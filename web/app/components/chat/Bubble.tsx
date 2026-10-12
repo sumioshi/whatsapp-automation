@@ -196,7 +196,7 @@ function ReceiptMark({
           aria-label="Lido por"
           className="absolute bottom-full right-0 z-50 mb-1.5 min-w-[140px] max-w-[220px] rounded-control border border-line bg-elevated px-3 py-2 shadow-lg shadow-black/40"
         >
-          <p className="mono mb-1.5 text-[9px] uppercase tracking-widest text-fg-faint">
+          <p className="mb-1.5 text-[12px] text-fg-faint font-medium first-letter:uppercase">
             lido por
           </p>
           <ul className="space-y-0.5">
@@ -253,7 +253,7 @@ function PollCard({ poll }: { poll: PollView }) {
           <line x1="12" y1="20" x2="12" y2="4" />
           <line x1="6" y1="20" x2="6" y2="14" />
         </svg>
-        <span className="mono text-[10px] uppercase tracking-wider text-fg-faint">
+        <span className="inline-block text-[12px] text-fg-faint font-medium first-letter:uppercase">
           enquete{poll.multiSelect ? " · múltipla" : ""}
         </span>
       </div>
@@ -335,7 +335,7 @@ export function Bubble({
             </span>
           )}
           {!mine && contacts.team.has(numberFromJid(m.sender)) && (
-            <span className="mono rounded border border-accent/30 px-1 text-[10px] font-medium uppercase tracking-wide text-accent">
+            <span className="rounded-tag bg-accent-soft px-1.5 text-[11px] font-medium text-accent">
               time
             </span>
           )}
@@ -346,7 +346,7 @@ export function Bubble({
           )}
           <span className="mono text-[10px] text-fg-faint">{formatTime(m.timestamp)}</span>
           {!m.deleted && m.type !== "text" && m.type !== "poll" && (
-            <span className="mono text-[10px] uppercase tracking-wide text-fg-faint">
+            <span className="inline-block text-[12px] text-fg-faint font-medium first-letter:uppercase">
               {m.type}
             </span>
           )}
@@ -450,7 +450,7 @@ function Media({ slug, m }: { slug: string; m: MessageView }) {
             playsInline
             className="w-full max-w-xs rounded-control border border-line"
           />
-          <span className="mono text-[10px] uppercase tracking-wider text-fg-faint">gif</span>
+          <span className="inline-block text-[12px] text-fg-faint font-medium first-letter:uppercase">gif</span>
         </div>
       );
     case "image":
@@ -525,7 +525,7 @@ function ReadDoc({ slug, mediaPath }: { slug: string; mediaPath: string }) {
   if (doc) {
     return (
       <div className="reveal rounded-control border border-line bg-bg/60 p-2.5 text-sm text-fg/90">
-        <div className="mono mb-1 text-[10px] uppercase tracking-wider text-fg-faint">
+        <div className="mb-1 text-[12px] text-fg-faint font-medium first-letter:uppercase">
           conteúdo do documento{doc.pages ? ` · ${doc.pages} pág.` : ""}
         </div>
         {doc.note && <p className="mb-1 text-xs text-accent-2">{doc.note}</p>}
@@ -606,7 +606,7 @@ function Transcribe({
   if (transcript) {
     return (
       <div className="reveal mt-2 rounded-control border border-line bg-bg/60 p-2.5 text-sm text-fg/90">
-        <div className="mono mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-faint">
+        <div className="mb-1 flex items-center gap-1.5 text-[12px] text-fg-faint font-medium first-letter:uppercase">
           <span className="h-1 w-1 rounded-full bg-accent" /> transcrição
         </div>
         <p className="whitespace-pre-wrap leading-relaxed">{transcript}</p>

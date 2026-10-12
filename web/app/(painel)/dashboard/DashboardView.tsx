@@ -64,7 +64,7 @@ function chaveOrdenacao(l: LinhaDashboard, col: Coluna): number | string {
 function Cartao({ titulo, valor }: { titulo: string; valor: string }) {
   return (
     <div className="rounded-card border border-line bg-surface px-3 py-2">
-      <div className="mono text-[10px] uppercase tracking-wider text-fg-faint">{titulo}</div>
+      <div className="text-[12px] text-fg-faint font-medium first-letter:uppercase">{titulo}</div>
       <div className="mono text-lg text-fg">{valor}</div>
     </div>
   );
@@ -133,7 +133,7 @@ export function DashboardView({ dados }: { dados: Dashboard }) {
 
         {/* Sinais */}
         <section aria-label="Sinais" className="rounded-card border border-line bg-surface p-4">
-          <div className="mono mb-3 text-[11px] uppercase tracking-wider text-fg-faint">sinais</div>
+          <div className="mb-3 text-[12px] text-fg-faint font-medium first-letter:uppercase">sinais</div>
           {itensSinal.length === 0 ? (
             <p className="mono text-xs text-fg-dim">nenhum sinal</p>
           ) : (
@@ -153,7 +153,7 @@ export function DashboardView({ dados }: { dados: Dashboard }) {
 
         {/* Top 10 por entregas 30d */}
         <section aria-label="Top 10 por entregas em 30 dias" className="rounded-card border border-line bg-surface p-4">
-          <div className="mono mb-3 text-[11px] uppercase tracking-wider text-fg-faint">top 10 · entregas em 30 dias</div>
+          <div className="mb-3 text-[12px] text-fg-faint font-medium first-letter:uppercase">top 10 · entregas em 30 dias</div>
           {topEntregas.length === 0 ? (
             <p className="mono text-xs text-fg-dim">sem entregas registradas</p>
           ) : (
@@ -189,7 +189,7 @@ export function DashboardView({ dados }: { dados: Dashboard }) {
                         <button
                           type="button"
                           onClick={() => ordenarPor(c.id)}
-                          className={`mono flex items-center gap-1 text-[11px] uppercase tracking-wider transition-colors ${ativa ? "text-fg" : "text-fg-faint hover:text-fg-dim"}`}
+                          className={`mono flex items-center gap-1 text-[11px] first-letter:uppercase transition-colors ${ativa ? "text-fg" : "text-fg-faint hover:text-fg-dim"}`}
                         >
                           {c.rotulo}
                           {ativa && <span aria-hidden>{ordem === "asc" ? "▲" : "▼"}</span>}

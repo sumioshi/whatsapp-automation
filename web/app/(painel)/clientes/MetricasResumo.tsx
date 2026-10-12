@@ -17,7 +17,7 @@ const TOP = 10;
 function Cartao({ titulo, valor, detalhe }: { titulo: string; valor: string; detalhe: string | null }) {
   return (
     <div className="rounded-card border border-line bg-surface px-3 py-2">
-      <div className="mono text-[10px] uppercase tracking-wider text-fg-faint">{titulo}</div>
+      <div className="text-[12px] text-fg-faint font-medium first-letter:uppercase">{titulo}</div>
       <div className="truncate text-sm text-fg">{valor}</div>
       {detalhe && <div className="mono truncate text-[11px] text-fg-dim">{detalhe}</div>}
     </div>
@@ -71,7 +71,7 @@ export function MetricasResumo() {
   return (
     <section className="border-b border-line bg-bg px-5 py-3" aria-label="Métricas de atividade">
       <div className="flex items-center gap-2">
-        <button type="button" onClick={alternar} className="mono text-xs uppercase tracking-wider text-fg-faint hover:text-fg">
+        <button type="button" onClick={alternar} className="text-[12px] text-fg-faint hover:text-fg font-medium first-letter:uppercase">
           {aberto ? "▾" : "▸"} atividade
         </button>
         <div className="ml-auto flex rounded-[6px] border border-line p-0.5">

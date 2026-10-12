@@ -150,7 +150,7 @@ export function CommandPalette({ groups }: { groups: GroupSummary[] }) {
           ) : (
             sections.map((section) => (
               <div key={section}>
-                <div className="mono px-2.5 pt-2 pb-1 text-[10px] uppercase tracking-wider text-fg-faint">
+                <div className="px-2.5 pt-2 pb-1 text-[12px] text-fg-faint font-medium first-letter:uppercase">
                   {section}
                 </div>
                 {filtered

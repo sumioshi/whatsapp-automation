@@ -37,15 +37,15 @@ export function senderLabel(jid: string | null | undefined, contacts: Contacts):
   return contacts.names.get(num) ?? num;
 }
 
-/* Cor de nome por remetente (estilo Telegram em grupo): paleta muted estável
-   por número — o mesmo remetente tem sempre a mesma cor. */
+/* Cor de nome por remetente (estilo Telegram em grupo): o mesmo remetente tem
+   sempre a mesma cor. Matiz misturado ao texto, para ler bem nos dois temas. */
 const SENDER_COLORS = [
-  "text-[#6cb2f5]",
-  "text-[#5ec9a0]",
-  "text-[#c592ff]",
-  "text-[#e5c07b]",
-  "text-[#ef8b9e]",
-  "text-[#63c7d8]",
+  "text-[color:color-mix(in_srgb,var(--color-hue-sky)_var(--ink-mix),var(--color-fg))]",
+  "text-[color:color-mix(in_srgb,var(--color-hue-green)_var(--ink-mix),var(--color-fg))]",
+  "text-[color:color-mix(in_srgb,var(--color-hue-violet)_var(--ink-mix),var(--color-fg))]",
+  "text-[color:color-mix(in_srgb,var(--color-hue-amber)_var(--ink-mix),var(--color-fg))]",
+  "text-[color:color-mix(in_srgb,var(--color-hue-pink)_var(--ink-mix),var(--color-fg))]",
+  "text-[color:color-mix(in_srgb,var(--color-hue-teal)_var(--ink-mix),var(--color-fg))]",
 ];
 
 export function senderColor(jid: string): string {

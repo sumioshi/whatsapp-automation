@@ -119,7 +119,7 @@ export default function LinksPage() {
     <div className="flex-1 overflow-y-auto bg-bg px-6 py-8">
       <div className="mx-auto max-w-2xl space-y-5">
         <header className="space-y-1">
-          <h1 className="mono text-sm uppercase tracking-wider text-fg-faint">Links de projeto</h1>
+          <h1 className="font-title text-[22px] font-medium tracking-[-0.01em] text-fg">Links de projeto</h1>
           <p className="text-sm text-fg-dim">
             Amarra um repositório de cliente a um grupo ou DM. Grava o índice central
             aqui e o <span className="mono">.claude/whatsapp.json</span> + uma linha no{" "}
