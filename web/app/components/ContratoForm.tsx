@@ -80,7 +80,7 @@ export function ContratoForm({ slug }: { slug: string }) {
       <label className="mono text-[10px] text-fg-dim">valor mensal (R$)
         <input type="number" min={0} step="0.01" className={campo} defaultValue={c.valorMensal ?? ""} onBlur={(e) => salvar({ valorMensal: e.target.value === "" ? null : Number(e.target.value) })} />
       </label>
-      <label className="mono text-[10px] text-fg-dim">limite de mensagens do cliente (30 dias)
+      <label className="mono text-[10px] text-fg-dim">limite de mensagens (30 dias)
         <input
           type="number"
           min={1}
