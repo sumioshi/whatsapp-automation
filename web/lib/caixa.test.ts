@@ -19,6 +19,7 @@ import {
   rotuloDia,
   rotuloEstadoIa,
   rotuloSinal,
+  ultimoGroupJid,
 } from './caixa';
 
 const conversa = (slug: string, extra: Partial<ConversaFila> = {}): ConversaFila => ({
@@ -127,6 +128,25 @@ describe('montarFila', () => {
     expect(f.secoes[0]?.linhas).toEqual([]);
   });
 
+  it('a prévia de quem espera não corta o texto no primeiro dois-pontos, só tira os colchetes da mídia', () => {
+    const f = montarFila(
+      {
+        esperando: [
+          espera('x', '2026-10-07T09:00:00Z', { previa: 'Obs: o boleto venceu' }),
+          espera('y', '2026-10-07T09:30:00Z', { previa: '[áudio]' }),
+        ],
+        conversas: [conversa('x'), conversa('y')],
+        entregas: [],
+        aguardandoOk: [],
+      },
+      { vista: 'esperando' },
+    );
+    expect(f.secoes[0]?.linhas.map((l) => l.previa)).toEqual([
+      { de: 'Carla', texto: 'Obs: o boleto venceu' },
+      { de: 'Carla', texto: 'áudio' },
+    ]);
+  });
+
   it('espera de chat fora da lista usa o nome que veio com ela', () => {
     const f = montarFila(
       { esperando: [espera('dm-1', '2026-10-07T09:00:00Z', { nome: 'Lia' })], conversas: [], entregas: [], aguardandoOk: [] },
@@ -152,6 +172,39 @@ describe('montarFila', () => {
       ['b', { tipo: 'entregando', atual: 2, total: 3, enviados: 1 }],
       ['a', { tipo: 'agendado', hora: '15:40' }],
     ]);
+  });
+
+  it('cliente que escreve depois da pergunta da triagem continua em Esperando, com a marca do OK', () => {
+    const f = montarFila(
+      {
+        esperando: [espera('mare', '2026-10-07T10:00:00Z')],
+        conversas: [conversa('mare')],
+        entregas: [],
+        aguardandoOk: [{ slug: 'mare', n: 4, texto: 'Rascunho', desde: '2026-10-07T08:00:00Z' }],
+      },
+      { vista: 'esperando', agoraMs: Date.parse('2026-10-07T12:00:00Z') },
+    );
+    expect(f.contagens).toEqual({ esperando: 1, ia: 0 });
+    expect(f.secoes[0]?.linhas[0]).toMatchObject({ slug: 'mare', esperaDesde: '2026-10-07T10:00:00Z', aguardaOk: 4, ia: null });
+    expect(f.abertas).toBe(1);
+  });
+
+  it('só a entrega viva tira o chat de Esperando; pergunta mais nova que a espera fica nos dois, sem repetir em Todas', () => {
+    const entrada = {
+      esperando: [espera('a', '2026-10-07T10:00:00Z'), espera('b', '2026-10-07T10:00:00Z')],
+      conversas: [conversa('a'), conversa('b')],
+      entregas: [{ ticket: 't', slug: 'a', estado: 'entregando', enviados: 0, total: 1, entregarEm: '2026-10-07T10:05:00Z' }],
+      aguardandoOk: [{ slug: 'b', n: 7, texto: 'Fecha sexta?', desde: '2026-10-07T11:00:00Z' }],
+    };
+    const agoraMs = Date.parse('2026-10-07T12:00:00Z');
+    const esperando = montarFila(entrada, { vista: 'esperando', agoraMs });
+    expect(esperando.secoes[0]?.linhas.map((l) => [l.slug, l.aguardaOk])).toEqual([['b', 7]]);
+    const ia = montarFila(entrada, { vista: 'ia', agoraMs });
+    expect(ia.secoes[0]?.linhas.map((l) => l.slug)).toEqual(['a', 'b']);
+    expect(ia.contagens).toEqual({ esperando: 1, ia: 2 });
+    expect(ia.abertas).toBe(2);
+    const todas = montarFila(entrada, { vista: 'todas', agoraMs });
+    expect(todas.ordem).toEqual(['b', 'a']);
   });
 
   it('pergunta antiga demais não prende a conversa em Com a IA', () => {
@@ -197,9 +250,13 @@ describe('autoria', () => {
       quem: 'ana',
       via: 'pelo painel',
     });
-    expect(autoria({ fromMe: true, origem: 'coletor' }, 'dono')).toEqual({ id: 'ia', quem: 'IA', via: 'pelo agente' });
+    expect(autoria({ fromMe: true, origem: 'coletor' }, 'dono', true)).toEqual({ id: 'ia', quem: 'IA', via: 'pelo agente' });
     expect(autoria({ fromMe: true, origem: 'ia_meta' }, 'dono')).toEqual({ id: 'meta', quem: 'IA da Meta', via: 'em nome da conta' });
     expect(autoria({ fromMe: true }, null)).toEqual({ id: 'voce', quem: 'Você', via: null });
+  });
+  it('envio do coletor sem entrega da fila (painel antigo, API) fica neutro, não vira IA', () => {
+    expect(autoria({ fromMe: true, origem: 'coletor' }, 'dono')).toEqual({ id: 'voce', quem: 'Você', via: null });
+    expect(autoria({ fromMe: true, origem: 'coletor' }, 'dono', false)).toEqual({ id: 'voce', quem: 'Você', via: null });
   });
 });
 
@@ -479,5 +536,13 @@ describe('blocosDaConversa', () => {
     );
     expect([...r.continua]).toEqual([]);
     expect(r.rotulos).toEqual({ a: { texto: '1 balão', ticket: 't1' }, b: { texto: '1 de 2 balões', ticket: 't2' } });
+  });
+});
+
+describe('ultimoGroupJid', () => {
+  it('pula a chamada sintética (sem jid) e acha o último jid de verdade', () => {
+    expect(ultimoGroupJid([{ groupJid: '1@g.us' }, { groupJid: '2@g.us' }, { groupJid: '' }])).toBe('2@g.us');
+    expect(ultimoGroupJid([{ groupJid: '' }])).toBeNull();
+    expect(ultimoGroupJid([])).toBeNull();
   });
 });

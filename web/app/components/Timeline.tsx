@@ -10,6 +10,7 @@ import {
   type EventoEntrega,
   ligarEntregas,
   rotuloDia,
+  ultimoGroupJid,
 } from "@/lib/caixa";
 import type { MessageView } from "@/lib/data";
 import { instanteLongo } from "@/lib/formatar-data";
@@ -504,7 +505,7 @@ export function Timeline({
                         slug={slug}
                         m={m}
                         contacts={contacts}
-                        autoria={autoria(m, donoLogin)}
+                        autoria={autoria(m, donoLogin, Boolean(entregas.baloes[m.id]))}
                         entrega={blocos.rotulos[m.id]}
                         continua={!novoDia && blocos.continua.has(m.id)}
                         direta={cabecalho.tipo === "dm"}
@@ -535,7 +536,7 @@ export function Timeline({
       <Composer
         slug={slug}
         nome={groupName}
-        groupJid={messages.at(-1)?.groupJid ?? null}
+        groupJid={ultimoGroupJid(messages)}
         onSent={poll}
         draft={draft}
         onPedirRascunho={rotas.recursos.copiloto ? pedirRascunho : undefined}

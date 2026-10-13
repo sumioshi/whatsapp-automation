@@ -75,6 +75,16 @@ export interface AguardandoOk {
   desde: string;
 }
 
+/** O que a fila recebe do servidor (na montagem e a cada atualização). */
+export interface DadosFila {
+  esperando: EsperaFila[];
+  conversas: ConversaFila[];
+  entregas: EntregaViva[];
+  aguardandoOk: AguardandoOk[];
+  /** Relógio do servidor: a primeira pintura usa ele, sem diferença na hidratação. */
+  geradoEm: number;
+}
+
 export type EstadoIa =
   | { tipo: 'entregando'; atual: number; total: number; enviados: number }
   | { tipo: 'agendado'; hora: string }
@@ -91,6 +101,8 @@ export interface LinhaFila {
   /** ISO do começo da espera; o anel é calculado com o relógio de quem mostra. */
   esperaDesde: string | null;
   ia: EstadoIa | null;
+  /** Na linha de Esperando: número da pergunta da triagem que ainda espera o "ok N". */
+  aguardaOk: number | null;
   previa: { de: string | null; texto: string } | null;
   naoLidas: number;
   silenciada: boolean;
@@ -138,13 +150,18 @@ export function normalizar(texto: string): string {
     .trim();
 }
 
-/** "Fulano: texto" → quem e o quê; mídia "[áudio]" vira "áudio". */
+/** Mídia na prévia vem como "[áudio]": mostra só "áudio". */
+function semColchetes(texto: string): string {
+  return texto.replace(/^\[([^\]]+)\]$/, '$1');
+}
+
+/** "Fulano: texto" (a prévia da lista de conversas) → quem e o quê. */
 export function dividirPrevia(previa: string | null | undefined): { de: string | null; texto: string } | null {
   if (!previa) return null;
   const i = previa.indexOf(': ');
   const de = i > 0 ? previa.slice(0, i) : null;
   const resto = i > 0 ? previa.slice(i + 2) : previa;
-  return { de, texto: resto.replace(/^\[([^\]]+)\]$/, '$1') };
+  return { de, texto: semColchetes(resto) };
 }
 
 export function rotuloEstadoIa(ia: EstadoIa): string {
@@ -181,6 +198,7 @@ export function montarFila(
       mencao: false,
       esperaDesde: null,
       ia: null,
+      aguardaOk: null,
       previa: dividirPrevia(c?.previa),
       naoLidas: c?.naoLidas ?? 0,
       silenciada: c?.silenciada ?? false,
@@ -188,16 +206,26 @@ export function montarFila(
     };
   };
 
-  // Com a IA: entrega saindo ou agendada, ou pergunta esperando o OK (uma linha por chat).
+  // Pergunta da triagem que ainda espera o "ok N" (a mais nova por chat, dentro da validade).
+  const okPorSlug = new Map<string, AguardandoOk>();
+  for (const ok of entrada.aguardandoOk) {
+    if (opts.agoraMs !== undefined && opts.agoraMs - Date.parse(ok.desde) > OK_VALIDO_MS) continue;
+    const atual = okPorSlug.get(ok.slug);
+    if (!atual || ok.desde > atual.desde) okPorSlug.set(ok.slug, ok);
+  }
+  const esperaPorSlug = new Map(entrada.esperando.map((e) => [e.slug, e]));
+
+  // Com a IA: entrega saindo ou agendada, ou pergunta esperando o OK. Pergunta mais antiga que
+  // a espera ficou para trás (o cliente escreveu depois): a conversa não está com a IA.
   const ia = new Map<string, LinhaFila>();
   for (const e of entrada.entregas) {
     const estado = estadoDaEntrega(e);
     if (!estado || ia.has(e.slug)) continue;
     ia.set(e.slug, { ...base(e.slug), ia: estado });
   }
-  for (const ok of entrada.aguardandoOk) {
-    if (ia.has(ok.slug)) continue;
-    if (opts.agoraMs !== undefined && opts.agoraMs - Date.parse(ok.desde) > OK_VALIDO_MS) continue;
+  for (const ok of okPorSlug.values()) {
+    const espera = esperaPorSlug.get(ok.slug);
+    if (ia.has(ok.slug) || (espera && ok.desde < espera.desde)) continue;
     ia.set(ok.slug, { ...base(ok.slug), ia: { tipo: 'ok', n: ok.n }, previa: { de: 'IA', texto: ok.texto } });
   }
   const linhasIa = [...ia.values()].sort((a, b) => {
@@ -208,16 +236,20 @@ export function montarFila(
     return 0;
   });
 
-  // Esperando você: quem espera e ainda não está com a IA, mais antigo primeiro.
+  // Esperando você: só a entrega viva (a resposta já está saindo) tira a conversa daqui. Com
+  // pergunta da triagem pendente, a linha fica e ganha a marca do OK. Mais antigo primeiro.
+  const comEntrega = new Set(entrada.entregas.filter((e) => estadoDaEntrega(e)).map((e) => e.slug));
   const linhasEspera = entrada.esperando
-    .filter((e) => !ia.has(e.slug))
+    .filter((e) => !comEntrega.has(e.slug))
     .sort((a, b) => a.desde.localeCompare(b.desde))
     .map((e) => ({
       ...base(e.slug, e.nome),
       mencao: e.motivo === 'mentioned',
       esperaDesde: e.desde,
-      previa: { de: e.de, texto: dividirPrevia(e.previa)?.texto ?? '' },
+      aguardaOk: okPorSlug.get(e.slug)?.n ?? null,
+      previa: { de: e.de, texto: semColchetes(e.previa) },
     }));
+  const slugsEspera = new Set(linhasEspera.map((l) => l.slug));
 
   const q = normalizar(opts.filtro ?? '');
   const casa = (l: LinhaFila) =>
@@ -239,7 +271,7 @@ export function montarFila(
     const arquivadas = resto.filter((c) => c.arquivada).map((c) => base(c.slug));
     for (const [id, linhas] of [
       ['esperando', linhasEspera],
-      ['ia', linhasIa],
+      ['ia', linhasIa.filter((l) => !slugsEspera.has(l.slug))],
       ['fixadas', fixadas],
       ['conversas', soltas],
     ] as const) {
@@ -264,7 +296,7 @@ export function montarFila(
   return {
     secoes,
     contagens: { esperando: linhasEspera.length, ia: linhasIa.length },
-    abertas: linhasEspera.length + linhasIa.length,
+    abertas: new Set([...slugsEspera, ...linhasIa.map((l) => l.slug)]).size,
     ordem: secoes.flatMap((s) => s.linhas.map((l) => l.slug)),
   };
 }
@@ -282,11 +314,15 @@ export interface Autoria {
 /**
  * Quem escreveu uma mensagem da própria conta. `ator: painel` é envio pelo
  * painel (o operador, quando o login é o dele, ou alguém da equipe); a origem
- * diz se saiu do celular, do WhatsApp Web, da IA da Meta ou da automação.
+ * diz se saiu do celular, do WhatsApp Web ou da IA da Meta. O que o coletor
+ * mandou só é da IA quando a mensagem está ligada a uma entrega da fila
+ * (`daEntrega`): sem isso pode ser envio antigo do painel ou da API, e fica
+ * neutro, como "Você".
  */
 export function autoria(
   m: { fromMe?: boolean; origem?: string; ator?: string; usuario?: string },
   donoLogin: string | null,
+  daEntrega = false,
 ): Autoria | null {
   if (!m.fromMe) return null;
   if (m.ator === 'painel') {
@@ -296,7 +332,7 @@ export function autoria(
   if (m.origem === 'celular') return { id: 'celular', quem: 'Você', via: 'pelo celular' };
   if (m.origem === 'web') return { id: 'web', quem: 'Você', via: 'pelo WhatsApp Web' };
   if (m.origem === 'ia_meta') return { id: 'meta', quem: 'IA da Meta', via: 'em nome da conta' };
-  if (m.origem === 'coletor') return { id: 'ia', quem: 'IA', via: 'pelo agente' };
+  if (m.origem === 'coletor' && daEntrega) return { id: 'ia', quem: 'IA', via: 'pelo agente' };
   return { id: 'voce', quem: 'Você', via: null };
 }
 
@@ -476,6 +512,15 @@ export function blocosDaConversa(
   });
   fechar();
   return { continua, rotulos };
+}
+
+/** Jid para responder: o da última mensagem que tem um (a chamada sintética vem sem). */
+export function ultimoGroupJid(mensagens: Array<{ groupJid?: string | null }>): string | null {
+  for (let i = mensagens.length - 1; i >= 0; i--) {
+    const jid = mensagens[i]?.groupJid;
+    if (jid) return jid;
+  }
+  return null;
 }
 
 // ── Painel do cliente ────────────────────────────────────────────────────

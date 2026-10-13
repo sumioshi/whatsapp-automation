@@ -83,6 +83,15 @@ export function InboxItem({
         ) : (
           linha.etiqueta && <Etiqueta nome={linha.etiqueta} tamanho="sm" className="shrink-0" />
         )}
+        {linha.aguardaOk !== null && (
+          <span
+            title={`A triagem preparou uma pergunta para o cliente; responda "ok ${linha.aguardaOk}" no seu WhatsApp para enviar`}
+            className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11.5px] font-medium text-id-ia"
+          >
+            <Icone nome="spark" tamanho={12} />
+            espera seu OK
+          </span>
+        )}
       </span>
       <span className="flex items-center justify-self-end gap-1.5">
         {linha.ia ? (
