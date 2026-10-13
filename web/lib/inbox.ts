@@ -1,5 +1,5 @@
 import { type Contacts, buildContacts, displayNameOf, numberFromJid, roleOf } from "./contacts";
-import { type MessageView, listGroups, readGroupRecords } from "./data";
+import { type GroupSummary, type MessageView, listGroups, readGroupRecords } from "./data";
 import { fundirMensagens } from "./dm-irmaos";
 import { readTriage } from "./triage";
 import { type SlaBand, aguardandoValido, buildSlaInfo } from "./sla";
@@ -181,6 +181,8 @@ export interface OpcoesInbox {
    * LID) são avaliados como uma conversa só e viram um item.
    */
   canonicoDe?: (slug: string) => string;
+  /** Lista de conversas já lida nesta requisição: evita varrer os chats de novo. */
+  grupos?: GroupSummary[];
 }
 
 /** Junta os candidatos pela conversa (`canonicoDe`), na ordem em que aparecem. */
@@ -218,7 +220,7 @@ export function candidatosDoInbox<T extends { slug: string }>(
 export async function buildInbox(opts: OpcoesInbox = {}): Promise<InboxItem[]> {
   const now = Date.now(); // calculado uma vez, server-side
   const [groups, contacts, triage] = await Promise.all([
-    listGroups(),
+    opts.grupos ?? listGroups(),
     buildContacts(),
     readTriage(),
   ]);

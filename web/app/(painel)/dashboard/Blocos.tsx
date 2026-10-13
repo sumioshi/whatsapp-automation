@@ -126,7 +126,7 @@ const ESTILO_QUEM: Record<QuemRespondeu, { cor: string; icone: NomeIcone; dica: 
   painel: { cor: "var(--color-id-painel)", icone: "monitor", dica: "você aqui no Balcão" },
   equipe: { cor: "var(--color-id-equipe)", icone: "user", dica: "alguém da equipe, pelo painel ou no grupo" },
   ia: { cor: "var(--color-id-ia)", icone: "spark", dica: "a IA, com ritmo humano" },
-  "sem-registro": { cor: "var(--color-fg-mute)", icone: "history", dica: "você, em mensagens de antes do registro de quem enviou" },
+  "sem-registro": { cor: "var(--color-fg-mute)", icone: "history", dica: "sem registro de quem enviou: mensagens antigas ou do coletor fora da fila da IA" },
 };
 
 export function QuemRespondeuRosca({ quem }: { quem: Painel["quem"] }) {
