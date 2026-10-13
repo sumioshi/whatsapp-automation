@@ -5,13 +5,11 @@ import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useS
 import {
   type AvisoEntrega,
   autoria,
-  type BalaoDaIa,
+  blocosDaConversa,
   chaveDia,
-  continuaSequencia,
   type EventoEntrega,
   ligarEntregas,
   rotuloDia,
-  rotuloDosBaloes,
 } from "@/lib/caixa";
 import type { MessageView } from "@/lib/data";
 import { instanteLongo } from "@/lib/formatar-data";
@@ -392,40 +390,8 @@ export function Timeline({
     return lista.sort((x, y) => ts(x).localeCompare(ts(y)));
   }, [shown, entregas.avisos, mediaFilter]);
 
-  // Quem continua o bloco da mensagem anterior (sem nome nem avatar) e, no começo de
-  // cada bloco da IA, o rótulo da entrega ("1–3 de 3 balões").
-  const blocos = useMemo(() => {
-    const continua = new Set<string>();
-    const rotulos: Record<string, { texto: string; ticket: string }> = {};
-    let inicio: { id: string; baloes: BalaoDaIa[] } | null = null;
-    const fechar = () => {
-      if (inicio?.baloes.length) {
-        rotulos[inicio.id] = { texto: rotuloDosBaloes(inicio.baloes), ticket: inicio.baloes[0]?.ticket ?? "" };
-      }
-    };
-    itens.forEach((item, i) => {
-      if (item.tipo !== "msg") {
-        fechar();
-        inicio = null;
-        return;
-      }
-      const anterior = itens[i - 1];
-      const prev = anterior?.tipo === "msg" ? anterior.m : undefined;
-      const m = item.m;
-      const segue = Boolean(prev) && chaveDia((prev as MessageView).timestamp) === chaveDia(m.timestamp) && continuaSequencia(prev, m, donoLogin);
-      const b = entregas.baloes[m.id];
-      if (segue && inicio && (!b || inicio.baloes[0]?.ticket === b.ticket || inicio.baloes.length === 0)) {
-        continua.add(m.id);
-        if (b && (inicio.baloes.length === 0 || inicio.baloes[0]?.ticket === b.ticket)) inicio.baloes.push(b);
-        return;
-      }
-      if (segue && !inicio) continua.add(m.id);
-      fechar();
-      inicio = { id: m.id, baloes: b ? [b] : [] };
-    });
-    fechar();
-    return { continua, rotulos };
-  }, [itens, entregas.baloes, donoLogin]);
+  // Quem continua o bloco da mensagem anterior e o rótulo de cada bloco da IA.
+  const blocos = useMemo(() => blocosDaConversa(itens, entregas.baloes, donoLogin), [itens, entregas.baloes, donoLogin]);
 
   const contagem = new Intl.NumberFormat("pt-BR").format(totalCount);
   const filtroAtivo = mediaFilter !== "all";

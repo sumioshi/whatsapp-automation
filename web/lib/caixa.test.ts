@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   agruparReacoes,
   autoria,
+  blocosDaConversa,
   type ConversaFila,
   continuaSequencia,
   desdeQuando,
@@ -433,5 +434,49 @@ describe('rotuloDosBaloes', () => {
     expect(rotuloDosBaloes([b(2, 3), b(3, 3)])).toBe('2–3 de 3 balões');
     expect(rotuloDosBaloes([b(1, 1)])).toBe('1 balão');
     expect(rotuloDosBaloes([])).toBe('');
+  });
+});
+
+describe('blocosDaConversa', () => {
+  const msg = (id: string, sender: string, timestamp: string, extra: Record<string, unknown> = {}) => ({
+    tipo: 'msg' as const,
+    m: { id, sender, timestamp, type: 'text', ...extra },
+  });
+  const ia = (id: string, timestamp: string) => msg(id, 'eu', timestamp, { fromMe: true, origem: 'coletor' });
+
+  it('mesma pessoa em sequência continua o bloco; aviso no meio quebra', () => {
+    const r = blocosDaConversa(
+      [
+        msg('a', 'x', '2026-10-07T12:00:00Z'),
+        msg('b', 'x', '2026-10-07T12:01:00Z'),
+        { tipo: 'aviso' as const },
+        msg('c', 'x', '2026-10-07T12:02:00Z'),
+        msg('d', 'y', '2026-10-07T12:02:30Z'),
+      ],
+      {},
+      null,
+    );
+    expect([...r.continua]).toEqual(['b']);
+  });
+
+  it('balões da mesma entrega viram um bloco com o rótulo no primeiro', () => {
+    const t = (n: number) => ({ ticket: 't1', n, total: 3 });
+    const r = blocosDaConversa(
+      [ia('a', '2026-10-07T12:00:00Z'), ia('b', '2026-10-07T12:00:20Z'), ia('c', '2026-10-07T12:00:40Z')],
+      { a: t(1), b: t(2), c: t(3) },
+      null,
+    );
+    expect([...r.continua]).toEqual(['b', 'c']);
+    expect(r.rotulos).toEqual({ a: { texto: '1–3 de 3 balões', ticket: 't1' } });
+  });
+
+  it('entrega nova logo depois abre outro bloco, e balão depois de mensagem solta também', () => {
+    const r = blocosDaConversa(
+      [ia('solta', '2026-10-07T12:00:00Z'), ia('a', '2026-10-07T12:00:10Z'), ia('b', '2026-10-07T12:00:30Z')],
+      { a: { ticket: 't1', n: 1, total: 1 }, b: { ticket: 't2', n: 1, total: 2 } },
+      null,
+    );
+    expect([...r.continua]).toEqual([]);
+    expect(r.rotulos).toEqual({ a: { texto: '1 balão', ticket: 't1' }, b: { texto: '1 de 2 balões', ticket: 't2' } });
   });
 });

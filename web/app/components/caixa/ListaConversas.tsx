@@ -199,7 +199,12 @@ export function ListaConversas({ dados, aviso, className }: { dados: DadosCaixa;
 
   const atual = useMemo(() => {
     const m = /\/g\/([^/]+)$/.exec(pathname);
-    return m?.[1] ? decodeURIComponent(m[1]) : null;
+    if (!m?.[1]) return null;
+    try {
+      return decodeURIComponent(m[1]);
+    } catch {
+      return m[1];
+    }
   }, [pathname]);
 
   const itensNav = useMemo(

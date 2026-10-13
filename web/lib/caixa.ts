@@ -438,6 +438,46 @@ export function rotuloDosBaloes(bloco: BalaoDaIa[]): string {
   return `${faixa} de ${primeiro.total} balões`;
 }
 
+/**
+ * Blocos da linha do tempo: quem continua o bloco da mensagem anterior (sem
+ * nome nem avatar) e, no começo de cada bloco da IA, o rótulo da entrega. Um
+ * aviso no meio quebra o bloco; balão de outra entrega abre bloco novo.
+ */
+export function blocosDaConversa(
+  itens: Array<{ tipo: 'msg'; m: Encadeavel & { id: string } } | { tipo: 'aviso' }>,
+  baloes: Record<string, BalaoDaIa>,
+  donoLogin: string | null,
+): { continua: Set<string>; rotulos: Record<string, { texto: string; ticket: string }> } {
+  const continua = new Set<string>();
+  const rotulos: Record<string, { texto: string; ticket: string }> = {};
+  let bloco: { id: string; baloes: BalaoDaIa[] } | null = null;
+  const fechar = () => {
+    const primeiro = bloco?.baloes[0];
+    if (bloco && primeiro) rotulos[bloco.id] = { texto: rotuloDosBaloes(bloco.baloes), ticket: primeiro.ticket };
+  };
+  itens.forEach((item, i) => {
+    if (item.tipo !== 'msg') {
+      fechar();
+      bloco = null;
+      return;
+    }
+    const anterior = itens[i - 1];
+    const prev = anterior?.tipo === 'msg' ? anterior.m : undefined;
+    const b = baloes[item.m.id];
+    const atual = bloco as { id: string; baloes: BalaoDaIa[] } | null;
+    const segue = continuaSequencia(prev, item.m, donoLogin);
+    if (segue && atual && (b ? atual.baloes[0]?.ticket === b.ticket : atual.baloes.length === 0)) {
+      continua.add(item.m.id);
+      if (b) atual.baloes.push(b);
+      return;
+    }
+    fechar();
+    bloco = { id: item.m.id, baloes: b ? [b] : [] };
+  });
+  fechar();
+  return { continua, rotulos };
+}
+
 // ── Painel do cliente ────────────────────────────────────────────────────
 
 export interface Pessoa {
