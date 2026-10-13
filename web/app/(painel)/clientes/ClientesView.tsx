@@ -138,15 +138,11 @@ export function ClientesView({ linhas, kanban, agoraMs }: { linhas: ClienteLinha
   const vazio = comFiltro ? (
     <EmptyState
       title="Nenhum cliente com esses filtros"
-      description={
-        <>
-          Tire um filtro ou mude a busca para ver mais gente.
-          <span className="mt-3 block">
-            <Button variant="subtle" size="sm" onClick={limparFiltros}>
-              Limpar filtros
-            </Button>
-          </span>
-        </>
+      description="Tire um filtro ou mude a busca para ver mais gente."
+      acao={
+        <Button variant="subtle" size="sm" onClick={limparFiltros}>
+          Limpar filtros
+        </Button>
       }
     />
   ) : (

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { type CSSProperties, useState } from "react";
 import { useRotas } from "@/app/components/RotasPainel";
-import { Badge, Button, Pares, cn } from "@/app/components/ui";
+import { Badge, BotaoConfirmar, Button, Pares, cn } from "@/app/components/ui";
 import { type ChatDaAgenda, conversaDoEvento, rotuloDoEvento } from "@/lib/agenda-semana";
 import type { Agenda, Evento } from "@/lib/google/evento";
 import { IcConversa, IcExterno, IcFechar, IcVideo } from "./icones";
@@ -149,13 +149,10 @@ function DetalheDoEvento({
   aoRecarregar: () => void;
 }) {
   const rotas = useRotas();
-  const [confirmando, setConfirmando] = useState(false);
-  const [apagando, setApagando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const conversa = conversaDoEvento(ev, chats);
 
   async function apagar() {
-    setApagando(true);
     setErro(null);
     try {
       const res = await fetch(`/api/agenda/eventos?${new URLSearchParams({ agenda: ev.agenda, id: ev.id })}`, { method: "DELETE" });
@@ -165,7 +162,6 @@ function DetalheDoEvento({
       aoApagado();
     } catch (e) {
       setErro(e instanceof Error ? e.message : "não deu para apagar");
-      setApagando(false);
     }
   }
 
@@ -220,29 +216,18 @@ function DetalheDoEvento({
       )}
 
       {ev.editavel ? (
-        confirmando ? (
-          <div className="flex flex-col gap-2 rounded-card border border-line bg-surface p-3">
-            <p className="text-[13px] text-fg">Apagar este evento do Google Agenda?</p>
-            {ev.convidados.length > 0 && <p className="text-[12.5px] text-fg-faint">Os convidados recebem o aviso do Google.</p>}
-            <div className="flex gap-1.5">
-              <Button variant="danger" size="sm" loading={apagando} onClick={() => void apagar()}>
-                Apagar evento
-              </Button>
-              <Button variant="ghost" size="sm" disabled={apagando} onClick={() => setConfirmando(false)}>
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex gap-1.5">
-            <Button variant="subtle" size="sm" onClick={() => aoEditar(ev)}>
-              Editar
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setConfirmando(true)}>
-              Apagar…
-            </Button>
-          </div>
-        )
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button variant="subtle" size="sm" onClick={() => aoEditar(ev)}>
+            Editar
+          </Button>
+          <BotaoConfirmar
+            pergunta={ev.convidados.length ? "Apagar? Os convidados recebem o aviso do Google." : "Apagar do Google Agenda?"}
+            confirmar="Apagar evento"
+            aoConfirmar={apagar}
+          >
+            Apagar…
+          </BotaoConfirmar>
+        </div>
       ) : (
         <p className="text-[12.5px] text-fg-faint">
           {ev.organizador
