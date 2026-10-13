@@ -2,6 +2,7 @@ import { access, readdir, readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { buildContacts, type Contacts, displayNameOf, numberFromJid } from './contacts';
 import { CHATS_FILE, DATA_DIR, safeDataPath } from './paths';
+import { remetenteDaLinha } from './remetente';
 import { cachedByStat } from './file-cache';
 import { readTriage } from './triage';
 
@@ -243,7 +244,10 @@ function parseJsonl(raw: string): MessageRecord[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
-      out.push(JSON.parse(trimmed) as MessageRecord);
+      const rec = JSON.parse(trimmed) as MessageRecord;
+      const sender = remetenteDaLinha(rec);
+      if (sender) rec.sender = sender;
+      out.push(rec);
     } catch {
       // linha corrompida (ex.: escrita parcial concorrente) — ignora
     }

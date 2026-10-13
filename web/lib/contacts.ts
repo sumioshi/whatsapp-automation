@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { readTeam } from "./config";
 import { CONTACTS_FILE, DATA_DIR, safeDataPath, TEAM_FILE } from "./paths";
+import { remetenteDaLinha } from "./remetente";
 
 export type Role = "me" | "team" | "client";
 
@@ -257,8 +258,9 @@ export async function buildContacts(): Promise<Contacts> {
           sender?: string;
           senderName?: string;
           fromMe?: boolean;
+          groupJid?: string;
         };
-        const jid = m.sender ?? "";
+        const jid = remetenteDaLinha(m) ?? "";
         // Ignora remetentes que caíram no jid do grupo (não são pessoas).
         if (jid.endsWith("@g.us")) continue;
         const num = numberFromJid(jid);

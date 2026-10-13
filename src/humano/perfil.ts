@@ -17,6 +17,7 @@ export interface MsgHistorico {
   timestamp: string;
   origem?: string;
   sender?: string;
+  groupJid?: string;
 }
 
 const MIN_MSGS = 30;
@@ -128,6 +129,10 @@ export async function lerHistorico(dataDir: string, slug: string): Promise<MsgHi
       if (!l) continue;
       try {
         const m = JSON.parse(l) as MsgHistorico;
+        // Recebida em DM pode vir com `sender` vazio: quem escreveu é o outro lado.
+        if (!m.fromMe && !m.sender && /@(s\.whatsapp\.net|lid)$/.test(m.groupJid ?? '')) {
+          m.sender = m.groupJid;
+        }
         if (typeof m.timestamp === 'string') out.push(m);
       } catch {
         /* linha quebrada */

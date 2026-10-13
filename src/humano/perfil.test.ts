@@ -152,4 +152,15 @@ describe('loadPerfilEnvio — cache', () => {
     );
     expect(await lerHistorico(dataDir, slug)).toHaveLength(1);
   });
+
+  it('lerHistorico: recebida em DM com sender vazio é do outro lado da conversa', async () => {
+    const dm = '5511000000009@s.whatsapp.net';
+    await writeFile(
+      join(dataDir, slug, 'messages.jsonl'),
+      `${JSON.stringify({ ...dele(0), sender: '', groupJid: dm })}\n`,
+    );
+    const msgs = await lerHistorico(dataDir, slug);
+    expect(msgs[0]?.sender).toBe(dm);
+    expect(ultimaDoCliente(msgs, new Set(['5511000000009']))).toBeNull();
+  });
 });
