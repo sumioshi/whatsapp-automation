@@ -122,7 +122,7 @@ export function BarraClientes({
 
       <Segmentado<Segmento>
         rotulo="Recorte"
-        className="self-center max-[860px]:order-2 max-[860px]:mb-1 max-[860px]:mt-1"
+        className="max-[860px]:order-2 max-[860px]:my-1"
         opcoes={[
           { valor: "todos", rotulo: "Todos", num: contagem.todos },
           { valor: "esperando", rotulo: "Esperando", num: contagem.esperando },
