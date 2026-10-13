@@ -82,7 +82,6 @@ export function GruposCard({ aoResumir }: { aoResumir: AoResumir }) {
         <Carregando linhas={4} rotulo="Carregando os grupos…" />
       ) : grupos.length === 0 ? (
         <EmptyState
-          className="py-8"
           title="Nenhum grupo ainda"
           description="Conecte o WhatsApp na seção Conexão. Os grupos aparecem aqui sozinhos."
         />
@@ -141,7 +140,6 @@ export function GruposCard({ aoResumir }: { aoResumir: AoResumir }) {
 
           {n === 0 ? (
             <EmptyState
-              className="py-8"
               title="Nenhum grupo com esse filtro"
               description="Mude a busca ou desmarque as tags."
               acao={

@@ -156,7 +156,6 @@ export function LinksView() {
                 <p className="py-2 text-[13px] text-fg-faint">Carregando…</p>
               ) : links.length === 0 ? (
                 <EmptyState
-                  className="py-10"
                   title="Nenhum link ainda"
                   description="Escolha uma conversa e o repositório do cliente no formulário ao lado."
                 />

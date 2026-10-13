@@ -3,6 +3,9 @@
 import { cn, Icone } from "@/app/components/ui";
 import { type IdSecao, type Resumo, SECOES } from "./secoes";
 
+/** Contagens ("21/201", "7") vão em mono; palavras ("desligado", "15 min") ficam na fonte de texto. */
+const SO_NUMERO = /^[\d.,/ ]+$/;
+
 const TOM_RESUMO: Record<NonNullable<Resumo["tom"]>, string> = {
   ok: "text-ok",
   danger: "text-danger",
@@ -54,7 +57,13 @@ export function NavSecoes({
                       <Icone nome={s.icone} className={atual ? "text-accent" : "text-fg-faint"} />
                       <span className="min-w-0 flex-1 truncate">{s.rotulo}</span>
                       {resumo && (
-                        <span className={cn("shrink-0 font-mono text-[11.5px] tabular-nums", resumo.tom ? TOM_RESUMO[resumo.tom] : "text-fg-faint")}>
+                        <span
+                          className={cn(
+                            "shrink-0",
+                            SO_NUMERO.test(resumo.texto) ? "font-mono text-[11.5px] tabular-nums" : "text-[12px]",
+                            resumo.tom ? TOM_RESUMO[resumo.tom] : "text-fg-faint",
+                          )}
+                        >
                           {resumo.texto}
                         </span>
                       )}

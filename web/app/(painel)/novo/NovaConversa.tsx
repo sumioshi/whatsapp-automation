@@ -418,7 +418,7 @@ function ListaGrupos({
   if (erro) return <p className="mt-4 text-[13px] text-danger">Não deu para carregar os grupos. {erro}</p>;
   if (!grupos) return <p className="mt-4 text-[13px] text-fg-faint">Carregando os grupos…</p>;
   if (grupos.length === 0) {
-    return <EmptyState className="py-8" title="Nenhum grupo ainda" description="Conecte o WhatsApp em Configurações. Os grupos aparecem aqui sozinhos." />;
+    return <EmptyState title="Nenhum grupo ainda" description="Conecte o WhatsApp em Configurações. Os grupos aparecem aqui sozinhos." />;
   }
   if (filtrados.length === 0) return <p className="py-8 text-center text-[13px] text-fg-faint">Nenhum grupo com esse nome.</p>;
   return (
@@ -468,7 +468,6 @@ function ListaContatos({
   if (filtrados.length === 0) {
     return (
       <EmptyState
-        className="py-8"
         title={contatos.length === 0 ? "Nenhum contato ainda" : "Ninguém com esse nome ou número"}
         description="Para falar com quem ainda não trocou mensagem com você, digite o número."
         acao={

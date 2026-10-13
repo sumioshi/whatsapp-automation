@@ -101,16 +101,18 @@ export function ContaCard({
     >
       {renomeando ? (
         <form onSubmit={(e) => void salvarNome(e)} className="mb-4 flex flex-wrap items-end gap-2">
-          <Field label="Nome" htmlFor="conta-nome" className="min-w-[220px] flex-1">
-            <Input
-              id="conta-nome"
-              // biome-ignore lint/a11y/noAutofocus: o campo só aparece depois do clique em Renomear
-              autoFocus
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              required
-            />
-          </Field>
+          <div className="min-w-[220px] flex-1">
+            <Field label="Nome" htmlFor="conta-nome">
+              <Input
+                id="conta-nome"
+                // biome-ignore lint/a11y/noAutofocus: o campo só aparece depois do clique em Renomear
+                autoFocus
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                required
+              />
+            </Field>
+          </div>
           <Button type="submit" loading={ocupado === "nome"} disabled={!nome.trim()}>
             Salvar nome
           </Button>
@@ -126,7 +128,7 @@ export function ContaCard({
             rotulo: "Último acesso",
             valor: conta.ultimoAcesso ? <span title={instanteLongo(conta.ultimoAcesso)}>{haQuanto(conta.ultimoAcesso)}</span> : "Nunca entrou",
           },
-          { rotulo: "Criada em", valor: <span className="font-mono text-[12.5px] tabular-nums">{instanteLongo(conta.criadoEm)}</span> },
+          { rotulo: "Criada em", valor: <span className="font-mono tabular-nums">{instanteLongo(conta.criadoEm)}</span> },
           {
             rotulo: "Acesso",
             valor: conta.ativo ? "Entra e responde nas conversas liberadas" : "Bloqueado até você ativar de novo",

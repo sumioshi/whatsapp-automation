@@ -85,7 +85,7 @@ export function LinkForm({
               onChange={(e) => aoMudar({ ...form, repoPath: e.target.value })}
               placeholder="/Users/…/cliente-x"
               spellCheck={false}
-              className="font-mono text-[13px]"
+              className="font-mono"
             />
           </Field>
           <Field label="Repositório no GitHub" htmlFor="link-github" hint="owner/repo, onde o agente de triagem abre as issues.">
@@ -95,7 +95,7 @@ export function LinkForm({
               onChange={(e) => aoMudar({ ...form, github: e.target.value })}
               placeholder="org/repo"
               spellCheck={false}
-              className="font-mono text-[13px]"
+              className="font-mono"
             />
           </Field>
           <Field label="Cliente" htmlFor="link-cliente">

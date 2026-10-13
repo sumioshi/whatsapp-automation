@@ -80,7 +80,7 @@ export function TimeCard({ aoResumir }: { aoResumir: AoResumir }) {
       ) : !dados ? (
         <Carregando linhas={4} rotulo="Carregando as pessoas…" />
       ) : dados.length === 0 ? (
-        <EmptyState className="py-8" title="Ninguém ainda" description="Aparece aqui quem mandar mensagem nos grupos." />
+        <EmptyState title="Ninguém ainda" description="Aparece aqui quem mandar mensagem nos grupos." />
       ) : (
         <>
           <p className="max-w-[72ch] text-[13.5px] leading-relaxed text-fg-dim">
