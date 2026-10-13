@@ -22,6 +22,8 @@ export interface RotasPainel {
   inicio: string;
   /** A fila da Caixa (para onde o "voltar" da conversa leva). */
   caixa: string;
+  /** Dados da fila, para a Caixa se atualizar sem refazer a página. */
+  fila: string;
   chat(slug: string): string;
   status: string;
   mensagens(slug: string, q?: { before?: string; limit?: number }): string;
@@ -52,6 +54,7 @@ const DONO: RotasPainel = {
   modo: 'dono',
   inicio: '/',
   caixa: '/inbox',
+  fila: '/api/caixa/fila',
   chat: (slug) => `/g/${slug}`,
   status: '/api/status',
   mensagens: (slug, q) => `/api/messages?${consulta(slug, q)}`,
@@ -76,6 +79,7 @@ const ATENDIMENTO: RotasPainel = {
   modo: 'atendimento',
   inicio: '/atendimento',
   caixa: '/atendimento',
+  fila: `${BASE}/fila`,
   chat: (slug) => `/atendimento/g/${slug}`,
   status: `${BASE}/status`,
   mensagens: (slug, q) => `${BASE}/mensagens?${consulta(slug, q)}`,

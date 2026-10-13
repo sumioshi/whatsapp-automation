@@ -412,9 +412,22 @@ function Imagem({ src, className }: { src: string; className: string }) {
   );
 }
 
+const MIDIA_SEM_ARQUIVO: Record<string, string> = {
+  audio: "áudio",
+  image: "imagem",
+  video: "vídeo",
+  gif: "GIF",
+  sticker: "figurinha",
+  document: "documento",
+};
+
 function Media({ slug, m }: { slug: string; m: MessageView }) {
   const rotas = useRotas();
-  if (!m.mediaPath) return null;
+  if (!m.mediaPath) {
+    // Mídia que não chegou a este painel e veio sem legenda: diz o que era, em vez de um balão vazio.
+    const tipo = MIDIA_SEM_ARQUIVO[m.type];
+    return tipo && !m.text ? <span className="italic text-fg-faint">{tipo} indisponível</span> : null;
+  }
   const src = rotas.midia(m.mediaPath);
 
   switch (m.type) {

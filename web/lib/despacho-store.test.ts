@@ -98,3 +98,14 @@ describe('gravarDespacho é idempotente por passada', () => {
     expect(emDiscoDepois).toEqual(emDisco);
   });
 });
+
+describe('listarDespachos a partir de uma passada', () => {
+  it('lê só os arquivos com nome a partir da passada pedida (o nome é a data)', async () => {
+    await mod.gravarDespacho('2026-08-01T0610', [{ slug: 'velho', cliente: 'V', tipo: 'pergunta', titulo: 'T', texto: 'x' }], agora);
+    await mod.gravarDespacho('2026-09-10T0610', [{ slug: 'novo', cliente: 'N', tipo: 'pergunta', titulo: 'T', texto: 'y' }], agora);
+    const recentes = await mod.listarDespachos({ desde: '2026-09-05T0000' });
+    expect(recentes.map((d) => d.passada)).toEqual(['2026-09-10T0610']);
+    const todos = await mod.listarDespachos();
+    expect(todos.map((d) => d.passada)).toContain('2026-08-01T0610');
+  });
+});

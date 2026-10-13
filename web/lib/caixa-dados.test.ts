@@ -51,12 +51,22 @@ describe('eventosDaConversa', () => {
 
 describe('iaDaCaixa', () => {
   it('coletor fora do ar dá fila vazia; pergunta da triagem sem decisão espera o OK', async () => {
+    // A fila só lê os despachos recentes: a passada é de hoje, e uma de meses atrás nem é aberta.
+    const agora = new Date();
+    const passada = `${agora.toISOString().slice(0, 10)}T0610`;
+    const criadoEm = agora.toISOString();
     await writeFile(
-      join(tmp, 'data', 'despacho', '2026-10-07T0610.json'),
+      join(tmp, 'data', 'despacho', '2020-01-01T0610.json'),
+      JSON.stringify({ passada: '2020-01-01T0610', criadoEm: '2020-01-01T09:10:00.000Z', enviadoEm: null, itens: [
+        { n: 1, id: 'v', slug: 'velho', cliente: 'V', tipo: 'pergunta', titulo: 'x', url: null, texto: 'antiga', issue: null, acao: 'enviar', label: null, executadoEm: null, resultado: null },
+      ] }),
+    );
+    await writeFile(
+      join(tmp, 'data', 'despacho', `${passada}.json`),
       JSON.stringify({
-        passada: '2026-10-07T0610',
-        criadoEm: '2026-10-07T09:10:00.000Z',
-        enviadoEm: '2026-10-07T09:11:00.000Z',
+        passada,
+        criadoEm,
+        enviadoEm: criadoEm,
         itens: [
           { n: 3, id: 'a', slug: 'g', cliente: 'G', tipo: 'pergunta', titulo: 'Prazo', url: null, texto: 'Fecha sexta?', issue: null, acao: 'enviar', label: null, executadoEm: null, resultado: null },
           { n: 4, id: 'b', slug: 'h', cliente: 'H', tipo: 'pergunta', titulo: 'x', url: null, texto: 'y', issue: null, acao: 'enviar', label: null, executadoEm: '2026-10-07T10:00:00Z', resultado: 'ok' },
@@ -66,7 +76,7 @@ describe('iaDaCaixa', () => {
     );
     expect(await mod.iaDaCaixa()).toEqual({
       entregas: [],
-      aguardandoOk: [{ slug: 'g', n: 3, texto: 'Fecha sexta?', desde: '2026-10-07T09:10:00.000Z' }],
+      aguardandoOk: [{ slug: 'g', n: 3, texto: 'Fecha sexta?', desde: criadoEm }],
     });
   });
 });
