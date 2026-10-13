@@ -423,3 +423,53 @@ body {
   font-size: 11.5px;
   padding: 0 8px 0 7px;
 }
+
+/* ── Login: a vitrine segue o tema ────────────────────────────────────────
+   A campainha clara no tema claro e a escura no escuro, com a mesma regra dos
+   tokens. É fundo de CSS para o navegador baixar só a versão visível; a
+   miniatura borrada fica por baixo enquanto a imagem inteira chega. */
+.vitrine-balcao {
+  background-image: var(--campainha-clara), var(--campainha-clara-borrada);
+  background-size: cover;
+  background-position: 50% 40%;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .vitrine-balcao {
+    background-image: var(--campainha-escura), var(--campainha-escura-borrada);
+  }
+}
+:root[data-theme="dark"] .vitrine-balcao {
+  background-image: var(--campainha-escura), var(--campainha-escura-borrada);
+}
+
+/* Os cartões da vitrine entram uma vez, em sequência (atraso em cada um). */
+@keyframes vitrine-entra {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+}
+.vitrine-cartao {
+  animation: vitrine-entra 640ms var(--ease-out-quint) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vitrine-cartao {
+    animation: none;
+  }
+}
+
+/* Entrada única do formulário do login. */
+@keyframes surgir {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.surgir {
+  animation: surgir 480ms var(--ease-out-quint) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .surgir {
+    animation: none;
+  }
+}
