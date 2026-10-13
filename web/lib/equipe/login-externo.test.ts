@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emailsDoDono, ehEmailDoDono, emailValido } from './login-externo';
+import { emailsDoDono, ehEmailDoDono, emailValido, pedidoDoProprioSite } from './login-externo';
 
 describe('emailsDoDono', () => {
   it('lê a lista separada por vírgula ou espaço, em minúsculas', () => {
@@ -30,5 +30,20 @@ describe('emailValido', () => {
     expect(emailValido('sem-arroba')).toBe(false);
     expect(emailValido('a@b')).toBe(false);
     expect(emailValido(`${'x'.repeat(250)}@a.com`)).toBe(false);
+  });
+});
+
+describe('pedidoDoProprioSite', () => {
+  const h = (o: Record<string, string>) => new Headers(o);
+  it('aceita o JSON da própria tela', () => {
+    expect(pedidoDoProprioSite(h({ 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' }))).toBe(true);
+    expect(pedidoDoProprioSite(h({ 'content-type': 'application/json; charset=utf-8' }))).toBe(true);
+  });
+  it('recusa formulário ou texto vindo de outro site', () => {
+    expect(pedidoDoProprioSite(h({ 'content-type': 'text/plain' }))).toBe(false);
+    expect(pedidoDoProprioSite(h({ 'content-type': 'application/x-www-form-urlencoded' }))).toBe(false);
+    expect(pedidoDoProprioSite(h({ 'content-type': 'application/json', 'sec-fetch-site': 'cross-site' }))).toBe(false);
+    expect(pedidoDoProprioSite(h({ 'content-type': 'application/json', 'sec-fetch-site': 'same-site' }))).toBe(false);
+    expect(pedidoDoProprioSite(h({}))).toBe(false);
   });
 });

@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   type EstadoCodigos,
   MAX_ENVIOS,
+  MAX_ENVIOS_DIA,
+  MAX_FALHAS_DIA,
   MAX_TENTATIVAS,
   VALIDADE_MS,
   conferirCodigo,
   emailDoCodigo,
+  estadoDoArquivo,
   registrarCodigo,
 } from './codigo-email';
 
@@ -40,7 +43,7 @@ describe('registrarCodigo', () => {
   });
   it('limpa entradas velhas de outros e-mails', () => {
     const velho = registrarCodigo({}, 'velho@x.com', '111111', T0, CHAVE).estado;
-    const r = registrarCodigo(velho, 'dono@x.com', '222222', T0 + 2 * 60 * MIN, CHAVE);
+    const r = registrarCodigo(velho, 'dono@x.com', '222222', T0 + 25 * 60 * MIN, CHAVE);
     expect(Object.keys(r.estado)).toEqual(['dono@x.com']);
   });
 });
@@ -83,5 +86,53 @@ describe('emailDoCodigo', () => {
     expect(e.text).toMatch(/10 minutos/);
     expect(e.text).toMatch(/não pediu/i);
     expect(e.html).toContain('482913');
+  });
+});
+
+describe('ataques ao código', () => {
+  const H = 60 * MIN;
+  it('nome de propriedade do Object não vira entrada nem quebra o estado', () => {
+    for (const nome of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+      const r = conferirCodigo({}, nome, '123456', T0, CHAVE);
+      expect(r).toMatchObject({ ok: false, motivo: 'sem_codigo' });
+      expect(Object.keys(r.estado)).toEqual([]);
+      expect(registrarCodigo(r.estado, 'dono@x.com', '111111', T0, CHAVE).ok).toBe(true);
+    }
+  });
+  it(`erros somam por 24 h mesmo com código novo: no ${MAX_FALHAS_DIA}º trava`, () => {
+    let estado: EstadoCodigos = {};
+    let erros = 0;
+    for (let rodada = 0; erros < MAX_FALHAS_DIA; rodada++) {
+      estado = registrarCodigo(estado, 'dono@x.com', '123456', T0 + rodada * 11 * MIN, CHAVE).estado;
+      for (let i = 0; i < MAX_TENTATIVAS && erros < MAX_FALHAS_DIA; i++, erros++) {
+        estado = conferirCodigo(estado, 'dono@x.com', '000000', T0 + rodada * 11 * MIN + 1, CHAVE).estado;
+      }
+    }
+    const depois = T0 + 3 * H;
+    // Travado: nem código novo sai, nem o certo entra.
+    expect(registrarCodigo(estado, 'dono@x.com', '654321', depois, CHAVE)).toMatchObject({ ok: false, motivo: 'bloqueado' });
+    expect(conferirCodigo(estado, 'dono@x.com', '123456', depois, CHAVE)).toMatchObject({ ok: false, motivo: 'bloqueado' });
+    // 24 h depois do primeiro erro, a janela solta.
+    expect(registrarCodigo(estado, 'dono@x.com', '654321', T0 + 25 * H, CHAVE).ok).toBe(true);
+  });
+  it(`no máximo ${MAX_ENVIOS_DIA} códigos por e-mail em 24 h`, () => {
+    let estado: EstadoCodigos = {};
+    for (let i = 0; i < MAX_ENVIOS_DIA; i++) {
+      const r = registrarCodigo(estado, 'dono@x.com', '111111', T0 + i * 11 * MIN, CHAVE);
+      expect(r.ok).toBe(true);
+      estado = r.estado;
+    }
+    expect(registrarCodigo(estado, 'dono@x.com', '111111', T0 + MAX_ENVIOS_DIA * 11 * MIN, CHAVE)).toMatchObject({
+      ok: false,
+      motivo: 'muitos_envios',
+    });
+  });
+  it('arquivo adulterado: entradas inválidas e chaves do protótipo são descartadas', () => {
+    const lido = estadoDoArquivo(
+      JSON.parse('{"constructor":{"tentativas":null},"__proto__":{"x":1},"lixo":"x","dono@x.com":{"hash":"h","expira":1,"tentativas":0,"envios":[1],"falhas":[]}}'),
+    );
+    expect(Object.keys(lido)).toEqual(['dono@x.com']);
+    expect(estadoDoArquivo(null)).toEqual({});
+    expect(estadoDoArquivo([1, 2])).toEqual({});
   });
 });

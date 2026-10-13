@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { caminhoInterno } from "@/lib/equipe/destino-login";
 import { credenciaisDoDono, igualSeguro } from "@/lib/equipe/autenticar";
+import { pedidoDoProprioSite } from "@/lib/equipe/login-externo";
 import { hashSenha, verificarSenha } from "@/lib/equipe/senha";
 import { chaveDeSessao, novaSessao, type Papel } from "@/lib/equipe/sessao";
 import { alterarUsuarios, acharUsuario } from "@/lib/equipe/usuarios";
@@ -25,6 +26,7 @@ function destino(papel: Papel, next: unknown): string {
 }
 
 export async function POST(req: Request) {
+  if (!pedidoDoProprioSite(req.headers)) return NextResponse.json({ ok: false, error: "pedido recusado" }, { status: 403 });
   const cred = credenciaisDoDono();
   const chave = chaveDeSessao();
   // Sem credenciais configuradas (dev local) o painel já é aberto — nada a fazer.

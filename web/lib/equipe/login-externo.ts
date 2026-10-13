@@ -21,3 +21,15 @@ export function ehEmailDoDono(email: string, env: Partial<NodeJS.ProcessEnv> = p
   const e = email.trim().toLowerCase();
   return e !== '' && emailsDoDono(env).includes(e);
 }
+
+/**
+ * Pedido de login vindo da própria tela: JSON e, quando o navegador informa a origem,
+ * do mesmo site. Um formulário de outro site não manda application/json sem passar
+ * pela checagem do CORS, então isso fecha o login forçado por página de terceiros.
+ */
+export function pedidoDoProprioSite(headers: Headers): boolean {
+  const tipo = (headers.get('content-type') ?? '').toLowerCase();
+  if (!tipo.startsWith('application/json')) return false;
+  const site = headers.get('sec-fetch-site');
+  return site === null || site === 'same-origin' || site === 'none';
+}

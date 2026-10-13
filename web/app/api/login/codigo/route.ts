@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { credenciaisDoDono } from "@/lib/equipe/autenticar";
 import { comCodigos, configDoEnvio, emailDoCodigo, enviarPeloResend, novoCodigo, registrarCodigo } from "@/lib/equipe/codigo-email";
-import { ehEmailDoDono, emailsDoDono, emailValido } from "@/lib/equipe/login-externo";
+import { ehEmailDoDono, emailsDoDono, emailValido, pedidoDoProprioSite } from "@/lib/equipe/login-externo";
 import { chaveDeSessao } from "@/lib/equipe/sessao";
 import { pausa } from "../sessao";
 
@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
  * (com a mesma demora), para a tela não revelar quem pode entrar.
  */
 export async function POST(req: Request) {
+  if (!pedidoDoProprioSite(req.headers)) return NextResponse.json({ ok: false, error: "pedido recusado" }, { status: 403 });
   const envio = configDoEnvio();
   const chave = chaveDeSessao();
   if (!envio || !credenciaisDoDono() || !chave || emailsDoDono().length === 0) {
@@ -36,10 +37,14 @@ export async function POST(req: Request) {
   const codigo = novoCodigo();
   const registrado = await comCodigos((estado) => {
     const r = registrarCodigo(estado, email, codigo, Date.now(), chave);
-    return { estado: r.estado, resultado: r.ok };
+    return { estado: r.estado, resultado: r };
   });
-  if (!registrado) {
-    return NextResponse.json({ ok: false, error: "muitos códigos pedidos; espere alguns minutos e tente de novo" }, { status: 429 });
+  if (!registrado.ok) {
+    const error =
+      registrado.motivo === "bloqueado"
+        ? "muitas tentativas erradas com esse e-mail; entre com o Google ou com a senha, ou tente de novo amanhã"
+        : "muitos códigos pedidos; espere alguns minutos e tente de novo";
+    return NextResponse.json({ ok: false, error }, { status: 429 });
   }
   if (!(await enviarPeloResend(emailDoCodigo(codigo, envio.remetente, email), envio.apiKey))) {
     return NextResponse.json({ ok: false, error: "não foi possível mandar o e-mail agora; tente de novo" }, { status: 502 });
