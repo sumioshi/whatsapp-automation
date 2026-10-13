@@ -7,6 +7,7 @@ describe('rotas do dono = as de hoje (sem mudança de comportamento)', () => {
   const r = rotasPainel('dono');
   it('leitura', () => {
     expect(r.inicio).toBe('/');
+    expect(r.caixa).toBe('/inbox');
     expect(r.chat('grupo-a')).toBe('/g/grupo-a');
     expect(r.status).toBe('/api/status');
     expect(r.mensagens('grupo a')).toBe('/api/messages?slug=grupo%20a');
@@ -36,6 +37,7 @@ describe('rotas do atendimento', () => {
   const r = rotasPainel('atendimento');
   it('tudo sob /api/atendimento, endereçado por slug, sem copiloto/time', () => {
     expect(r.inicio).toBe('/atendimento');
+    expect(r.caixa).toBe('/atendimento');
     expect(r.chat('g')).toBe('/atendimento/g/g');
     expect(r.status).toBe('/api/atendimento/status');
     expect(r.mensagens('g', { before: 'M1', limit: 150 })).toBe('/api/atendimento/mensagens?slug=g&before=M1&limit=150');

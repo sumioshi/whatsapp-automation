@@ -1,99 +1,67 @@
 "use client";
 
 import { useState } from "react";
-import { ChipEtiqueta, EditorEtiquetas } from "./Etiqueta";
+import type { PainelCliente, Tom } from "@/lib/caixa";
+import { Icone } from "./caixa/icones";
+import { EditorEtiquetas } from "./Etiqueta";
+import { useRotas } from "./RotasPainel";
+import { Avatar, Badge, Etiqueta } from "./ui";
 
-/** Dados de contexto do chat, montados server-side na página. */
-export interface ChatContexto {
-  slug: string;
-  nome: string;
-  tipo: "grupo" | "dm";
-  avatarPath: string | null;
-  etiquetas: string[];
-  conhecidas: string[];
-  autonomo: boolean;
-  silenciado: boolean;
-  mensagens: number;
-  /** Rótulo de última atividade já resolvido no servidor ("há 3h" / "05/08/26"). */
-  atividadeLabel: string | null;
-}
+const VARIANTE: Record<Tom, "ok" | "neutral" | "warn" | "danger"> = { ok: "ok", neutro: "neutral", warn: "warn", danger: "danger" };
 
 /**
- * Cartão de contexto no topo do painel lateral do chat: quem é, de qual
- * contrato é (etiquetas editáveis) e o estado operacional — o "prontuário"
- * que evita voltar pra lista só pra lembrar com quem se está falando.
+ * Topo do painel do cliente: quem é, desde quando, as etiquetas (editáveis) e
+ * os sinais do painel que pedem decisão. Evita voltar à lista só para lembrar
+ * com quem se está falando.
  */
-export function ContextoCard({ contexto }: { contexto: ChatContexto }) {
-  const [etiquetas, setEtiquetas] = useState<string[]>(contexto.etiquetas);
+export function ContextoCard({ dados, onEtiquetas }: { dados: PainelCliente; onEtiquetas?: () => void }) {
+  const rotas = useRotas();
+  const dono = dados.dono;
+  const [etiquetas, setEtiquetas] = useState<string[]>(dono?.etiquetas ?? []);
   const [editando, setEditando] = useState(false);
 
   return (
-    <div className="border-b border-line px-3 py-3">
-      <div className="flex items-center gap-2.5">
-        {contexto.avatarPath ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/api/media/${contexto.avatarPath.split("/").map(encodeURIComponent).join("/")}`}
-            alt=""
-            className="h-10 w-10 shrink-0 rounded-[10px] border border-line object-cover"
-          />
-        ) : (
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border border-line bg-surface-2 text-xs font-semibold text-fg-dim">
-            {contexto.nome.slice(0, 2).toUpperCase()}
-          </div>
-        )}
+    <div className="flex flex-col gap-3 border-b border-line p-5">
+      <div className="flex items-center gap-3">
+        <Avatar nome={dados.nome} tipo={dados.tipo} fotoUrl={dados.avatarPath ? rotas.midia(dados.avatarPath) : null} tamanho="md" />
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium text-fg">{contexto.nome}</div>
-          <div className="mono text-[10px] text-fg-faint">
-            {contexto.tipo === "dm" ? "contato" : "grupo"} · {contexto.mensagens} msgs
-            {contexto.atividadeLabel && ` · ${contexto.atividadeLabel}`}
-          </div>
+          <b className="block truncate text-[15px] font-semibold leading-snug text-fg">{dados.nome}</b>
+          <small className="block text-[12.5px] text-fg-faint">{dados.desde ?? (dados.tipo === "dm" ? "conversa direta" : "grupo")}</small>
         </div>
       </div>
-
-      <div className="relative mt-2.5 flex flex-wrap items-center gap-1">
-        {etiquetas.map((e) => (
-          <ChipEtiqueta key={e} nome={e} />
-        ))}
-        <button
-          type="button"
-          onClick={() => setEditando((v) => !v)}
-          className="rounded-full border border-dashed border-line px-1.5 text-[10px] text-fg-faint transition-colors hover:border-line-2 hover:text-fg"
-        >
-          {etiquetas.length === 0 ? "+ etiqueta" : "+"}
-        </button>
-        {editando && (
-          <EditorEtiquetas
-            slug={contexto.slug}
-            atuais={etiquetas}
-            conhecidas={contexto.conhecidas}
-            onSalvo={setEtiquetas}
-            onFechar={() => setEditando(false)}
-          />
-        )}
-      </div>
-
-      <div className="mono mt-2.5 flex flex-wrap gap-2 text-[10px]">
-        <span
-          className={`rounded-full border px-2 py-px ${
-            contexto.autonomo
-              ? "border-accent/40 text-accent"
-              : "border-line text-fg-dim"
-          }`}
-          title={
-            contexto.autonomo
-              ? "A IA envia direto neste chat"
-              : "A IA mostra o texto e espera OK antes de enviar"
-          }
-        >
-          {contexto.autonomo ? "envio autônomo" : "envio com confirmação"}
-        </span>
-        {contexto.silenciado && (
-          <span className="rounded-full border border-line px-2 py-px text-fg-faint">
-            silenciado
-          </span>
-        )}
-      </div>
+      {dono && (
+        <div className="relative flex flex-wrap items-center gap-1">
+          {etiquetas.map((e) => (
+            <Etiqueta key={e} nome={e} />
+          ))}
+          <button
+            type="button"
+            onClick={() => setEditando((v) => !v)}
+            aria-expanded={editando}
+            className="inline-flex h-[22px] items-center gap-1 rounded-full border border-dashed border-line-2 px-2 text-[12px] text-fg-faint transition-colors hover:border-fg-mute hover:text-fg"
+          >
+            <Icone nome="mais" tamanho={12} />
+            {etiquetas.length === 0 ? "Etiqueta" : <span className="sr-only">Editar etiquetas</span>}
+          </button>
+          {dono.sinais.map((s) => (
+            <span key={s.id} title={s.explicacao}>
+              <Badge variant={VARIANTE[s.tom]}>{s.texto}</Badge>
+            </span>
+          ))}
+          {editando && (
+            <EditorEtiquetas
+              slug={dados.slug}
+              atuais={etiquetas}
+              conhecidas={dono.conhecidas}
+              onSalvo={(lista) => {
+                setEtiquetas(lista);
+                onEtiquetas?.();
+              }}
+              onFechar={() => setEditando(false)}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

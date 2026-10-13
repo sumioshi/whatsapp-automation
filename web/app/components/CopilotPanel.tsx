@@ -118,6 +118,8 @@ export function CopilotPanel({ slug, onDraft }: CopilotPanelProps) {
         });
         const data = (await res.json()) as { ok?: boolean };
         if (!res.ok || !data.ok) throw new Error("falha ao alternar copiloto");
+        // A conversa liga ou desliga o rascunho automático sem recarregar.
+        window.dispatchEvent(new Event("copiloto:mudou"));
       } catch {
         setEnabled(!next);
       } finally {
@@ -129,11 +131,11 @@ export function CopilotPanel({ slug, onDraft }: CopilotPanelProps) {
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
-      {/* ── Header: opt-in toggle ──────────────────────────────────────── */}
-      <section className="rounded-card border border-line bg-surface p-4">
+      {/* ── Liga e desliga por conversa ───────────────────────────────── */}
+      <section>
         <div className="flex items-center justify-between gap-3">
-          <div className="flex flex-col gap-0.5">
-            <SectionLabel>Copiloto IA</SectionLabel>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-[13px] text-fg">{enabled ? "Ligado nesta conversa" : "Desligado nesta conversa"}</span>
             {provider?.ready && provider.label && (
               <ProviderChip label={provider.label} model={provider.model} />
             )}
@@ -154,8 +156,8 @@ export function CopilotPanel({ slug, onDraft }: CopilotPanelProps) {
 
         {/* Estado desligado: explica o que acontece ao ligar */}
         {enabled === false && (
-          <p className="mt-3 text-[13px] leading-relaxed text-fg-faint">
-            Ligue pra resumir a conversa e rascunhar respostas com o contexto deste grupo.{" "}
+          <p className="mt-2.5 text-[12.5px] leading-relaxed text-fg-faint">
+            Ligue para resumir a conversa e rascunhar respostas com o contexto dela.{" "}
             <span className="text-fg-dim">
               Ao ligar, a conversa será enviada {destino}
               {provider?.model ? ` (${provider.model})` : ""}.
@@ -180,12 +182,12 @@ export function CopilotPanel({ slug, onDraft }: CopilotPanelProps) {
 
 function ProviderChip({ label, model }: { label: string; model?: string }) {
   return (
-    <span className="mono text-[10px] text-fg-faint/70 leading-none">
+    <span className="truncate text-[11.5px] leading-snug text-fg-faint">
       {label}
       {model && (
         <>
-          <span className="mx-1 text-fg-faint/40">·</span>
-          {model}
+          {" · "}
+          <span className="font-mono">{model}</span>
         </>
       )}
     </span>
@@ -360,10 +362,9 @@ function CopilotChat({
   const hasMessages = messages.length > 0;
 
   return (
-    <section className="flex min-h-0 flex-col rounded-card border border-line bg-surface">
+    <section className="flex min-h-0 flex-col">
       {/* ── Ações rápidas ─────────────────────────────────────────────── */}
-      <div className="border-b border-line px-3 pt-3 pb-2.5">
-        <SectionLabel className="mb-2">Ações rápidas</SectionLabel>
+      <div>
         <div className="flex flex-wrap gap-1.5">
           {(Object.keys(ACTION_LABEL) as CopilotAction[]).map((action) => (
             <ActionChip
@@ -378,12 +379,12 @@ function CopilotChat({
 
       {/* ── Banner: nenhuma chave de API ──────────────────────────────── */}
       {noApiKey && (
-        <div className="mx-3 mt-3 rounded-control border border-danger/25 bg-danger/8 px-3 py-2.5">
+        <div className="mt-3 rounded-control bg-danger-bg px-3 py-2.5">
           <p className="text-[12px] leading-relaxed text-danger">
-            Nenhum provedor configurado.{" "}
-            <span className="text-danger/70">
-              Defina o provedor em <span className="mono">web/.env.local</span> (OpenRouter,
-              Anthropic ou local) pra usar o copiloto.
+            Nenhum provedor de IA configurado.{" "}
+            <span>
+              Defina o provedor nas variáveis do painel (OpenRouter,
+              Anthropic ou local) para usar o copiloto.
             </span>
           </p>
         </div>
@@ -393,35 +394,16 @@ function CopilotChat({
       <div
         ref={scrollRef}
         className={cn(
-          "flex flex-col gap-2 overflow-y-auto px-3",
+          "flex flex-col gap-2 overflow-y-auto",
           hasMessages ? "py-3" : "py-0",
           "max-h-72",
         )}
       >
         {!hasMessages && !streaming ? (
           /* Empty state — só aparece quando sem mensagens E sem streaming */
-          <div className="flex flex-col items-center gap-2 py-8 text-center">
-            <span className="text-fg-faint/50" aria-hidden>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 8V4H8" />
-                <rect width="16" height="12" x="4" y="8" rx="2" />
-                <path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
-              </svg>
-            </span>
-            <p className="text-[12px] leading-relaxed text-fg-faint">
-              Use uma ação rápida ou faça uma pergunta sobre este grupo.
-            </p>
-          </div>
+          <p className="pt-2.5 text-[12.5px] leading-relaxed text-fg-faint">
+            Peça um resumo, um rascunho ou pergunte o que quiser sobre esta conversa.
+          </p>
         ) : (
           messages.map((m, i) => (
             <ChatBubble
@@ -441,21 +423,19 @@ function CopilotChat({
       </div>
 
       {/* ── Feedback de erro inline ────────────────────────────────────── */}
-      {error && (
-        <p className="mono mx-3 mt-1 text-[11px] text-danger">{error}</p>
-      )}
+      {error && <p className="mt-1 text-[12px] text-danger">{error}</p>}
 
       {/* ── Botão "→ composer" (após rascunho) ────────────────────────── */}
       {showDraftToComposer && (
-        <div className="flex justify-end px-3 pt-1 pb-0">
+        <div className="flex justify-end pt-1">
           <Button variant="subtle" size="sm" onClick={() => onDraft?.(lastAssistant)}>
-            → composer
+            Usar no compositor
           </Button>
         </div>
       )}
 
       {/* ── Composer ──────────────────────────────────────────────────── */}
-      <div className="border-t border-line p-3">
+      <div className="mt-3">
         <div ref={composerRef} className="flex items-end gap-2">
           <Textarea
             value={input}
@@ -463,16 +443,17 @@ function CopilotChat({
             onKeyDown={onKeyDown}
             rows={2}
             disabled={noApiKey}
-            placeholder="Pergunte ao copiloto… (Enter para enviar)"
-            aria-label="Mensagem para o copiloto"
+            placeholder="Pergunte sobre esta conversa…"
+            aria-label="Pergunta para o copiloto"
             className="text-[13px]"
           />
           <Button
             size="sm"
+            variant="subtle"
             loading={busy}
             disabled={busy || noApiKey || !input.trim()}
             onClick={onSubmit}
-            aria-label="Enviar mensagem"
+            aria-label="Perguntar ao copiloto"
           >
             {busy ? null : (
               <svg
@@ -493,9 +474,7 @@ function CopilotChat({
             )}
           </Button>
         </div>
-        <p className="mt-1.5 mono text-[10px] text-fg-faint/50">
-          Shift+Enter para nova linha
-        </p>
+        <p className="mt-1.5 text-[11.5px] text-fg-faint">Enter pergunta · ⇧ Enter quebra linha</p>
       </div>
     </section>
   );
@@ -518,18 +497,15 @@ function ActionChip({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "pressable inline-flex items-center gap-1.5",
-        "rounded-control border border-line bg-surface-2",
-        "px-2.5 py-1 text-[12px] text-fg-dim",
-        "hover:border-line-2 hover:text-fg",
+        "inline-flex h-7 items-center gap-1.5 rounded-control border border-line-2 bg-surface px-2.5",
+        "text-[12.5px] font-medium text-fg transition-colors hover:border-fg-mute hover:bg-elevated",
         "disabled:cursor-not-allowed disabled:opacity-40",
-        "transition-colors",
       )}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        width="11"
-        height="11"
+        width="13"
+        height="13"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -558,7 +534,7 @@ function ChatBubble({
 }) {
   if (pending) {
     return (
-      <div className="mr-auto w-full max-w-[88%] rounded-control border border-line bg-surface-2">
+      <div className="mr-auto w-full max-w-[92%] rounded-control border border-line bg-surface">
         <ScanShimmer lines={3} />
       </div>
     );
@@ -566,14 +542,14 @@ function ChatBubble({
 
   if (role === "user") {
     return (
-      <div className="ml-auto max-w-[88%] rounded-control bg-accent/10 px-3 py-2 text-[13px] leading-relaxed text-fg ring-1 ring-inset ring-accent/12 whitespace-pre-wrap">
+      <div className="ml-auto max-w-[92%] whitespace-pre-wrap rounded-control bg-accent-soft px-3 py-2 text-[13px] leading-relaxed text-fg">
         {content}
       </div>
     );
   }
 
   return (
-    <div className="mr-auto max-w-[88%] rounded-control border border-line bg-surface-2 px-3 py-2 text-[13px] leading-relaxed text-fg-dim whitespace-pre-wrap">
+    <div className="mr-auto max-w-[92%] whitespace-pre-wrap rounded-control border border-line bg-surface px-3 py-2 text-[13px] leading-relaxed text-fg-dim">
       {content}
     </div>
   );
@@ -653,12 +629,13 @@ function MemoryCard({ slug }: { slug: string }) {
   }, []);
 
   return (
-    <section className="rounded-card border border-line bg-surface">
+    <section className="border-t border-line">
       {/* Header clicável */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 focus:outline-none"
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 py-3 text-left focus-visible:outline-2 focus-visible:outline-accent"
       >
         <div className="flex items-center gap-2">
           {/* Ícone de memória / banco */}
@@ -707,7 +684,7 @@ function MemoryCard({ slug }: { slug: string }) {
 
       {/* Conteúdo expansível */}
       {open && (
-        <div className="border-t border-line px-4 pb-4 pt-3">
+        <div className="pb-1">
           <Textarea
             value={value}
             onChange={onChange}
@@ -815,11 +792,12 @@ function MemorySourcesCard({ slug }: { slug: string }) {
   const customSelected = selected.filter((d) => !knownDirs.has(d));
 
   return (
-    <section className="rounded-card border border-line bg-surface">
+    <section className="border-t border-line">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 focus:outline-none"
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 py-3 text-left focus-visible:outline-2 focus-visible:outline-accent"
       >
         <div className="flex items-center gap-2">
           <svg
@@ -870,7 +848,7 @@ function MemorySourcesCard({ slug }: { slug: string }) {
       </button>
 
       {open && (
-        <div className="border-t border-line px-4 pb-4 pt-3 flex flex-col gap-3">
+        <div className="flex flex-col gap-3 pb-1">
           {loading && (
             <div className="rounded-control border border-line bg-surface-2">
               <ScanShimmer lines={3} />
@@ -878,8 +856,8 @@ function MemorySourcesCard({ slug }: { slug: string }) {
           )}
 
           {!loading && loadError && (
-            <p className="mono text-[11px] text-danger">
-              Erro ao carregar projetos.{" "}
+            <p className="text-[12px] text-danger">
+              Não consegui carregar os projetos.{" "}
               <button
                 type="button"
                 onClick={load}
@@ -891,9 +869,9 @@ function MemorySourcesCard({ slug }: { slug: string }) {
           )}
 
           {!loading && !loadError && available.length === 0 && customSelected.length === 0 && (
-            <p className="text-[12px] text-fg-faint leading-relaxed">
-              Nenhum projeto com memória detectado em{" "}
-              <span className="mono">~/.claude/projects/</span>.
+            <p className="text-[12px] leading-relaxed text-fg-faint">
+              Nenhum projeto com memória encontrado em{" "}
+              <span className="font-mono">~/.claude/projects/</span>.
             </p>
           )}
 
@@ -925,7 +903,7 @@ function MemorySourcesCard({ slug }: { slug: string }) {
                         )}
                         aria-hidden
                       />
-                      <span className="mono text-[12px] truncate">{proj.name}</span>
+                      <span className="truncate text-[12.5px]">{proj.name}</span>
                     </span>
                     <Badge variant={active ? "accent" : "neutral"}>
                       {proj.count}
@@ -944,7 +922,7 @@ function MemorySourcesCard({ slug }: { slug: string }) {
                   key={dir}
                   className="flex items-center justify-between gap-2 rounded-control border border-accent/35 bg-accent/8 px-3 py-2"
                 >
-                  <span className="mono text-[11px] text-fg truncate flex-1">{dir}</span>
+                  <span className="flex-1 truncate font-mono text-[11px] text-fg">{dir}</span>
                   <button
                     type="button"
                     onClick={() => removeCustom(dir)}
@@ -969,7 +947,7 @@ function MemorySourcesCard({ slug }: { slug: string }) {
                 if (e.key === "Enter") addCustomPath();
               }}
               placeholder="/caminho/absoluto/para/memory"
-              className="text-[12px]"
+              className="font-mono text-[12px]"
             />
             <Button
               size="sm"
@@ -977,11 +955,11 @@ function MemorySourcesCard({ slug }: { slug: string }) {
               onClick={addCustomPath}
               disabled={!customPath.trim()}
             >
-              adicionar
+              Adicionar
             </Button>
           </div>
-          <p className="mono text-[10px] text-fg-faint/60 -mt-1">
-            Path customizado fora do ~/.claude/projects/
+          <p className="-mt-1 text-[11.5px] text-fg-faint">
+            Pasta de memória fora de <span className="font-mono">~/.claude/projects/</span>
           </p>
         </div>
       )}
@@ -989,15 +967,13 @@ function MemorySourcesCard({ slug }: { slug: string }) {
   );
 }
 
-/** Indicador discreto do autosave (mono, text-fg-faint). Espelha o do NotesPanel. */
+/** Indicador discreto do salvamento automático, como o das notas. */
 function StatusHint({ status }: { status: SaveStatus }) {
   if (status === "idle") return null;
   const text =
     status === "saving" ? "salvando…" : status === "saved" ? "salvo" : "erro ao salvar";
   return (
-    <span
-      className={cn("mono text-[10px]", status === "error" ? "text-danger" : "text-fg-faint")}
-    >
+    <span className={cn("text-[11.5px] font-normal", status === "error" ? "text-danger" : "text-fg-faint")}>
       {text}
     </span>
   );

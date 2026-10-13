@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { Icone } from "../caixa/icones";
 import { checarSessao, useRotas } from "../RotasPainel";
 import { Button, IconButton } from "../ui";
 
-/* Composer do chat: campo de resposta, anexos (imagem/vídeo/áudio/doc) e envio.
-   Extraído do Timeline — dono de TUDO que monta uma mensagem de saída. */
+/* Compositor da conversa: rascunho da IA (quando há), campo de resposta,
+   anexos (imagem/vídeo/áudio/doc, também colando imagem) e envio. */
 
 function kindOf(file: File): "image" | "video" | "audio" | "document" {
   if (file.type.startsWith("image/")) return "image";
@@ -14,17 +15,28 @@ function kindOf(file: File): "image" | "video" | "audio" | "document" {
   return "document";
 }
 
+const ALTURA_MAX = 160;
+
 export function Composer({
   slug,
   groupJid,
+  nome,
   onSent,
   draft,
+  rascunho,
+  onPedirRascunho,
 }: {
   slug: string;
   groupJid: string | null;
+  /** Nome da conversa, para o rótulo do campo. */
+  nome: string;
   onSent: () => void;
-  /** Rascunho injetado pelo copiloto. `nonce` muda a cada envio pra reaplicar o mesmo texto. */
+  /** Texto vindo do copiloto do painel. `nonce` muda a cada pedido para reaplicar o mesmo texto. */
   draft?: { text: string; nonce: number } | null;
+  /** Card "Rascunho da IA" (recebe o "usar texto" que preenche o campo). */
+  rascunho?: (usar: (texto: string) => void) => ReactNode;
+  /** Botão da IA no compositor; ausente, o botão não aparece. */
+  onPedirRascunho?: () => void;
 }) {
   const rotas = useRotas();
   const [text, setText] = useState("");
@@ -33,14 +45,26 @@ export function Composer({
   const [pendingImage, setPendingImage] = useState<{ file: File; url: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const semDestino = !rotas.enviarTexto(slug, groupJid, "x");
 
-  // Copiloto manda um rascunho → preenche o composer (nunca envia) e foca pro operador revisar.
+  // O campo cresce com o texto até um teto; passou disso, rola.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mede de novo a cada texto
+  useEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ALTURA_MAX, ta.scrollHeight)}px`;
+  }, [text]);
+
+  function usar(texto: string) {
+    setText(texto);
+    requestAnimationFrame(() => taRef.current?.focus());
+  }
+
+  // Copiloto do painel manda um rascunho: preenche o campo (nunca envia) e foca para revisar.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reaplica só quando o nonce muda
   useEffect(() => {
-    if (draft?.text) {
-      setText(draft.text);
-      taRef.current?.focus();
-    }
+    if (draft?.text) usar(draft.text);
   }, [draft?.nonce]);
 
   function onPaste(e: React.ClipboardEvent) {
@@ -61,14 +85,14 @@ export function Composer({
     });
   }
 
-  // Revoga o ObjectURL da imagem colada ao trocar/desmontar (evita leak de memória).
+  // Revoga o ObjectURL da imagem colada ao trocar ou desmontar.
   useEffect(() => {
     return () => {
       if (pendingImage) URL.revokeObjectURL(pendingImage.url);
     };
   }, [pendingImage]);
 
-  // Enter / botão Enviar: manda a imagem colada (legenda = texto) se houver, senão texto.
+  // Enter ou Enviar: manda a imagem colada (legenda = texto) se houver, senão o texto.
   async function submit() {
     if (pendingImage) {
       const file = pendingImage.file;
@@ -131,81 +155,95 @@ export function Composer({
   }
 
   return (
-    <div className="border-t border-line bg-surface px-4 py-3">
-      {error && <p className="mono mb-1.5 text-xs text-danger">{error}</p>}
-      {pendingImage && (
-        <div className="pop-in mb-2 inline-flex items-center gap-2 rounded-control border border-line bg-surface-2 p-1.5 pr-2.5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={pendingImage.url} alt="" className="h-10 w-10 rounded object-cover" />
-          <span className="mono text-[11px] text-fg-dim">imagem colada</span>
-          <button
-            type="button"
-            onClick={clearPending}
-            aria-label="Remover imagem"
-            className="mono text-xs text-fg-faint hover:text-danger"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-      <div className="flex items-end gap-2">
-        <input
-          ref={fileRef}
-          type="file"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) sendFile(f);
-            e.target.value = "";
-          }}
-        />
-        <IconButton
-          title="Anexar arquivo (a legenda usa o texto escrito)"
-          onClick={() => fileRef.current?.click()}
-          disabled={!groupJid || sending}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-label="Anexar"
-            role="img"
-          >
-            <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-          </svg>
-        </IconButton>
+    <div className="shrink-0 bg-bg px-7 pb-5 max-[860px]:px-3 max-[860px]:pb-3">
+      <div className="mx-auto max-w-[720px] rounded-[12px] border border-line-2 bg-surface transition-[border-color,box-shadow] focus-within:border-accent focus-within:shadow-[0_0_0_3px_var(--color-accent-soft)]">
+        {rascunho?.(usar)}
+        {pendingImage && (
+          <div className="pop-in mx-2.5 mt-2.5 inline-flex items-center gap-2 rounded-control border border-line bg-surface-2 p-1.5 pr-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={pendingImage.url} alt="" className="h-10 w-10 rounded object-cover" />
+            <span className="text-[12px] text-fg-dim">Imagem colada, sai com o texto como legenda</span>
+            <button
+              type="button"
+              onClick={clearPending}
+              aria-label="Remover imagem"
+              className="grid h-6 w-6 place-items-center rounded-[6px] text-fg-faint hover:bg-elevated hover:text-danger"
+            >
+              <Icone nome="fechar" tamanho={13} />
+            </button>
+          </div>
+        )}
+        {error && (
+          <p role="alert" className="mx-3.5 mt-2.5 text-[12.5px] text-danger">
+            Não saiu: {error}
+          </p>
+        )}
+        <label className="sr-only" htmlFor={`resposta-${slug}`}>
+          Mensagem para {nome}
+        </label>
         <textarea
+          id={`resposta-${slug}`}
           ref={taRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onPaste={onPaste}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               submit();
             }
           }}
           rows={1}
-          placeholder={groupJid ? "Responder…  (Enter envia · Ctrl+V cola imagem)" : "Sem grupo para responder"}
-          disabled={!groupJid || sending}
-          className="focus-ring max-h-32 min-h-[40px] flex-1 resize-none rounded-control border border-line bg-surface-2 px-3 py-2.5 text-sm text-fg placeholder:text-fg-faint disabled:opacity-60"
+          placeholder={semDestino ? "Ainda não há mensagem nesta conversa para responder" : "Responder como você…"}
+          disabled={semDestino || sending}
+          className="block max-h-40 min-h-[46px] w-full resize-none bg-transparent px-3.5 pb-1 pt-3 text-[14px] leading-[1.5] text-fg outline-none placeholder:text-fg-mute disabled:opacity-60 max-[860px]:text-[16px]"
         />
-        <Button
-          onClick={submit}
-          loading={sending}
-          disabled={!groupJid || (!text.trim() && !pendingImage)}
-          className="h-10"
-        >
-          {sending ? "Enviando…" : "Enviar"}
-        </Button>
+        <div className="flex items-center gap-0.5 px-2 pb-2 pt-1">
+          <input
+            ref={fileRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) sendFile(f);
+              e.target.value = "";
+            }}
+          />
+          <IconButton
+            size="sm"
+            title="Anexar arquivo (o texto escrito vai como legenda)"
+            aria-label="Anexar arquivo"
+            onClick={() => fileRef.current?.click()}
+            disabled={semDestino || sending}
+            className="max-[860px]:h-10 max-[860px]:w-10"
+          >
+            <Icone nome="clipe" />
+          </IconButton>
+          {onPedirRascunho && (
+            <IconButton
+              size="sm"
+              title="Pedir um rascunho à IA"
+              aria-label="Pedir um rascunho à IA"
+              onClick={onPedirRascunho}
+              className="max-[860px]:h-10 max-[860px]:w-10"
+            >
+              <Icone nome="ia" />
+            </IconButton>
+          )}
+          <span className="flex-1" />
+          <span className="mr-2.5 text-[12px] text-fg-faint max-[860px]:hidden">Enter envia · ⇧ Enter quebra linha</span>
+          <Button
+            size="sm"
+            onClick={submit}
+            loading={sending}
+            disabled={semDestino || (!text.trim() && !pendingImage)}
+            className="max-[860px]:h-10"
+          >
+            {!sending && <Icone nome="enviar" tamanho={15} />}
+            {sending ? "Enviando…" : "Enviar"}
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
-
