@@ -28,7 +28,9 @@ export function MedidorUso({ rotulo, avatar, valor, limite, rotuloAcessivel, com
     <div className={cn("min-w-0", className)}>
       <div
         className={cn(
-          "flex items-baseline justify-between gap-2 text-[12.5px] text-fg-dim",
+          // Com avatar, centraliza: a linha de base de uma foto é a borda de baixo da imagem.
+          "flex justify-between gap-2 text-[12.5px] text-fg-dim",
+          avatar ? "items-center" : "items-baseline",
           compacto ? "mb-1" : "mb-[7px]",
         )}
       >

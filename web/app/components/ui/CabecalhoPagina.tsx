@@ -35,7 +35,7 @@ export function CabecalhoPagina({ titulo, subtitulo, acoes, variante = "pagina",
   }
   return (
     <header className={cn("flex flex-wrap items-end gap-x-4 gap-y-3 pb-1", className)}>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 max-[860px]:basis-full">
         <h1 className="text-balance font-title text-[32px] font-medium leading-[1.1] tracking-[-0.015em] text-fg max-[860px]:text-[26px]">
           {titulo}
         </h1>
