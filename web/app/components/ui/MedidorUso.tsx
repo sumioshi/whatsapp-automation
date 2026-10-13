@@ -20,7 +20,7 @@ export interface MedidorUsoProps {
 /** Uso contra um limite: azul até o limite, âmbar no que passa dele e a marca do limite na trilha. */
 export function MedidorUso({ rotulo, avatar, valor, limite, rotuloAcessivel, compacto, className }: MedidorUsoProps) {
   if (limite === null || !(limite > 0)) {
-    return <span className={cn("text-[12.5px] text-fg-mute", className)}>sem limite</span>;
+    return <span className={cn("text-[12.5px] text-fg-faint", className)}>sem limite</span>;
   }
   const { cheio, excesso, marca } = medidaDoUso(valor, limite);
   const nome = rotuloAcessivel ?? (typeof rotulo === "string" ? rotulo : "Uso do contrato");

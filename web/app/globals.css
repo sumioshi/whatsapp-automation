@@ -36,7 +36,7 @@
   --color-id-celular: #353c46;
   --color-id-painel: #2459d6;
   --color-id-equipe: #7a5af8;
-  --color-id-ia: #0e9384;
+  --color-id-ia: #0a7065;
   --color-hue-red: #e5484d;
   --color-hue-orange: #f76b15;
   --color-hue-amber: #e2a336;
@@ -342,11 +342,14 @@ body {
 }
 
 /* Anel de foco ember reutilizável. */
-.focus-ring:focus-visible,
+/* Anel de foco: contorno na cor de destaque, visível nos dois temas (3:1 ou mais).
+   Só no foco por teclado em botões; campos de texto mostram sempre que focados. */
 .focus-ring:focus {
   outline: none;
-  border-color: color-mix(in oklab, var(--color-accent) 45%, transparent);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 14%, transparent);
+}
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
