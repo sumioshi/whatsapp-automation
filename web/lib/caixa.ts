@@ -509,3 +509,38 @@ export function rotuloDia(iso: string, agoraMs: number): string {
   const base = `${Number(dia.slice(8, 10))} de ${MESES_LONGOS[Number(dia.slice(5, 7)) - 1] ?? ''}`;
   return dia.slice(0, 4) === hoje.slice(0, 4) ? base : `${base} de ${dia.slice(0, 4)}`;
 }
+
+// ── Dados do painel do cliente (montados no servidor) ────────────────────
+
+export interface SinalCliente {
+  id: Sinal;
+  texto: string;
+  tom: Tom;
+  /** A frase inteira do painel, para o title do chip. */
+  explicacao: string;
+}
+
+export interface PainelCliente {
+  slug: string;
+  nome: string;
+  tipo: 'grupo' | 'dm';
+  avatarPath: string | null;
+  /** "cliente desde mar 2025" ou "conversa desde ago 2026". */
+  desde: string | null;
+  pessoas: Pessoa[];
+  midia: { total: number; recentes: MidiaResumo[] };
+  /** O que só o dono vê: organização, contrato e sinais. Nulo na área da equipe. */
+  dono: null | {
+    etiquetas: string[];
+    conhecidas: string[];
+    sinais: SinalCliente[];
+    contrato: Contrato | null;
+    resumo: ReturnType<typeof resumoContrato>;
+    entregas: { d30: number; total: number };
+    mensagens30d: number;
+    /** Contas da equipe com este chat liberado. */
+    equipe: Array<{ login: string; nome: string }>;
+    autonomo: boolean;
+    silenciado: boolean;
+  };
+}
