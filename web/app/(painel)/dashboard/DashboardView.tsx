@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Avatar, Badge, Card, cn, Pares } from "@/app/components/ui";
+import { Avatar, Badge, Card, cn, Pares, Icone } from "@/app/components/ui";
 import { tipoPeloSlug } from "@/lib/aparencia";
 import type { Dashboard, LinhaDashboard } from "@/lib/dashboard";
 import { dataCurta, instanteCurto, instanteLongo } from "@/lib/formatar-data";
 import type { SinalDoDia, TomSinal } from "@/lib/hoje";
 import { rotasPainel } from "@/lib/rotas-painel";
-import { Icone } from "../_hoje/icones";
 import { FOCO } from "../_hoje/pecas";
 
 type Coluna =
@@ -130,7 +129,7 @@ export function DashboardView({
       <div id="sinais" className="col-span-8 scroll-mt-6 max-[1020px]:col-span-full">
         <Card
           className="h-full"
-          icone={<Icone nome="bandeira" />}
+          icone={<Icone nome="flag" />}
           titulo="Sinais"
           meta={<span className="font-mono tabular-nums">{sinais.length}</span>}
           rodape={
@@ -179,7 +178,7 @@ export function DashboardView({
         </Card>
       </div>
 
-      <Card largura="p" icone={<Icone nome="tabela" />} titulo="Totais" meta="últimos 30 dias" className="self-start">
+      <Card largura="p" icone={<Icone nome="table" />} titulo="Totais" meta="últimos 30 dias" className="self-start">
         <Pares
           className="[&_dd]:font-mono [&_dd]:tabular-nums"
           itens={[
@@ -194,7 +193,7 @@ export function DashboardView({
 
       <Card
         largura="inteiro"
-        icone={<Icone nome="pacote" />}
+        icone={<Icone nome="package" />}
         titulo="Contratos e entregas por cliente"
         meta="últimos 30 dias"
         className="[&>div]:px-0 [&>div]:pb-0"

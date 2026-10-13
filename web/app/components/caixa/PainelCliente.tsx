@@ -9,8 +9,7 @@ import { ContratoForm } from "../ContratoForm";
 import { CopilotPanel } from "../CopilotPanel";
 import { EstadoNotas, NotesPanel, useNotas } from "../NotesPanel";
 import { useRotas } from "../RotasPainel";
-import { Avatar, Button, IconButton, MedidorUso, Pares, cn } from "../ui";
-import { Icone } from "./icones";
+import { Avatar, Button, IconButton, MedidorUso, Pares, cn, Icone } from "../ui";
 
 type IdSecao = "contrato" | "pessoas" | "notas" | "copiloto" | "midia";
 
@@ -43,7 +42,7 @@ function Secao({
         onClick={() => onAlternar(id)}
         className="flex h-11 w-full items-center gap-1.5 px-5 text-left text-[12.5px] font-semibold text-fg-dim transition-colors hover:text-fg"
       >
-        <Icone nome="baixo" tamanho={14} className={cn("text-fg-faint transition-transform motion-reduce:transition-none", !aberta && "-rotate-90")} />
+        <Icone nome="chev-d" tamanho={14} className={cn("text-fg-faint transition-transform motion-reduce:transition-none", !aberta && "-rotate-90")} />
         {titulo}
         {fim !== undefined && <span className="ml-auto font-normal text-fg-faint">{fim}</span>}
       </button>
@@ -188,7 +187,7 @@ export function PainelCliente({
           onClick={onFechar}
           className="absolute right-3 top-3 z-[1] min-[1361px]:hidden max-[860px]:h-10 max-[860px]:w-10"
         >
-          <Icone nome="fechar" />
+          <Icone nome="x" />
         </IconButton>
       )}
 

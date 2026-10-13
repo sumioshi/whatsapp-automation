@@ -50,3 +50,13 @@ export function AnelEspera({ ms, className }: { ms: number; className?: string }
     </span>
   );
 }
+
+/** Anel de espera cheio, com miolo e sem o tempo ao lado: o símbolo de "esperando há mais de 4 h". */
+export function AnelCheio({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden className={cn("h-3.5 w-3.5 shrink-0", className)}>
+      <circle cx="8" cy="8" r="6" />
+      <circle cx="8" cy="8" r="2.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}

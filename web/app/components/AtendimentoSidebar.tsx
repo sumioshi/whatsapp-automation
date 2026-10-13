@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { iniciais } from "@/lib/aparencia";
-import { Icone } from "./caixa/icones";
+import { Icone } from "./ui";
 import { PontoDeConexao, useStatusColetor } from "./ConnectionDot";
 import { useTema } from "./ThemeToggle";
 
@@ -56,7 +56,7 @@ export function AtendimentoSidebar({ nome, naoLidas }: { nome: string; naoLidas:
       <span className="flex-1 max-[860px]:hidden" />
 
       <button type="button" onClick={alternar} className={`${ITEM} text-fg-faint hover:bg-elevated hover:text-fg`}>
-        <Icone nome={escuro ? "sol" : "lua"} tamanho={20} />
+        <Icone nome={escuro ? "sun" : "moon"} tamanho={20} />
         Tema
       </button>
       <button
@@ -67,7 +67,7 @@ export function AtendimentoSidebar({ nome, naoLidas }: { nome: string; naoLidas:
         }}
         className={`${ITEM} text-fg-faint hover:bg-elevated hover:text-danger`}
       >
-        <Icone nome="sair" tamanho={20} />
+        <Icone nome="logout" tamanho={20} />
         Sair
       </button>
 
@@ -92,7 +92,7 @@ export function AvisoDesconectado() {
   if (!coletor.carregado || coletor.open) return null;
   return (
     <p role="alert" className="flex items-start gap-2 border-b border-line bg-danger-bg px-5 py-2.5 text-[12.5px] text-danger max-[860px]:px-4">
-      <Icone nome="alerta" tamanho={15} className="mt-px shrink-0" />
+      <Icone nome="alert" tamanho={15} className="mt-px shrink-0" />
       O WhatsApp está desconectado. As mensagens não saem até reconectar.
     </p>
   );

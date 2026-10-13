@@ -5,10 +5,9 @@ import { corDoMatiz, matizDoNome } from "@/lib/aparencia";
 import { type Autoria, agruparReacoes, horaCurta } from "@/lib/caixa";
 import type { MessageView, PollView } from "@/lib/data";
 import { instanteLongo } from "@/lib/formatar-data";
-import { Icone } from "../caixa/icones";
 import { LiveAudio } from "../LiveAudio";
 import { checarSessao, useRotas } from "../RotasPainel";
-import { Avatar, Button, cn, ScanShimmer } from "../ui";
+import { Avatar, Button, cn, ScanShimmer, Icone } from "../ui";
 import { baseName, type Contacts, numberFromJid, renderMentions, senderLabel } from "./format";
 
 /* Balão de mensagem e satélites (ações, recibos, enquete, mídia, transcrição).
@@ -27,12 +26,12 @@ const EDGE: Record<Autoria["id"], string> = {
   meta: "var(--color-id-ia)",
 };
 
-const ICONE_AUTORIA: Partial<Record<Autoria["id"], "celular" | "monitor" | "ia">> = {
-  celular: "celular",
+const ICONE_AUTORIA: Partial<Record<Autoria["id"], "phone" | "monitor" | "spark">> = {
+  celular: "phone",
   web: "monitor",
   painel: "monitor",
-  ia: "ia",
-  meta: "ia",
+  ia: "spark",
+  meta: "spark",
 };
 
 /** Barra que aparece no hover do balão: reagir rápido e copiar. */
@@ -82,7 +81,7 @@ function MessageActions({ slug, m, mine }: { slug: string; m: MessageView; mine:
           aria-label="Copiar texto"
           className="ml-0.5 grid h-6 w-6 place-items-center rounded-full text-fg-dim transition-colors hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
         >
-          <Icone nome="copiar" tamanho={13} />
+          <Icone nome="copy" tamanho={13} />
         </button>
       )}
     </div>

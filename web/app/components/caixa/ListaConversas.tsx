@@ -14,10 +14,9 @@ import {
   montarFila,
 } from "@/lib/caixa";
 import { useRotas } from "../RotasPainel";
-import { Button, Segmentado, cn } from "../ui";
+import { Button, Segmentado, cn, Icone } from "../ui";
 import { Kbd } from "../ui/Kbd";
 import { useListNav } from "../useListNav";
-import { Icone } from "./icones";
 import { InboxItem } from "./InboxItem";
 
 export interface DadosCaixa {
@@ -51,7 +50,7 @@ function AnelSecao({ ms }: { ms: number }) {
   );
 }
 
-const ICONE_SECAO = { ia: "ia", fixadas: "fixar", conversas: "conversa", arquivadas: "arquivo" } as const;
+const ICONE_SECAO = { ia: "spark", fixadas: "pin", conversas: "chat", arquivadas: "archive" } as const;
 
 function CabecalhoSecao({
   secao,
@@ -87,7 +86,7 @@ function CabecalhoSecao({
       {secao.titulo}
       <span className="font-mono font-medium tabular-nums text-fg-faint">{secao.total}</span>
       {onAlternar && (
-        <Icone nome="baixo" tamanho={14} className={cn("ml-auto text-fg-faint transition-transform motion-reduce:transition-none", secao.recolhida && "-rotate-90")} />
+        <Icone nome="chev-d" tamanho={14} className={cn("ml-auto text-fg-faint transition-transform motion-reduce:transition-none", secao.recolhida && "-rotate-90")} />
       )}
     </>
   );
@@ -231,7 +230,7 @@ export function ListaConversas({ dados, aviso, className }: { dados: DadosCaixa;
               aria-label="Nova conversa"
               className="-my-1.5 ml-auto grid h-8 w-8 shrink-0 place-items-center self-center rounded-control text-fg-dim transition-colors hover:bg-elevated hover:text-fg max-[860px]:h-10 max-[860px]:w-10"
             >
-              <Icone nome="mais" />
+              <Icone nome="plus" />
             </Link>
           )}
         </div>
@@ -247,7 +246,7 @@ export function ListaConversas({ dados, aviso, className }: { dados: DadosCaixa;
           ]}
         />
         <label className="flex h-[34px] items-center gap-2 rounded-control border border-line-2 bg-surface px-2.5 text-fg-faint transition-colors focus-within:border-accent focus-within:shadow-[0_0_0_3px_var(--color-accent-soft)] max-[860px]:h-10">
-          <Icone nome="busca" />
+          <Icone nome="search" />
           <span className="sr-only">Filtrar a fila</span>
           <input
             value={filtro}
@@ -270,7 +269,7 @@ export function ListaConversas({ dados, aviso, className }: { dados: DadosCaixa;
               aria-label="Limpar filtro"
               className="-mr-1 grid h-6 w-6 place-items-center rounded-[6px] text-fg-faint hover:bg-elevated hover:text-fg"
             >
-              <Icone nome="fechar" tamanho={14} />
+              <Icone nome="x" tamanho={14} />
             </button>
           )}
         </label>

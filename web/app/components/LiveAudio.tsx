@@ -1,8 +1,7 @@
 "use client";
 
 import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Icone } from "./caixa/icones";
-import { cn } from "./ui";
+import { cn, Icone } from "./ui";
 
 const BARRAS = 34;
 
@@ -80,7 +79,7 @@ export function LiveAudio({ src }: { src: string }) {
         aria-label={tocando ? "Pausar áudio" : duracao > 0 ? `Ouvir áudio de ${tempo(duracao)}` : "Ouvir áudio"}
         className="focus-ring grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink text-on-ink transition-colors hover:bg-ink/85"
       >
-        <Icone nome={tocando ? "pausa" : "play"} tamanho={12} />
+        <Icone nome={tocando ? "pause" : "play"} tamanho={12} />
       </button>
       {/* biome-ignore lint/a11y/useSemanticElements: onda clicável com teclado; input range não desenha barras */}
       <div

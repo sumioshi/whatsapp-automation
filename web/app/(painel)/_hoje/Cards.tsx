@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { AnelEspera, Avatar, Badge, Card, Contador, Etiqueta, MedidorUso } from "@/app/components/ui";
+import { AnelEspera, Avatar, Badge, Card, Contador, Etiqueta, MedidorUso, Icone } from "@/app/components/ui";
 import { tipoPeloSlug } from "@/lib/aparencia";
 import type { DadosHoje } from "@/lib/hoje-atual";
 import type { TomSinal } from "@/lib/hoje";
 import { rotasPainel } from "@/lib/rotas-painel";
-import { Icone } from "./icones";
 import { LinkRodape } from "./LinkBotao";
 import { FOCO, Linha, Texto, Vazio } from "./pecas";
 
@@ -17,7 +16,7 @@ export function CardEsperando({ esperando }: { esperando: DadosHoje["esperando"]
     <Card
       largura="g"
       altura="padrao"
-      icone={<Icone nome="caixa" />}
+      icone={<Icone nome="inbox" />}
       titulo="Esperando você"
       meta="mais antigo primeiro"
       rodape={
@@ -71,7 +70,7 @@ export function CardSinais({ sinais }: { sinais: DadosHoje["sinais"] }) {
     <Card
       largura="p"
       altura="padrao"
-      icone={<Icone nome="bandeira" />}
+      icone={<Icone nome="flag" />}
       titulo="Sinais"
       meta={<span className="font-mono tabular-nums">{sinais.total}</span>}
       rodape={
@@ -102,7 +101,7 @@ export function CardLimites({ limites }: { limites: DadosHoje["limites"] }) {
     <Card
       largura="p"
       altura="padrao"
-      icone={<Icone nome="medidor" />}
+      icone={<Icone nome="gauge" />}
       titulo="Contratos no limite"
       meta="mensagens, 30 dias"
       rodape={

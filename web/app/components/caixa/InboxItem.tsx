@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { Fragment } from "react";
 import { type EstadoIa, type LinhaFila, quandoCurto } from "@/lib/caixa";
-import { AnelEspera, Avatar, Badge, Contador, Etiqueta, cn } from "../ui";
-import { Icone } from "./icones";
+import { AnelEspera, Avatar, Badge, Contador, Etiqueta, cn, Icone } from "../ui";
 
 /** Estado da IA na linha: o rótulo em texto e os números em mono ("entregando 1/2"). */
 export function EstadoDaIa({ ia, className }: { ia: EstadoIa; className?: string }) {
@@ -20,7 +19,7 @@ export function EstadoDaIa({ ia, className }: { ia: EstadoIa; className?: string
         : `A triagem preparou uma pergunta para o cliente; responda "ok ${ia.n}" no seu WhatsApp para enviar`;
   return (
     <span title={titulo} className={cn("inline-flex items-center gap-1.5 whitespace-nowrap text-[12.5px] font-medium leading-none text-id-ia", className)}>
-      <Icone nome="ia" tamanho={14} />
+      <Icone nome="spark" tamanho={14} />
       {partes.map(([t, num], i) => (
         <Fragment key={t}>
           {i > 0 && " "}
@@ -92,7 +91,7 @@ export function InboxItem({
           <AnelEspera ms={Math.max(0, agoraMs - Date.parse(linha.esperaDesde))} />
         ) : (
           <>
-            {linha.silenciada && <Icone nome="silenciar" tamanho={13} className="text-fg-mute" aria-label="Silenciada" />}
+            {linha.silenciada && <Icone nome="mute" tamanho={13} className="text-fg-mute" aria-label="Silenciada" />}
             <span className="font-mono text-[11.5px] tabular-nums text-fg-faint">{quandoCurto(linha.ultimaEm, agoraMs)}</span>
           </>
         )}

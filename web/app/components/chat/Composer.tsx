@@ -1,9 +1,8 @@
 "use client";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { Icone } from "../caixa/icones";
 import { checarSessao, useRotas } from "../RotasPainel";
-import { Button, IconButton } from "../ui";
+import { Button, IconButton, Icone } from "../ui";
 
 /* Compositor da conversa: rascunho da IA (quando há), campo de resposta,
    anexos (imagem/vídeo/áudio/doc, também colando imagem) e envio. */
@@ -169,7 +168,7 @@ export function Composer({
               aria-label="Remover imagem"
               className="grid h-6 w-6 place-items-center rounded-[6px] text-fg-faint hover:bg-elevated hover:text-danger"
             >
-              <Icone nome="fechar" tamanho={13} />
+              <Icone nome="x" tamanho={13} />
             </button>
           </div>
         )}
@@ -217,7 +216,7 @@ export function Composer({
             disabled={semDestino || sending}
             className="max-[860px]:h-10 max-[860px]:w-10"
           >
-            <Icone nome="clipe" />
+            <Icone nome="clip" />
           </IconButton>
           {onPedirRascunho && (
             <IconButton
@@ -227,7 +226,7 @@ export function Composer({
               onClick={onPedirRascunho}
               className="max-[860px]:h-10 max-[860px]:w-10"
             >
-              <Icone nome="ia" />
+              <Icone nome="spark" />
             </IconButton>
           )}
           <span className="flex-1" />
@@ -239,7 +238,7 @@ export function Composer({
             disabled={semDestino || (!text.trim() && !pendingImage)}
             className="max-[860px]:h-10"
           >
-            {!sending && <Icone nome="enviar" tamanho={15} />}
+            {!sending && <Icone nome="send" tamanho={15} />}
             {sending ? "Enviando…" : "Enviar"}
           </Button>
         </div>
