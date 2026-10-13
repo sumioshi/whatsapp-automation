@@ -3,155 +3,137 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRotas } from "./RotasPainel";
 import { useRouter } from "next/navigation";
-import type { GroupSummary } from "@/lib/data";
+
+function ehCampo(el: HTMLElement | null): boolean {
+  if (!el?.tagName) return false;
+  const tag = el.tagName.toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable;
+}
 
 /**
- * useListNav — navegação por teclado estilo Superhuman/Linear para a lista de
- * conversas na sidebar.
+ * Bloqueia os atalhos de uma letra quando o foco está num campo, há um diálogo
+ * aberto ou a tecla já foi tratada por quem estava embaixo (a paleta ⌘K fecha
+ * no próprio Enter, antes de a tecla chegar aqui).
+ */
+export function atalhoBloqueado(e?: KeyboardEvent): boolean {
+  if (e?.defaultPrevented || ehCampo(e?.target as HTMLElement | null)) return true;
+  if (ehCampo(document.activeElement as HTMLElement | null)) return true;
+  return Boolean(document.querySelector('[role="dialog"][aria-modal="true"]'));
+}
+
+/**
+ * useListNav: navegação por teclado da fila da Caixa.
  *
  * Atalhos:
- *   j / ↓  — próximo item
- *   k / ↑  — item anterior
- *   Enter  — abre a conversa selecionada (/g/<slug>)
- *   u      — pula para a próxima conversa com unread > 0 (cicla)
+ *   j / ↓  próxima conversa
+ *   k / ↑  conversa anterior
+ *   Enter  abre a conversa do cursor
+ *   u      pula para a próxima conversa com não lidas (cicla)
  *
- * Guarda silenciosamente quando:
- *   - foco está em input / textarea / [contenteditable]
- *   - a paleta ⌘K está aberta (detectado via atributo aria-modal no DOM)
+ * O cursor começa na conversa aberta (`atual`), para o J levar à seguinte.
+ * Não age com o foco num campo nem com a paleta ⌘K aberta.
  */
 export function useListNav(
-  groups: GroupSummary[],
+  itens: Array<{ slug: string; naoLidas: number }>,
   containerRef: React.RefObject<HTMLElement | null>,
+  atual: string | null = null,
 ) {
   const router = useRouter();
   const rotas = useRotas();
   const [navIndex, setNavIndex] = useState<number>(-1);
-  // Track last groups length to reset when filter changes
-  const prevLenRef = useRef(groups.length);
+  const ultimoAtual = useRef<string | null>(null);
 
-  // Reset navIndex when the list shrinks past the current index (e.g., search filter)
+  // Abriu outra conversa (clique, J/K + Enter, trilho): o cursor vai para ela.
   useEffect(() => {
-    const prev = prevLenRef.current;
-    prevLenRef.current = groups.length;
-    if (groups.length === 0) {
-      setNavIndex(-1);
-      return;
-    }
-    setNavIndex((idx) => {
-      if (idx >= groups.length) return groups.length - 1;
-      // If list changed from 0 to something, start at -1 (no selection)
-      if (prev === 0 && groups.length > 0) return -1;
-      return idx;
-    });
-  }, [groups.length]);
+    if (atual === ultimoAtual.current) return;
+    ultimoAtual.current = atual;
+    setNavIndex(atual ? itens.findIndex((i) => i.slug === atual) : -1);
+  }, [atual, itens]);
 
-  /** Returns true if keyboard navigation should be suppressed */
-  const shouldBlock = useCallback((): boolean => {
-    const el = document.activeElement;
-    if (!el) return false;
-    const tag = (el as HTMLElement).tagName.toLowerCase();
-    if (tag === "input" || tag === "textarea" || tag === "select") return true;
-    if ((el as HTMLElement).isContentEditable) return true;
-    // Check if command palette is open (aria-modal dialog in DOM)
-    if (document.querySelector('[role="dialog"][aria-modal="true"]')) return true;
-    return false;
-  }, []);
+  // A lista encolheu (filtro, vista): o cursor não pode ficar fora dela.
+  useEffect(() => {
+    setNavIndex((idx) => (idx >= itens.length ? itens.length - 1 : idx));
+  }, [itens.length]);
 
   const scrollItemIntoView = useCallback(
     (index: number) => {
-      const container = containerRef.current;
-      if (!container) return;
-      // Each SidebarLink carries data-nav-item — query within the nav container
-      const items = container.querySelectorAll<HTMLElement>("[data-nav-item]");
-      const el = items[index];
+      const el = containerRef.current?.querySelectorAll<HTMLElement>("[data-nav-item]")[index];
       if (!el) return;
-      // Respect prefers-reduced-motion: skip smooth scroll, use instant
       const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       el.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "instant" : "smooth" });
     },
     [containerRef],
   );
 
-  const moveNext = useCallback(
-    (e: KeyboardEvent) => {
-      if (shouldBlock()) return;
+  const mover = useCallback(
+    (e: KeyboardEvent, delta: number) => {
+      if (atalhoBloqueado(e) || itens.length === 0) return;
       e.preventDefault();
       setNavIndex((i) => {
-        const next = Math.min(i + 1, groups.length - 1);
-        // Use requestAnimationFrame so DOM has updated before scrolling
+        const next = i < 0 ? (delta > 0 ? 0 : itens.length - 1) : Math.max(0, Math.min(itens.length - 1, i + delta));
         requestAnimationFrame(() => scrollItemIntoView(next));
         return next;
       });
     },
-    [shouldBlock, groups.length, scrollItemIntoView],
+    [itens.length, scrollItemIntoView],
   );
 
-  const movePrev = useCallback(
+  const abrir = useCallback(
     (e: KeyboardEvent) => {
-      if (shouldBlock()) return;
+      if (atalhoBloqueado(e)) return;
+      const alvo = itens[navIndex];
+      // Enter num botão ou link fora da fila é do próprio elemento; numa linha da fila, vale o cursor.
+      const foco = document.activeElement as HTMLElement | null;
+      const livre = !foco || foco === document.body || foco.hasAttribute("data-nav-item");
+      if (!alvo || !livre) return;
       e.preventDefault();
-      setNavIndex((i) => {
-        const next = Math.max(i - 1, 0);
-        requestAnimationFrame(() => scrollItemIntoView(next));
-        return next;
-      });
+      router.push(rotas.chat(alvo.slug));
     },
-    [shouldBlock, scrollItemIntoView],
+    [navIndex, itens, router, rotas],
   );
 
-  const openSelected = useCallback(
+  const proximaNaoLida = useCallback(
     (e: KeyboardEvent) => {
-      if (shouldBlock()) return;
-      if (navIndex < 0 || navIndex >= groups.length) return;
+      if (atalhoBloqueado(e) || itens.length === 0) return;
       e.preventDefault();
-      const g = groups[navIndex];
-      if (g) router.push(rotas.chat(g.slug));
-    },
-    [shouldBlock, navIndex, groups, router, rotas],
-  );
-
-  const jumpNextUnread = useCallback(
-    (e: KeyboardEvent) => {
-      if (shouldBlock()) return;
-      e.preventDefault();
-      const len = groups.length;
-      if (len === 0) return;
-      // Search forward from navIndex+1, wrapping around
-      for (let i = 1; i <= len; i++) {
-        const idx = (navIndex + i) % len;
-        if (groups[idx]!.unread > 0) {
+      for (let i = 1; i <= itens.length; i++) {
+        const idx = (navIndex + i) % itens.length;
+        if ((itens[idx]?.naoLidas ?? 0) > 0) {
           setNavIndex(idx);
           requestAnimationFrame(() => scrollItemIntoView(idx));
           return;
         }
       }
-      // No unread found — no-op (could add a brief flash in the future)
     },
-    [shouldBlock, navIndex, groups, scrollItemIntoView],
+    [navIndex, itens, scrollItemIntoView],
   );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       switch (e.key) {
         case "j":
+        case "J":
         case "ArrowDown":
-          moveNext(e);
+          mover(e, 1);
           break;
         case "k":
+        case "K":
         case "ArrowUp":
-          movePrev(e);
+          mover(e, -1);
           break;
         case "Enter":
-          openSelected(e);
+          abrir(e);
           break;
         case "u":
-          jumpNextUnread(e);
+        case "U":
+          proximaNaoLida(e);
           break;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [moveNext, movePrev, openSelected, jumpNextUnread]);
+  }, [mover, abrir, proximaNaoLida]);
 
   return { navIndex, setNavIndex };
 }

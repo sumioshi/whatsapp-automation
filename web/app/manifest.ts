@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Balcão",
     short_name: "Balcão",
     description: "Atendimento dos clientes no WhatsApp.",
-    start_url: "/clientes",
+    start_url: "/",
     display: "standalone",
     background_color: "#eef0f3",
     theme_color: "#eef0f3",

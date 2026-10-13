@@ -20,6 +20,8 @@ export interface MsgAlvo {
 export interface RotasPainel {
   modo: ModoPainel;
   inicio: string;
+  /** A fila da Caixa (para onde o "voltar" da conversa leva). */
+  caixa: string;
   chat(slug: string): string;
   status: string;
   mensagens(slug: string, q?: { before?: string; limit?: number }): string;
@@ -48,7 +50,8 @@ function consulta(slug: string, q?: { before?: string; limit?: number }): string
 
 const DONO: RotasPainel = {
   modo: 'dono',
-  inicio: '/clientes',
+  inicio: '/',
+  caixa: '/inbox',
   chat: (slug) => `/g/${slug}`,
   status: '/api/status',
   mensagens: (slug, q) => `/api/messages?${consulta(slug, q)}`,
@@ -72,6 +75,7 @@ const BASE = '/api/atendimento';
 const ATENDIMENTO: RotasPainel = {
   modo: 'atendimento',
   inicio: '/atendimento',
+  caixa: '/atendimento',
   chat: (slug) => `/atendimento/g/${slug}`,
   status: `${BASE}/status`,
   mensagens: (slug, q) => `${BASE}/mensagens?${consulta(slug, q)}`,

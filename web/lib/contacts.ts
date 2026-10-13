@@ -1,6 +1,6 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { readTeam } from "./config";
-import { CONTACTS_FILE, DATA_DIR, safeDataPath } from "./paths";
+import { CONTACTS_FILE, DATA_DIR, safeDataPath, TEAM_FILE } from "./paths";
 
 export type Role = "me" | "team" | "client";
 
@@ -129,10 +129,28 @@ export function resolveMentions(text: string, c: Contacts): string {
  * Varre todos os grupos e monta o mapa de contatos: id->nome, quem é você
  * (fromMe) e quem está no time (config). Base para papel (me/team/client).
  */
-export async function buildContacts(): Promise<Contacts> {
-  const names = new Map<string, string>();
-  const ownIds = new Set<string>();
+let memo: { assinatura: string; valor: Contacts } | null = null;
 
+/**
+ * Retrato dos arquivos que entram no mapa (mtime e tamanho de cada um). Igual
+ * ao da última montagem = nada mudou: o mapa guardado vale, sem reler os chats.
+ */
+async function assinaturaDosArquivos(slugs: string[]): Promise<string> {
+  const caminhos = [...slugs.map((s) => safeDataPath(s, "messages.jsonl")), CONTACTS_FILE, TEAM_FILE];
+  const partes = await Promise.all(
+    caminhos.map(async (c) => {
+      try {
+        const s = await stat(c);
+        return `${c}:${s.mtimeMs}:${s.size}`;
+      } catch {
+        return `${c}:-`;
+      }
+    }),
+  );
+  return partes.join("|");
+}
+
+export async function buildContacts(): Promise<Contacts> {
   let slugs: string[] = [];
   try {
     slugs = (await readdir(DATA_DIR, { withFileTypes: true }))
@@ -141,6 +159,13 @@ export async function buildContacts(): Promise<Contacts> {
   } catch {
     /* sem dados ainda */
   }
+
+  // Quem chama só lê o mapa: o mesmo objeto pode voltar enquanto os arquivos não mudam.
+  const assinatura = await assinaturaDosArquivos(slugs);
+  if (memo?.assinatura === assinatura) return memo.valor;
+
+  const names = new Map<string, string>();
+  const ownIds = new Set<string>();
 
   for (const slug of slugs) {
     let raw = "";
@@ -182,7 +207,7 @@ export async function buildContacts(): Promise<Contacts> {
   }
 
   const teamIds = new Set(await readTeam());
-  return {
+  const valor: Contacts = {
     names,
     ownIds,
     teamIds,
@@ -190,6 +215,8 @@ export async function buildContacts(): Promise<Contacts> {
     lids: sidecar.lids,
     hasSidecar: sidecar.hasSidecar,
   };
+  memo = { assinatura, valor };
+  return valor;
 }
 
 /** Formata telefone BR (55 + DDD + número) como +55 DD 9XXXX-XXXX; outros saem com "+". */

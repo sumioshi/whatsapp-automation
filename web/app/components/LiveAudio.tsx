@@ -1,130 +1,128 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Icone } from "./caixa/icones";
+import { cn } from "./ui";
 
-const BAR_COUNT = 7;
-const REST = 0.3;
+const BARRAS = 34;
 
-/** Um AudioContext compartilhado por todos os áudios (navegadores limitam ~6). */
-let sharedCtx: AudioContext | null = null;
-function getCtx(): AudioContext | null {
-  if (typeof window === "undefined") return null;
-  if (sharedCtx) return sharedCtx;
-  const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AC) return null;
-  try {
-    sharedCtx = new AC();
-    return sharedCtx;
-  } catch {
-    return null;
-  }
+/** Onda decorativa estável por arquivo: o mesmo áudio tem sempre o mesmo desenho. */
+function alturas(src: string): number[] {
+  let h = 7;
+  for (const ch of src) h = (Math.imul(h, 31) + (ch.codePointAt(0) ?? 0)) >>> 0;
+  const a = (h % 1000) / 160;
+  const b = ((h >>> 10) % 1000) / 220;
+  return Array.from({ length: BARRAS }, (_, k) => 6 + Math.round(20 * Math.abs(Math.sin(k * 1.7 + a) * Math.cos(k * 0.45 + b))));
 }
 
-const prefersReducedMotion = () =>
-  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+function tempo(s: number): string {
+  if (!Number.isFinite(s) || s < 0) return "0:00";
+  const t = Math.floor(s);
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+}
 
 /**
- * Player de áudio com a assinatura do equalizer reagindo ao PLAYBACK real
- * (Web Audio AnalyserNode). O som é roteado primeiro pro destino (garante áudio
- * mesmo se o analyser falhar); o analyser é só um tap. Fallback: barras estáticas.
+ * Player da nota de voz: tocar/pausar, a onda que enche conforme toca (clique
+ * ou setas para buscar) e o tempo em mono. O <audio> fica escondido.
  */
 export function LiveAudio({ src }: { src: string }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const barsRef = useRef<Array<HTMLSpanElement | null>>([]);
-  const analyserRef = useRef<{ analyser: AnalyserNode; data: Uint8Array } | null>(null);
-  const triedRef = useRef(false);
-  const rafRef = useRef(0);
-  const [playing, setPlaying] = useState(false);
+  const ref = useRef<HTMLAudioElement>(null);
+  const [tocando, setTocando] = useState(false);
+  const [duracao, setDuracao] = useState(0);
+  const [posicao, setPosicao] = useState(0);
+  const [falhou, setFalhou] = useState(false);
+  const onda = useMemo(() => alturas(src), [src]);
+  const fracao = duracao > 0 ? Math.min(1, posicao / duracao) : 0;
 
-  function setupGraph() {
-    if (triedRef.current) return;
-    triedRef.current = true;
-    const el = audioRef.current;
-    const ctx = getCtx();
-    if (!el || !ctx) return;
-    try {
-      const source = ctx.createMediaElementSource(el);
-      source.connect(ctx.destination); // som garantido primeiro
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-      analyser.smoothingTimeConstant = 0.78;
-      source.connect(analyser); // tap passivo
-      analyserRef.current = { analyser, data: new Uint8Array(analyser.frequencyBinCount) };
-    } catch {
-      analyserRef.current = null; // cai pro estado estático
-    }
-  }
-
-  function frame() {
-    const a = analyserRef.current;
+  // O <audio> vem do servidor: a duração ou o erro podem chegar antes da hidratação.
+  useEffect(() => {
+    const a = ref.current;
     if (!a) return;
-    a.analyser.getByteFrequencyData(a.data as Uint8Array<ArrayBuffer>);
-    const step = Math.max(1, Math.floor(a.data.length / BAR_COUNT));
-    for (let i = 0; i < BAR_COUNT; i++) {
-      const v = (a.data[i * step] ?? 0) / 255;
-      const h = REST + v * (1 - REST);
-      const bar = barsRef.current[i];
-      if (bar) bar.style.transform = `scaleY(${h.toFixed(3)})`;
-    }
-    rafRef.current = requestAnimationFrame(frame);
+    if (a.error) setFalhou(true);
+    else if (a.readyState >= 1 && Number.isFinite(a.duration)) setDuracao(a.duration);
+  }, []);
+
+  function alternar() {
+    const a = ref.current;
+    if (!a) return;
+    if (a.paused) void a.play().catch(() => setFalhou(true));
+    else a.pause();
   }
 
-  function onPlay() {
-    setPlaying(true);
-    if (prefersReducedMotion()) return;
-    setupGraph();
-    const ctx = getCtx();
-    void ctx?.resume?.();
-    if (analyserRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      frame();
-    }
+  function irPara(s: number) {
+    const a = ref.current;
+    if (!a || !(duracao > 0)) return;
+    a.currentTime = Math.max(0, Math.min(duracao, s));
+    setPosicao(a.currentTime);
   }
 
-  function settle() {
-    setPlaying(false);
-    cancelAnimationFrame(rafRef.current);
-    for (const bar of barsRef.current) {
-      if (bar) bar.style.transform = `scaleY(${REST})`;
-    }
+  function clicarOnda(e: MouseEvent<HTMLDivElement>) {
+    const r = e.currentTarget.getBoundingClientRect();
+    irPara(((e.clientX - r.left) / r.width) * duracao);
   }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: cleanup só no unmount
-  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
-
-  // Sem analyser (fallback) e tocando → usa a animação CSS decorativa.
-  const cssFallback = playing && triedRef.current && !analyserRef.current;
+  function teclaOnda(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      e.stopPropagation();
+      irPara(posicao + (e.key === "ArrowRight" ? 5 : -5));
+    } else if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      alternar();
+    }
+  }
 
   return (
-    <div>
-      <div className="mb-2 flex items-center gap-2">
-        <span className="flex h-5 items-center gap-[3px]" aria-hidden>
-          {Array.from({ length: BAR_COUNT }).map((_, i) => (
-            <span
-              // biome-ignore lint/suspicious/noArrayIndexKey: barras fixas
-              key={i}
-              ref={(el) => {
-                barsRef.current[i] = el;
-              }}
-              className={`w-[3px] rounded-full bg-accent ${cssFallback ? "eq-bar" : "eq-live-bar"}`}
-              style={{ height: "100%", animationDelay: `${i * 0.1}s` }}
-            />
-          ))}
-        </span>
-        <span className="inline-block text-[12px] text-fg-faint font-medium first-letter:uppercase">
-          {playing ? "ouvindo" : "voz"}
-        </span>
+    <div className="flex w-[clamp(220px,52vw,320px)] max-w-full items-center gap-2.5">
+      <button
+        type="button"
+        onClick={alternar}
+        aria-label={tocando ? "Pausar áudio" : duracao > 0 ? `Ouvir áudio de ${tempo(duracao)}` : "Ouvir áudio"}
+        className="focus-ring grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink text-on-ink transition-colors hover:bg-ink/85"
+      >
+        <Icone nome={tocando ? "pausa" : "play"} tamanho={12} />
+      </button>
+      {/* biome-ignore lint/a11y/useSemanticElements: onda clicável com teclado; input range não desenha barras */}
+      <div
+        role="slider"
+        tabIndex={0}
+        aria-label="Posição no áudio"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(duracao)}
+        aria-valuenow={Math.round(posicao)}
+        aria-valuetext={`${tempo(posicao)} de ${tempo(duracao)}`}
+        onClick={clicarOnda}
+        onKeyDown={teclaOnda}
+        className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-[2px] overflow-hidden rounded-[4px] outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        {onda.map((h, i) => (
+          <i
+            // biome-ignore lint/suspicious/noArrayIndexKey: barras fixas
+            key={i}
+            className={cn("block w-[2px] shrink-0 rounded-[1px]", (i + 0.5) / BARRAS <= fracao ? "bg-accent" : "bg-fg-mute")}
+            style={{ height: h }}
+          />
+        ))}
       </div>
+      <span className="shrink-0 font-mono text-[12px] tabular-nums text-fg-faint">
+        {falhou ? "indisponível" : tempo(tocando || posicao > 0 ? posicao : duracao)}
+      </span>
       {/* biome-ignore lint/a11y/useMediaCaption: nota de voz não tem legenda */}
       <audio
-        ref={audioRef}
-        controls
-        preload="none"
+        ref={ref}
         src={src}
-        onPlay={onPlay}
-        onPause={settle}
-        onEnded={settle}
-        className="w-full max-w-sm"
+        preload="metadata"
+        className="hidden"
+        onLoadedMetadata={(e) => setDuracao(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0)}
+        onDurationChange={(e) => Number.isFinite(e.currentTarget.duration) && setDuracao(e.currentTarget.duration)}
+        onTimeUpdate={(e) => setPosicao(e.currentTarget.currentTime)}
+        onPlay={() => setTocando(true)}
+        onPause={() => setTocando(false)}
+        onEnded={() => {
+          setTocando(false);
+          setPosicao(0);
+        }}
+        onError={() => setFalhou(true)}
       />
     </div>
   );

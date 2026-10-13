@@ -1,5 +1,10 @@
+import { atividadeDiaria } from './clientes-tabela';
 import { buildContacts } from './contacts';
+import { CONTRATO_PADRAO, type Contrato, readContratos } from './contratos';
+import { type Sinal, montarDashboard } from './dashboard';
 import { type GroupSummary, listGroups, readGroupRecords } from './data';
+import { lerUsuarios } from './equipe/usuarios';
+import { type Feature, listarFeatures } from './features';
 import { evaluateGroup } from './inbox';
 import { type SlaBand, aguardandoValido, buildSlaInfo, relativeLabel } from './sla';
 import { readTriage } from './triage';
@@ -32,6 +37,26 @@ export interface ClienteCard {
   /** Rótulo do tempo de espera ("há 26h") quando aguardando. */
   waitingLabel: string | null;
 }
+
+/** O que a tabela de clientes mostra além da conversa: atividade, contrato, entregas e equipe. */
+export interface NegocioDoChat {
+  /** Mensagens do cliente por dia de Brasília nos últimos 30 dias, do mais antigo para hoje. */
+  atividade30d: number[];
+  /** Mensagens do cliente em 30 dias, a mesma conta do painel e do sinal "acima do contrato". */
+  msgsCliente30d: number;
+  contrato: Contrato;
+  /** Mensagens do cliente em 30 dias que o contrato comporta; null = sem limite. */
+  limite: number | null;
+  entregas30d: number;
+  entregasTotal: number;
+  msgsPorEntrega: number | null;
+  valorPorEntrega: number | null;
+  sinais: Sinal[];
+  /** Quem da equipe tem o chat liberado (nome, ou o login quando não há nome). */
+  equipe: string[];
+}
+
+export type ClienteLinha = ClienteCard & NegocioDoChat;
 
 const NOTA_MAX = 80;
 const MS_7D = 7 * 24 * 60 * 60 * 1000;
@@ -92,17 +117,58 @@ export function ordenarCards<T extends Ordenavel>(cards: T[]): T[] {
   });
 }
 
+/**
+ * Contrato, entregas, equipe e atividade de um chat. Os sinais e as contas por
+ * entrega vêm do mesmo cálculo do painel, para as duas telas dizerem o mesmo.
+ * A atividade conta só o que o cliente mandou: é a régua do limite do contrato.
+ */
+export function negocioDoChat(
+  chat: { slug: string; nome: string; mensagens: ReadonlyArray<{ timestamp: string; fromMe?: boolean }> },
+  contratos: Record<string, Contrato>,
+  features: Feature[],
+  equipe: ReadonlyArray<{ login: string; nome: string; ativo: boolean; chats: string[] }>,
+  agoraMs: number,
+): NegocioDoChat {
+  const atividade30d = atividadeDiaria(
+    chat.mensagens.filter((m) => !m.fromMe),
+    agoraMs,
+  );
+  const doChat = features.filter((f) => f.slug === chat.slug);
+  const [linha] = montarDashboard(
+    [{ slug: chat.slug, nome: chat.nome, mensagens: chat.mensagens.map((m) => ({ timestamp: m.timestamp, fromMe: Boolean(m.fromMe) })) }],
+    contratos,
+    doChat,
+    agoraMs,
+  ).linhas;
+  const contrato = contratos[chat.slug] ?? CONTRATO_PADRAO;
+  return {
+    atividade30d,
+    msgsCliente30d: linha?.msgsCliente30d ?? 0,
+    contrato,
+    limite: contrato.limiteMensagens ?? null,
+    entregas30d: linha?.features30d ?? 0,
+    entregasTotal: doChat.length,
+    msgsPorEntrega: linha?.msgsPorFeature30d ?? null,
+    valorPorEntrega: linha?.valorPorFeature ?? null,
+    sinais: linha?.sinais ?? [],
+    equipe: equipe.filter((u) => u.ativo && u.chats.includes(chat.slug)).map((u) => u.nome.trim() || u.login),
+  };
+}
+
 /** Monta os cards de todos os chats monitorados, já ordenados para a grade. */
-export async function buildClientes(): Promise<ClienteCard[]> {
+export async function buildClientes(): Promise<ClienteLinha[]> {
   const now = Date.now();
-  const [groups, contacts, triage] = await Promise.all([
+  const [groups, contacts, triage, contratos, features, equipe] = await Promise.all([
     listGroups(),
     buildContacts(),
     readTriage(),
+    readContratos(),
+    listarFeatures(),
+    lerUsuarios(),
   ]);
 
   const cards = await Promise.all(
-    groups.map(async (g: GroupSummary): Promise<ClienteCard> => {
+    groups.map(async (g: GroupSummary): Promise<ClienteLinha> => {
       const messages = await readGroupRecords(g.slug);
       const verdict = evaluateGroup(messages, contacts);
       const pedeAtencao = verdict?.reason === 'client-waiting' || verdict?.reason === 'mentioned';
@@ -133,6 +199,7 @@ export async function buildClientes(): Promise<ClienteCard[]> {
         waitingMs: sla?.waitingMs ?? 0,
         band: sla?.band ?? null,
         waitingLabel: sla?.label ?? null,
+        ...negocioDoChat({ slug: g.slug, nome: g.name, mensagens: messages }, contratos, features, equipe, now),
       };
     }),
   );

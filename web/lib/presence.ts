@@ -33,6 +33,8 @@ export interface PresenceView {
   status: 'typing' | 'recording' | 'online' | 'offline';
   /** "Visto por último" em ms epoch, quando conhecido; senão null. */
   lastSeen: number | null;
+  /** Número de quem está digitando/online (no grupo, o participante); null se o coletor não disse. */
+  participante: string | null;
 }
 
 /**
@@ -53,14 +55,15 @@ export async function readPresence(slug: string): Promise<PresenceView | null> {
 
   const age = Date.now() - (entry.updatedAt ?? 0);
   const lastSeen = typeof entry.lastSeen === 'number' ? entry.lastSeen : null;
+  const participante = (entry.participant ?? '').split('@')[0]?.split(':')[0] || null;
 
   if ((entry.state === 'composing' || entry.state === 'recording') && age < TYPING_TTL_MS) {
-    return { status: entry.state === 'recording' ? 'recording' : 'typing', lastSeen };
+    return { status: entry.state === 'recording' ? 'recording' : 'typing', lastSeen, participante };
   }
   if (entry.state === 'available' && age < ONLINE_TTL_MS) {
-    return { status: 'online', lastSeen };
+    return { status: 'online', lastSeen, participante };
   }
   // Offline / paused / estados expirados: só vale a pena se soubermos o lastSeen.
-  if (lastSeen) return { status: 'offline', lastSeen };
+  if (lastSeen) return { status: 'offline', lastSeen, participante };
   return null;
 }

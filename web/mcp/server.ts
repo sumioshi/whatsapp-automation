@@ -84,6 +84,7 @@ import {
 import type { EntregaResumo } from "../lib/data-source";
 import { diaBrt, resumoParaIa, somarDias } from "../lib/agenda-semana";
 import { numberFromJid, roleOf, sendableDmJid } from "../lib/contacts";
+import { patchDaTool } from "../lib/contrato-mcp";
 import { explicarSinal } from "../lib/dashboard";
 
 // Ambiente (.env da raiz, WAC_DATA_DIR fixo neste repo) é resolvido em ./env, importado
@@ -1619,19 +1620,27 @@ server.registerTool(
     description:
       "Define o estado comercial de um chat: estado (ativo/encerrado/pausado/sem), início e fim (YYYY-MM-DD), " +
       "valor mensal e nota. Só os campos passados mudam. O dashboard cruza isso com a atividade pra apontar " +
-      "cliente ativo demais pro contrato, renovação próxima e custo por entrega. Pra ler, use a tool dashboard.",
+      "cliente ativo demais pro contrato, renovação próxima e custo por entrega. Pra ler, use a tool dashboard. " +
+      "limite_mensagens = mensagens do cliente em 30 dias que o plano comporta (null tira o limite); acima dele o dashboard aponta acima-do-contrato.",
     inputSchema: {
       grupo: z.string().describe("slug do grupo ou DM"),
       estado: z.enum(["ativo", "encerrado", "pausado", "sem"]).optional(),
       inicio: z.string().nullable().optional().describe("YYYY-MM-DD ou null"),
       fim: z.string().nullable().optional().describe("YYYY-MM-DD ou null"),
       valorMensal: z.number().nullable().optional().describe("reais por mês, ou null"),
+      limite_mensagens: z
+        .number()
+        .int()
+        .min(1)
+        .nullable()
+        .optional()
+        .describe("mensagens do cliente em 30 dias que o plano comporta (inteiro ≥ 1); null tira o limite"),
       nota: z.string().optional(),
     },
   },
-  async ({ grupo, ...patch }) => {
+  async ({ grupo, ...args }) => {
     try {
-      const contrato = await dsSetContrato(grupo, patch);
+      const contrato = await dsSetContrato(grupo, patchDaTool(args));
       return ok({ grupo, contrato }, `Contrato de "${grupo}": ${contrato.estado}${contrato.fim ? ` até ${contrato.fim}` : ""}.`);
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao definir contrato");
