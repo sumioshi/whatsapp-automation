@@ -3,27 +3,33 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from '../json-store';
 import { DATA_DIR } from '../paths';
+import { emailValido } from './login-externo';
 
 /**
  * Entrada por código de 6 dígitos mandado por e-mail. O código só existe no e-mail:
- * aqui fica o HMAC dele, a validade, as tentativas e quando foi pedido.
+ * aqui fica o HMAC dele, a validade, as tentativas e quando foi pedido. Os erros
+ * somam por 24 h, atravessando códigos novos: pedir outro código não zera o limite.
  */
 
 export const VALIDADE_MS = 10 * 60_000;
 export const MAX_TENTATIVAS = 5;
 export const MAX_ENVIOS = 3;
+export const MAX_ENVIOS_DIA = 10;
+export const MAX_FALHAS_DIA = 10;
 const JANELA_ENVIOS_MS = 10 * 60_000;
-/** Pedido mais velho que isso some na próxima gravação. */
-const GUARDA_MS = 60 * 60_000;
+const DIA_MS = 24 * 60 * 60_000;
 
 export interface EntradaCodigo {
-  hash: string;
+  /** null depois que o código foi usado. */
+  hash: string | null;
   expira: number;
   tentativas: number;
   envios: number[];
+  falhas: number[];
 }
 export type EstadoCodigos = Record<string, EntradaCodigo>;
-export type MotivoRecusa = 'sem_codigo' | 'vencido' | 'tentativas' | 'errado';
+export type MotivoRecusa = 'sem_codigo' | 'vencido' | 'tentativas' | 'errado' | 'bloqueado';
+export type MotivoSemEnvio = 'muitos_envios' | 'bloqueado';
 
 export function novoCodigo(): string {
   return String(randomInt(0, 1_000_000)).padStart(6, '0');
@@ -39,30 +45,51 @@ function iguais(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
+/** Só a entrada própria do e-mail: "constructor" e afins não acham nada no protótipo. */
+function entradaDe(estado: EstadoCodigos, email: string): EntradaCodigo | undefined {
+  return Object.hasOwn(estado, email) ? estado[email] : undefined;
+}
+
+const recentes = (lista: number[], agora: number, janela: number) => lista.filter((t) => agora - t < janela);
+
+/** Tira o que passou de 24 h: pedidos e erros velhos não pesam mais. */
 function limpar(estado: EstadoCodigos, agora: number): EstadoCodigos {
   const out: EstadoCodigos = {};
   for (const [email, e] of Object.entries(estado)) {
-    if (agora - Math.max(e.expira, ...e.envios) < GUARDA_MS) out[email] = e;
+    const envios = recentes(e.envios, agora, DIA_MS);
+    const falhas = recentes(e.falhas, agora, DIA_MS);
+    if (envios.length || falhas.length || e.expira > agora) out[email] = { ...e, envios, falhas };
   }
   return out;
 }
 
-/** Guarda um código novo no lugar do anterior, respeitando o teto de envios por janela. */
+/** Guarda um código novo no lugar do anterior, respeitando os tetos de envio e de erro. */
 export function registrarCodigo(
   estado: EstadoCodigos,
   email: string,
   codigo: string,
   agora: number,
   chave: string,
-): { ok: boolean; estado: EstadoCodigos } {
+): { ok: true; estado: EstadoCodigos } | { ok: false; motivo: MotivoSemEnvio; estado: EstadoCodigos } {
   const limpo = limpar(estado, agora);
-  const envios = (limpo[email]?.envios ?? []).filter((t) => agora - t < JANELA_ENVIOS_MS);
-  if (envios.length >= MAX_ENVIOS) return { ok: false, estado: limpo };
+  const atual = entradaDe(limpo, email);
+  const falhas = atual?.falhas ?? [];
+  if (falhas.length >= MAX_FALHAS_DIA) return { ok: false, motivo: 'bloqueado', estado: limpo };
+  const envios = atual?.envios ?? [];
+  if (recentes(envios, agora, JANELA_ENVIOS_MS).length >= MAX_ENVIOS || envios.length >= MAX_ENVIOS_DIA) {
+    return { ok: false, motivo: 'muitos_envios', estado: limpo };
+  }
   return {
     ok: true,
     estado: {
       ...limpo,
-      [email]: { hash: hashDoCodigo(email, codigo, chave), expira: agora + VALIDADE_MS, tentativas: 0, envios: [...envios, agora] },
+      [email]: {
+        hash: hashDoCodigo(email, codigo, chave),
+        expira: agora + VALIDADE_MS,
+        tentativas: 0,
+        envios: [...envios, agora],
+        falhas,
+      },
     },
   };
 }
@@ -75,16 +102,39 @@ export function conferirCodigo(
   agora: number,
   chave: string,
 ): { ok: true; estado: EstadoCodigos } | { ok: false; motivo: MotivoRecusa; estado: EstadoCodigos } {
-  const e = estado[email];
-  if (!e) return { ok: false, motivo: 'sem_codigo', estado };
+  const e = entradaDe(estado, email);
+  if (!e || e.hash === null) return { ok: false, motivo: 'sem_codigo', estado };
+  const falhas = recentes(e.falhas, agora, DIA_MS);
+  if (falhas.length >= MAX_FALHAS_DIA) return { ok: false, motivo: 'bloqueado', estado };
   if (agora > e.expira) return { ok: false, motivo: 'vencido', estado };
   if (e.tentativas >= MAX_TENTATIVAS) return { ok: false, motivo: 'tentativas', estado };
   const limpo = codigo.replace(/\s+/g, '');
   if (/^\d{6}$/.test(limpo) && iguais(hashDoCodigo(email, limpo, chave), e.hash)) {
-    const { [email]: _gasto, ...resto } = estado;
-    return { ok: true, estado: resto };
+    // Gasto: o código some, mas os envios e erros do dia continuam contando.
+    return { ok: true, estado: { ...estado, [email]: { ...e, hash: null, expira: 0, tentativas: 0, falhas } } };
   }
-  return { ok: false, motivo: 'errado', estado: { ...estado, [email]: { ...e, tentativas: e.tentativas + 1 } } };
+  return {
+    ok: false,
+    motivo: 'errado',
+    estado: { ...estado, [email]: { ...e, tentativas: e.tentativas + 1, falhas: [...falhas, agora] } },
+  };
+}
+
+const numeros = (v: unknown): v is number[] => Array.isArray(v) && v.every((n) => typeof n === 'number' && Number.isFinite(n));
+
+/** Estado lido do disco: só e-mails válidos com entrada bem formada; o resto é descartado. */
+export function estadoDoArquivo(bruto: unknown): EstadoCodigos {
+  const out: EstadoCodigos = {};
+  if (!bruto || typeof bruto !== 'object' || Array.isArray(bruto)) return out;
+  for (const email of Object.keys(bruto)) {
+    if (!emailValido(email)) continue;
+    const e = (bruto as Record<string, unknown>)[email] as Partial<Record<keyof EntradaCodigo, unknown>> | null;
+    if (!e || typeof e !== 'object') continue;
+    if (!(e.hash === null || typeof e.hash === 'string')) continue;
+    if (typeof e.expira !== 'number' || typeof e.tentativas !== 'number' || !numeros(e.envios)) continue;
+    out[email] = { hash: e.hash, expira: e.expira, tentativas: e.tentativas, envios: e.envios, falhas: numeros(e.falhas) ? e.falhas : [] };
+  }
+  return out;
 }
 
 export interface EmailDeCodigo {
@@ -146,7 +196,7 @@ export function comCodigos<T>(fn: (estado: EstadoCodigos) => { estado: EstadoCod
   const vez = fila.then(async () => {
     let estado: EstadoCodigos = {};
     try {
-      estado = JSON.parse(await readFile(ARQUIVO(), 'utf8')) as EstadoCodigos;
+      estado = estadoDoArquivo(JSON.parse(await readFile(ARQUIVO(), 'utf8')));
     } catch {
       // arquivo ausente ou corrompido: começa vazio
     }

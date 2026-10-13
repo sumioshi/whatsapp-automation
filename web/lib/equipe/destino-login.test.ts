@@ -11,4 +11,11 @@ describe('caminhoInterno', () => {
       expect(caminhoInterno(v)).toBe('/');
     }
   });
+  it('não vira caminho de outro site numa segunda passada', () => {
+    for (const v of ['/.//evil.example', '/..//evil.example', '/%2e//evil.example', '/./\\evil.example']) {
+      const uma = caminhoInterno(v);
+      expect(uma.startsWith('//') || uma.startsWith('/\\')).toBe(false);
+      expect(caminhoInterno(uma)).toBe(uma);
+    }
+  });
 });

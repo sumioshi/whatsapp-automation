@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { config } from '../proxy';
+import { CLASSIFICACAO } from './classificacao-rotas';
 
 /** O proxy só roda nos caminhos que casam com o matcher; fora dele a rota é pública. */
 const passaPeloProxy = (caminho: string) => new RegExp(`^${config.matcher[0]}$`).test(caminho);
@@ -22,5 +23,10 @@ describe('rotas públicas do proxy', () => {
     expect(passaPeloProxy('/api/login/codigo/verificar')).toBe(false);
     expect(passaPeloProxy('/api/loginx')).toBe(true);
     expect(passaPeloProxy('/api/logins/google')).toBe(true);
+  });
+  it('tudo sob /api/login é público de propósito: rota nova ali não nasce aberta sem querer', () => {
+    const sob = Object.keys(CLASSIFICACAO).filter((f) => f.startsWith('api/login/') || f === 'api/login/route.ts');
+    expect(sob.length).toBeGreaterThan(0);
+    for (const f of sob) expect([f, CLASSIFICACAO[f]]).toEqual([f, 'publico']);
   });
 });
