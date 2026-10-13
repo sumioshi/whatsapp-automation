@@ -1,20 +1,12 @@
 import { NextResponse } from "next/server";
 import { readTeam, setTeam } from "@/lib/config";
-import { buildContacts, roleOf } from "@/lib/contacts";
+import { buildContacts, pessoasDoTime, timeAlternado } from "@/lib/contacts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function listContacts() {
-  const c = await buildContacts();
-  return [...c.names.entries()]
-    .map(([id, name]) => ({ id, name, role: roleOf(c, id) }))
-    .filter((x) => x.role !== "me")
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
-
 export async function GET() {
-  return NextResponse.json(await listContacts());
+  return NextResponse.json(pessoasDoTime(await buildContacts()));
 }
 
 export async function POST(req: Request) {
@@ -28,10 +20,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "id/team inválido" }, { status: 400 });
   }
 
-  const current = new Set(await readTeam());
-  if (body.team) current.add(body.id);
-  else current.delete(body.id);
-  await setTeam([...current]);
+  // Marca ou desmarca a pessoa inteira: o LID e o telefone dela.
+  await setTeam(timeAlternado(await buildContacts(), await readTeam(), body.id, body.team));
 
-  return NextResponse.json(await listContacts());
+  return NextResponse.json(pessoasDoTime(await buildContacts()));
 }

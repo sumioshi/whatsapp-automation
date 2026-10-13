@@ -93,3 +93,68 @@ describe('formatPhoneBR', () => {
     expect(formatPhoneBR('14155552671')).toBe('+14155552671');
   });
 });
+
+// ── Meu time: LID e telefone da mesma pessoa são uma pessoa só ───────────────
+import { pessoaDe, pessoasDoTime, timeAlternado } from './contacts';
+
+describe('pessoas do time', () => {
+  // Ana fala pelos dois ids (LID e telefone); Bia só pelo telefone; o sidecar liga o LID da Ana ao telefone dela.
+  const base = () =>
+    contacts({
+      names: new Map([
+        ['100000000000001', 'Ana Time'],
+        ['5511900000001', 'Ana Time'],
+        ['5511900000002', 'Bia'],
+        ['5511900000003', 'Bia'],
+        ['5511900000009', 'Eu'],
+      ]),
+      ownIds: new Set(['5511900000009']),
+      phones: new Map([
+        ['100000000000001', '5511900000001'],
+        ['5511900000001', '5511900000001'],
+      ]),
+      lids: new Set(['100000000000001']),
+    });
+
+  it('LID ligado a um telefone e o próprio telefone dão a mesma pessoa', () => {
+    const c = base();
+    expect(pessoaDe(c, '100000000000001')).toBe('5511900000001');
+    expect(pessoaDe(c, '5511900000001')).toBe('5511900000001');
+    expect(pessoaDe(c, '5511900000002')).toBe('5511900000002');
+  });
+
+  it('lista uma linha por pessoa, sem você, e homônimos com telefones diferentes seguem separados', () => {
+    const linhas = pessoasDoTime(base());
+    expect(linhas.map((l) => [l.id, l.name])).toEqual([
+      ['5511900000001', 'Ana Time'],
+      ['5511900000002', 'Bia'],
+      ['5511900000003', 'Bia'],
+    ]);
+  });
+
+  it('a linha leva todos os ids da pessoa, para a conversa reconhecer o time por qualquer um', () => {
+    const ana = pessoasDoTime(base()).find((l) => l.id === '5511900000001');
+    expect(ana?.ids.sort()).toEqual(['100000000000001', '5511900000001']);
+  });
+
+  it('a pessoa aparece no time quando qualquer um dos ids dela está marcado', () => {
+    const c = { ...base(), teamIds: new Set(['100000000000001']) };
+    expect(pessoasDoTime(c).find((l) => l.id === '5511900000001')?.role).toBe('team');
+  });
+
+  it('marcar pela linha grava o LID e o telefone', () => {
+    expect(timeAlternado(base(), [], '5511900000001', true).sort()).toEqual(['100000000000001', '5511900000001']);
+  });
+
+  it('desmarcar tira os dois ids, mesmo quando só um estava gravado', () => {
+    expect(timeAlternado(base(), ['100000000000001', '5511900000002'], '5511900000001', false)).toEqual(['5511900000002']);
+  });
+
+  it('marcar outra pessoa completa quem já estava marcado só por um id', () => {
+    expect(timeAlternado(base(), ['100000000000001'], '5511900000002', true).sort()).toEqual([
+      '100000000000001',
+      '5511900000001',
+      '5511900000002',
+    ]);
+  });
+});

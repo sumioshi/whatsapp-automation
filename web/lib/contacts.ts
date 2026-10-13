@@ -114,6 +114,79 @@ export function roleOf(c: Contacts, id: string): Role {
   return "client";
 }
 
+// ---------- Meu time: uma pessoa, vários ids ----------
+
+/**
+ * Chave da pessoa: o telefone que o sidecar liga ao id, ou o próprio id. O
+ * WhatsApp identifica a mesma pessoa pelo LID e pelo telefone, conforme o
+ * momento; os dois dão a mesma chave.
+ */
+export function pessoaDe(c: Pick<Contacts, "phones">, id: string): string {
+  return c.phones.get(id) ?? id;
+}
+
+/** Todos os ids conhecidos das pessoas dadas: a própria chave e os ids que o sidecar liga a ela. */
+function idsDasPessoas(c: Pick<Contacts, "phones">, pessoas: ReadonlySet<string>): Set<string> {
+  const ids = new Set(pessoas);
+  for (const [id, tel] of c.phones) if (pessoas.has(tel)) ids.add(id);
+  return ids;
+}
+
+/** Ids marcados expandidos para todos os ids das mesmas pessoas. */
+function timeExpandido(c: Pick<Contacts, "phones">, marcados: readonly string[]): Set<string> {
+  return idsDasPessoas(c, new Set(marcados.map((id) => pessoaDe(c, id))));
+}
+
+/**
+ * O que gravar no `.team.json` ao marcar ou desmarcar `id`: todos os ids
+ * conhecidos de cada pessoa que fica no time. A fila do coletor compara o id
+ * exato do remetente, então a pessoa vai inteira para o arquivo.
+ */
+export function timeAlternado(
+  c: Pick<Contacts, "phones">,
+  marcados: readonly string[],
+  id: string,
+  team: boolean,
+): string[] {
+  const pessoas = new Set(marcados.map((m) => pessoaDe(c, m)));
+  if (team) pessoas.add(pessoaDe(c, id));
+  else pessoas.delete(pessoaDe(c, id));
+  return [...idsDasPessoas(c, pessoas)];
+}
+
+export interface PessoaDoTime {
+  /** Chave da pessoa (telefone quando conhecido); é o que a tela manda ao marcar. */
+  id: string;
+  /** Todos os ids com que ela aparece nas conversas. */
+  ids: string[];
+  name: string;
+  role: "team" | "client";
+}
+
+/** Nome legível da pessoa: o primeiro que não é só número. */
+function nomeDaPessoa(c: Contacts, ids: readonly string[]): string {
+  const nomes = ids.map((id) => c.names.get(id) ?? id);
+  return nomes.find((n) => !/^\d+$/.test(n)) ?? nomes[0] ?? "";
+}
+
+/** Uma linha por pessoa (LID e telefone juntos), sem você. */
+export function pessoasDoTime(c: Contacts): PessoaDoTime[] {
+  const grupos = new Map<string, string[]>();
+  for (const id of c.names.keys()) {
+    const chave = pessoaDe(c, id);
+    const ids = grupos.get(chave);
+    if (ids) ids.push(id);
+    else grupos.set(chave, [id]);
+  }
+  const linhas: PessoaDoTime[] = [];
+  for (const [chave, ids] of grupos) {
+    if (ids.some((id) => c.ownIds.has(id))) continue;
+    const noTime = c.teamIds.has(chave) || ids.some((id) => c.teamIds.has(id));
+    linhas.push({ id: chave, ids, name: nomeDaPessoa(c, ids), role: noTime ? "team" : "client" });
+  }
+  return linhas.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}
+
 export function nameOf(c: Contacts, id: string): string {
   return c.names.get(id) ?? id;
 }
@@ -206,7 +279,8 @@ export async function buildContacts(): Promise<Contacts> {
     else if (!names.has(id)) names.set(id, name);
   }
 
-  const teamIds = new Set(await readTeam());
+  // Quem foi marcado por um id só (o LID, por exemplo) também é do time pelo outro.
+  const teamIds = timeExpandido(sidecar, await readTeam());
   const valor: Contacts = {
     names,
     ownIds,

@@ -207,8 +207,8 @@ export function Timeline({
     if (!rotas.recursos.time) return;
     fetch("/api/team", { cache: "no-store" })
       .then((r) => r.json())
-      .then((cs: Array<{ id: string; role: string }>) =>
-        setTeamIds(new Set(cs.filter((c) => c.role === "team").map((c) => c.id))),
+      .then((cs: Array<{ id: string; ids?: string[]; role: string }>) =>
+        setTeamIds(new Set(cs.filter((c) => c.role === "team").flatMap((c) => c.ids ?? [c.id]))),
       )
       .catch(() => {});
   }, [rotas]);
