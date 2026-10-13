@@ -6,7 +6,7 @@ const msg = { id: 'M1', groupJid: '120363000000000000@g.us', sender: '5511999999
 describe('rotas do dono = as de hoje (sem mudança de comportamento)', () => {
   const r = rotasPainel('dono');
   it('leitura', () => {
-    expect(r.inicio).toBe('/clientes');
+    expect(r.inicio).toBe('/');
     expect(r.chat('grupo-a')).toBe('/g/grupo-a');
     expect(r.status).toBe('/api/status');
     expect(r.mensagens('grupo a')).toBe('/api/messages?slug=grupo%20a');

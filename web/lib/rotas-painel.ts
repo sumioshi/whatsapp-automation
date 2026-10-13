@@ -48,7 +48,7 @@ function consulta(slug: string, q?: { before?: string; limit?: number }): string
 
 const DONO: RotasPainel = {
   modo: 'dono',
-  inicio: '/clientes',
+  inicio: '/',
   chat: (slug) => `/g/${slug}`,
   status: '/api/status',
   mensagens: (slug, q) => `/api/messages?${consulta(slug, q)}`,
