@@ -161,7 +161,9 @@ export function NovaConversa({ modo }: { modo: Modo }) {
       <CabecalhoPagina
         variante="barra"
         titulo="Nova conversa"
-        subtitulo={modo === "grupo" ? "Primeira mensagem num grupo" : "Mensagem direta para um contato ou número"}
+        subtitulo={
+          <span className="max-[860px]:hidden">{modo === "grupo" ? "Primeira mensagem num grupo" : "Mensagem direta para um contato ou número"}</span>
+        }
         acoes={
           <Segmentado
             rotulo="Conversa com"
@@ -179,8 +181,8 @@ export function NovaConversa({ modo }: { modo: Modo }) {
             largura="g"
             titulo={modo === "grupo" ? "Escolha o grupo" : "Escolha o contato"}
             icone={<Icone nome={modo === "grupo" ? "users" : "user"} />}
-            meta={modo === "grupo" ? "mesmo sem histórico" : "quem já trocou mensagem com você"}
-            rodape={<ContagemLista modo={modo} busca={busca} grupos={grupos} gruposFiltrados={gruposFiltrados} contatos={contatos} contatosFiltrados={contatosFiltrados} />}
+            meta={<span className="max-[860px]:hidden">{modo === "grupo" ? "mesmo sem histórico" : "quem já trocou mensagem com você"}</span>}
+            rodape={contagemLista({ modo, busca, grupos, gruposFiltrados, contatos, contatosFiltrados }) ?? undefined}
             acoes={
               modo === "contato" ? (
                 <Button variant="ghost" size="sm" onClick={digitarNumero}>
@@ -321,8 +323,11 @@ export function NovaConversa({ modo }: { modo: Modo }) {
   );
 }
 
-/** Rodapé da lista: quantos há (e quantos a busca deixou), já que a lista rola por dentro do card. */
-function ContagemLista({
+/**
+ * Rodapé da lista: quantos há (e quantos a busca deixou), já que a lista rola por dentro do
+ * card. Sem lista carregada (ou vazia), não há rodapé.
+ */
+function contagemLista({
   modo,
   busca,
   grupos,
@@ -336,10 +341,10 @@ function ContagemLista({
   gruposFiltrados: GroupWithTags[];
   contatos: ContactEntry[] | null;
   contatosFiltrados: ContactEntry[];
-}) {
+}): React.ReactNode {
   const num = (n: number) => <span className="font-mono tabular-nums">{n.toLocaleString("pt-BR")}</span>;
   if (modo === "grupo") {
-    if (!grupos) return null;
+    if (!grupos || grupos.length === 0) return null;
     if (busca.trim()) {
       return (
         <span>
@@ -353,7 +358,7 @@ function ContagemLista({
       </span>
     );
   }
-  if (!contatos) return null;
+  if (!contatos || contatos.length === 0) return null;
   return busca.trim() ? (
     <span>
       {num(contatosFiltrados.length)} de {num(contatos.length)} contatos

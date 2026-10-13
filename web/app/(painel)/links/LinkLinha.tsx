@@ -50,7 +50,7 @@ export function LinkLinha({
           </div>
         </div>
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2 max-[860px]:pl-12">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 min-[861px]:shrink-0 max-[860px]:w-full max-[860px]:pl-12">
         <Select
           tamanho="sm"
           aria-label={`Agente de triagem de ${nome}`}

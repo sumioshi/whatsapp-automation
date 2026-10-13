@@ -81,7 +81,7 @@ export function EquipeView() {
       <CabecalhoPagina
         variante="barra"
         titulo="Equipe"
-        subtitulo={subtitulo}
+        subtitulo={<span className="max-[860px]:hidden">{subtitulo}</span>}
         acoes={
           dados && usuarios.length > 0 ? (
             <Button size="sm" onClick={abrirCriacao}>

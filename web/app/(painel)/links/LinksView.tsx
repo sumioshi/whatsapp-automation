@@ -111,7 +111,7 @@ export function LinksView() {
       <CabecalhoPagina
         variante="barra"
         titulo="Links de projeto"
-        subtitulo={subtitulo}
+        subtitulo={<span className="max-[860px]:hidden">{subtitulo}</span>}
         acoes={
           <Button size="sm" onClick={novo}>
             <Icone nome="plus" tamanho={14} />
