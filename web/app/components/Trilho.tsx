@@ -18,6 +18,17 @@ const icone = (d: React.ReactNode) => (
 
 const SECOES: Array<{ href: string; rotulo: string; ativa: (p: string) => boolean; icone: React.ReactNode }> = [
   {
+    href: "/",
+    rotulo: "Hoje",
+    ativa: (p) => p === "/",
+    icone: icone(
+      <>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+      </>,
+    ),
+  },
+  {
     href: "/inbox",
     rotulo: "Caixa",
     ativa: (p) => p.startsWith("/inbox") || p.startsWith("/g/"),
@@ -98,7 +109,7 @@ export function Trilho({ groups, usuario }: { groups: GroupSummary[]; usuario: s
       className="relative flex w-[72px] shrink-0 flex-col items-center gap-1 border-r border-line bg-rail px-1.5 pb-3 pt-3.5 max-[860px]:w-full max-[860px]:flex-row max-[860px]:justify-around max-[860px]:border-r-0 max-[860px]:border-t max-[860px]:px-1 max-[860px]:pb-[calc(6px+env(safe-area-inset-bottom,0px))] max-[860px]:pt-1.5"
     >
       <Link
-        href="/clientes"
+        href="/"
         aria-label="Balcão, início"
         className="relative mb-3.5 grid h-8 w-8 place-items-center rounded-[9px] bg-ink max-[860px]:hidden"
       >

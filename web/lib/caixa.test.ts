@@ -270,7 +270,7 @@ describe('midiaDaConversa', () => {
 });
 
 describe('resumoContrato', () => {
-  const base = { estado: 'ativo' as const, inicio: '2025-03-10', fim: '2026-10-30', valorMensal: 1800, nota: '' };
+  const base = { estado: 'ativo' as const, inicio: '2025-03-10', fim: '2026-10-30', valorMensal: 1800, limiteMensagens: null, nota: '' };
   it('monta estado, valor, início e renovação', () => {
     expect(resumoContrato(base, '2026-10-07')).toEqual({
       estado: { rotulo: 'ativo', tom: 'ok' },
@@ -299,14 +299,15 @@ describe('rotuloSinal', () => {
     expect(rotuloSinal('encerrado-ativo', null, '2026-10-07')).toEqual({ texto: 'contrato encerrado', tom: 'danger' });
     expect(rotuloSinal('sem-entrega-30d', null, '2026-10-07')).toEqual({ texto: 'sem entrega há 30 dias', tom: 'warn' });
     expect(rotuloSinal('pausado-ativo', null, '2026-10-07')).toEqual({ texto: 'pausado, mas ativo', tom: 'warn' });
-    const c = { estado: 'ativo' as const, inicio: null, fim: '2026-10-30', valorMensal: null, nota: '' };
+    const c = { estado: 'ativo' as const, inicio: null, fim: '2026-10-30', valorMensal: null, limiteMensagens: null, nota: '' };
     expect(rotuloSinal('renovacao-30d', c, '2026-10-07')).toEqual({ texto: 'renova em 23 dias', tom: 'neutro' });
+    expect(rotuloSinal('acima-do-contrato', c, '2026-10-07')).toEqual({ texto: 'acima do contrato', tom: 'warn' });
   });
 });
 
 describe('desdeQuando', () => {
   it('usa o início do contrato e cai para a primeira mensagem', () => {
-    expect(desdeQuando({ estado: 'ativo', inicio: '2025-03-10', fim: null, valorMensal: null, nota: '' }, '2024-01-01T00:00:00Z')).toBe(
+    expect(desdeQuando({ estado: 'ativo', inicio: '2025-03-10', fim: null, valorMensal: null, limiteMensagens: null, nota: '' }, '2024-01-01T00:00:00Z')).toBe(
       'cliente desde mar 2025',
     );
     expect(desdeQuando(null, '2026-08-01T12:00:00Z')).toBe('conversa desde ago 2026');

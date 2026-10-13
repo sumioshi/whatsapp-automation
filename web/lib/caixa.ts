@@ -600,6 +600,8 @@ export function rotuloSinal(s: Sinal, c: Contrato | null, hoje: string): { texto
       return { texto: 'pausado, mas ativo', tom: 'warn' };
     case 'sem-entrega-30d':
       return { texto: 'sem entrega há 30 dias', tom: 'warn' };
+    case 'acima-do-contrato':
+      return { texto: 'acima do contrato', tom: 'warn' };
     case 'renovacao-30d': {
       if (!c?.fim) return { texto: 'renova em até 30 dias', tom: 'neutro' };
       const d = diasEntre(hoje, c.fim);

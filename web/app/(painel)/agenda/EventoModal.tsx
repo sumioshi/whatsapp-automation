@@ -62,35 +62,45 @@ export function EventoModal({ rascunho, agendas, aoFechar, aoSalvar, aoRecarrega
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-scrim p-4"
+      className="overlay-in fixed inset-0 z-50 grid place-items-center bg-scrim p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) aoFechar();
       }}
     >
       <form
-        className="flex max-h-full w-full max-w-md flex-col gap-3 overflow-y-auto rounded-card border border-line bg-elevated p-5"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ev-modal-titulo"
+        className="pop-in flex max-h-full w-full max-w-md flex-col gap-3.5 overflow-y-auto rounded-[14px] bg-surface p-6 [box-shadow:var(--float)] max-[860px]:p-5"
         onSubmit={(e) => {
           e.preventDefault();
           if (!leitura) void enviar(novo ? "POST" : "PATCH");
         }}
       >
-        <h2 className="font-medium text-fg">{novo ? "Novo evento" : leitura ? "Evento" : "Editar evento"}</h2>
+        <h2 id="ev-modal-titulo" className="text-[16px] font-semibold tracking-[-0.01em] text-fg">
+          {novo ? "Novo evento" : leitura ? "Evento" : "Editar evento"}
+        </h2>
         {leitura && (
-          <p className="text-xs text-fg-dim">
+          <p className="text-[12.5px] text-fg-dim">
             {r.organizador
               ? `Quem organizou (${r.organizador}) é quem pode alterar este evento.`
               : "Esta agenda é só de leitura."}
           </p>
         )}
         {r.recorrente && !leitura && (
-          <p className="text-xs text-fg-dim">Evento que se repete: a alteração vale só para este dia.</p>
+          <p className="text-[12.5px] text-fg-dim">Evento que se repete: a alteração vale só para este dia.</p>
         )}
         <fieldset disabled={leitura || ocupado} className="flex flex-col gap-3">
           <Field label="Título" htmlFor="ev-titulo">
             <Input id="ev-titulo" autoFocus value={r.titulo} onChange={(e) => mudar("titulo", e.target.value)} />
           </Field>
-          <label className="flex items-center gap-2 text-sm text-fg">
-            <input type="checkbox" checked={r.diaInteiro} onChange={(e) => mudar("diaInteiro", e.target.checked)} />
+          <label className="flex min-h-8 items-center gap-2 text-[13px] text-fg">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-accent"
+              checked={r.diaInteiro}
+              onChange={(e) => mudar("diaInteiro", e.target.checked)}
+            />
             Dia inteiro
           </label>
           <div className="grid grid-cols-2 gap-2">
@@ -132,22 +142,26 @@ export function EventoModal({ rascunho, agendas, aoFechar, aoSalvar, aoRecarrega
             <Input id="ev-conv" value={r.convidados} onChange={(e) => mudar("convidados", e.target.value)} />
           </Field>
           {r.linkMeet ? (
-            <a href={r.linkMeet} target="_blank" rel="noreferrer" className="text-sm text-accent underline">
+            <a href={r.linkMeet} target="_blank" rel="noreferrer" className="self-start text-[13px] font-medium text-accent hover:underline">
               Entrar no Meet
             </a>
           ) : (
-            <label className="flex items-center gap-2 text-sm text-fg">
-              <input type="checkbox" checked={r.meet} onChange={(e) => mudar("meet", e.target.checked)} />
+            <label className="flex min-h-8 items-center gap-2 text-[13px] text-fg">
+              <input type="checkbox" className="h-4 w-4 accent-accent" checked={r.meet} onChange={(e) => mudar("meet", e.target.checked)} />
               Criar link do Google Meet
             </label>
           )}
         </fieldset>
         {r.link && (
-          <a href={r.link} target="_blank" rel="noreferrer" className="text-xs text-fg-dim underline">
+          <a href={r.link} target="_blank" rel="noreferrer" className="self-start text-[12.5px] text-fg-faint underline-offset-2 hover:text-fg hover:underline">
             Abrir no Google Agenda
           </a>
         )}
-        {erro && <p className="mono text-xs text-danger">{erro}</p>}
+        {erro && (
+          <p role="alert" className="text-[12.5px] text-danger">
+            {erro}
+          </p>
+        )}
         <div className="mt-1 flex items-center gap-2">
           {!novo &&
             !leitura &&

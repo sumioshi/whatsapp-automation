@@ -11,7 +11,7 @@ const ESTADOS: Array<{ id: EstadoContrato; rotulo: string }> = [
   { id: "encerrado", rotulo: "Encerrado" },
 ];
 
-const VAZIO: Contrato = { estado: "sem", inicio: null, fim: null, valorMensal: null, nota: "" };
+const VAZIO: Contrato = { estado: "sem", inicio: null, fim: null, valorMensal: null, limiteMensagens: null, nota: "" };
 
 /** Estado comercial do chat, salvo em /api/contratos. Campos vazios viram null. */
 export function ContratoForm({ slug, aoSalvar }: { slug: string; aoSalvar?: () => void }) {
@@ -63,7 +63,6 @@ export function ContratoForm({ slug, aoSalvar }: { slug: string; aoSalvar?: () =
   }
 
   if (!c) return <p className="mt-3 text-[12.5px] text-fg-faint">Carregando o contrato…</p>;
-  const campo = "bg-surface py-1.5 text-[13px]";
   // Os campos seguem editáveis durante o salvamento: desabilitar tira o foco de
   // quem está digitando no campo seguinte. O aviso "salvando…" basta.
   return (
@@ -71,7 +70,6 @@ export function ContratoForm({ slug, aoSalvar }: { slug: string; aoSalvar?: () =
       <Field label="Estado" htmlFor={`contrato-estado-${slug}`}>
         <Select
           id={`contrato-estado-${slug}`}
-          className={campo}
           value={c.estado}
           onChange={(e) => salvar({ estado: e.target.value as EstadoContrato })}
         >
@@ -87,8 +85,7 @@ export function ContratoForm({ slug, aoSalvar }: { slug: string; aoSalvar?: () =
           <Input
             id={`contrato-inicio-${slug}`}
             type="date"
-            className={campo}
-            value={c.inicio ?? ""}
+              value={c.inicio ?? ""}
             onChange={(e) => salvar({ inicio: e.target.value || null })}
           />
         </Field>
@@ -96,8 +93,7 @@ export function ContratoForm({ slug, aoSalvar }: { slug: string; aoSalvar?: () =
           <Input
             id={`contrato-fim-${slug}`}
             type="date"
-            className={campo}
-            value={c.fim ?? ""}
+              value={c.fim ?? ""}
             onChange={(e) => salvar({ fim: e.target.value || null })}
           />
         </Field>
@@ -108,16 +104,27 @@ export function ContratoForm({ slug, aoSalvar }: { slug: string; aoSalvar?: () =
           type="number"
           min={0}
           step="0.01"
-          className={`${campo} font-mono tabular-nums`}
+          className="font-mono tabular-nums"
           defaultValue={c.valorMensal ?? ""}
           onBlur={(e) => salvar({ valorMensal: e.target.value === "" ? null : Number(e.target.value) })}
+        />
+      </Field>
+      <Field label="Limite de mensagens (30 dias)" htmlFor={`contrato-limite-${slug}`}>
+        <Input
+          id={`contrato-limite-${slug}`}
+          type="number"
+          min={1}
+          step={1}
+          className="font-mono tabular-nums"
+          defaultValue={c.limiteMensagens ?? ""}
+          placeholder="sem limite"
+          onBlur={(e) => salvar({ limiteMensagens: e.target.value === "" ? null : Number(e.target.value) })}
         />
       </Field>
       <Field label="Nota" htmlFor={`contrato-nota-${slug}`}>
         <Input
           id={`contrato-nota-${slug}`}
           type="text"
-          className={campo}
           defaultValue={c.nota}
           onBlur={(e) => salvar({ nota: e.target.value })}
           placeholder="Ex.: renovação anual em dezembro"
