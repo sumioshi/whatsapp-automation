@@ -14,4 +14,13 @@ describe('rotas públicas do proxy', () => {
     expect(passaPeloProxy('/agenda')).toBe(true);
     expect(passaPeloProxy('/login')).toBe(false);
   });
+  it('entrar com Google e com código abrem sem sessão (é por elas que a sessão nasce)', () => {
+    expect(passaPeloProxy('/api/login')).toBe(false);
+    expect(passaPeloProxy('/api/login/google')).toBe(false);
+    expect(passaPeloProxy('/api/login/google/callback')).toBe(false);
+    expect(passaPeloProxy('/api/login/codigo')).toBe(false);
+    expect(passaPeloProxy('/api/login/codigo/verificar')).toBe(false);
+    expect(passaPeloProxy('/api/loginx')).toBe(true);
+    expect(passaPeloProxy('/api/logins/google')).toBe(true);
+  });
 });
