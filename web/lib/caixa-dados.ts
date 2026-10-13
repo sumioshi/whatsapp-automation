@@ -1,4 +1,4 @@
-import { open } from 'node:fs/promises';
+import { open, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { cache } from 'react';
 import type { AguardandoOk, ConversaFila, EntregaViva, EsperaFila, EventoEntrega } from './caixa';
@@ -84,12 +84,11 @@ export async function iaDaCaixa(): Promise<IaDaCaixa> {
 /** O registro de entregas só cresce: lê o fim dele (o bastante para semanas de conversa). */
 const TETO_REGISTRO = 4 * 1024 * 1024;
 
-async function fimDoRegistro(caminho: string): Promise<string> {
+async function fimDoRegistro(caminho: string, tamanho: number): Promise<string> {
   const h = await open(caminho, 'r');
   try {
-    const { size } = await h.stat();
-    const inicio = Math.max(0, size - TETO_REGISTRO);
-    const buf = Buffer.alloc(size - inicio);
+    const inicio = Math.max(0, tamanho - TETO_REGISTRO);
+    const buf = Buffer.alloc(tamanho - inicio);
     await h.read(buf, 0, buf.length, inicio);
     const texto = buf.toString('utf8');
     // Começou no meio de uma linha: descarta o pedaço.
@@ -99,34 +98,42 @@ async function fimDoRegistro(caminho: string): Promise<string> {
   }
 }
 
+function paraEvento(linha: string): EventoEntrega | null {
+  try {
+    const e = JSON.parse(linha) as Partial<EventoEntrega>;
+    if (typeof e.slug !== 'string' || typeof e.ticket !== 'string' || typeof e.estado !== 'string' || typeof e.ts !== 'string') return null;
+    return {
+      ts: e.ts,
+      ticket: e.ticket,
+      slug: e.slug,
+      estado: e.estado,
+      motivo: typeof e.motivo === 'string' ? e.motivo : null,
+      enviados: Number(e.enviados) || 0,
+      total: Number(e.total) || 0,
+      iniciadoEm: typeof e.iniciadoEm === 'string' ? e.iniciadoEm : null,
+    };
+  } catch {
+    return null; // linha cortada no meio da escrita
+  }
+}
+
+/** Leitura guardada até o registro mudar de tamanho ou de data: a conversa consulta a cada 10 s. */
+let registro: { mtimeMs: number; size: number; eventos: EventoEntrega[] } | null = null;
+
 /** Transições das entregas da IA numa conversa, desde um instante (o registro que o coletor grava). */
 export async function eventosDaConversa(slug: string, desde = ''): Promise<EventoEntrega[]> {
-  let texto: string;
+  const caminho = join(DATA_DIR, '.entregas.jsonl');
   try {
-    texto = await fimDoRegistro(join(DATA_DIR, '.entregas.jsonl'));
+    const st = await stat(caminho);
+    if (!registro || registro.mtimeMs !== st.mtimeMs || registro.size !== st.size) {
+      const eventos = (await fimDoRegistro(caminho, st.size))
+        .split('\n')
+        .map(paraEvento)
+        .filter((e): e is EventoEntrega => e !== null);
+      registro = { mtimeMs: st.mtimeMs, size: st.size, eventos };
+    }
   } catch {
     return [];
   }
-  const out: EventoEntrega[] = [];
-  for (const linha of texto.split('\n')) {
-    if (!linha.includes(slug)) continue;
-    try {
-      const e = JSON.parse(linha) as Partial<EventoEntrega>;
-      if (e.slug !== slug || typeof e.ticket !== 'string' || typeof e.estado !== 'string' || typeof e.ts !== 'string') continue;
-      if (desde && e.ts < desde) continue;
-      out.push({
-        ts: e.ts,
-        ticket: e.ticket,
-        slug: e.slug,
-        estado: e.estado,
-        motivo: typeof e.motivo === 'string' ? e.motivo : null,
-        enviados: Number(e.enviados) || 0,
-        total: Number(e.total) || 0,
-        iniciadoEm: typeof e.iniciadoEm === 'string' ? e.iniciadoEm : null,
-      });
-    } catch {
-      /* linha cortada no meio da escrita */
-    }
-  }
-  return out;
+  return registro.eventos.filter((e) => e.slug === slug && (!desde || e.ts >= desde));
 }
