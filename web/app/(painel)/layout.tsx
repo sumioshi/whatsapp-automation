@@ -14,7 +14,7 @@ export default async function PainelLayout({
   return (
     <>
       {/* Desktop: trilho | conteúdo. Celular: conteúdo em cima, trilho vira barra embaixo. */}
-      <div className="flex h-dvh overflow-hidden max-[860px]:flex-col-reverse">
+      <div className="relative flex h-dvh overflow-hidden max-[860px]:flex-col-reverse">
         <Trilho groups={groups} usuario={usuario} />
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
       </div>

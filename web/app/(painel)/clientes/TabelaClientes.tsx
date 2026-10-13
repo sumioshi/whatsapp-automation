@@ -103,7 +103,7 @@ export function TabelaClientes({
   };
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto bg-surface">
+    <div className="relative min-h-0 flex-1 overflow-auto bg-surface">
       <table className="w-full min-w-[1080px] border-separate border-spacing-0 text-[13px] text-fg">
         <thead>
           <tr>

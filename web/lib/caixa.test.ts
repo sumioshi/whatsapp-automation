@@ -93,17 +93,70 @@ describe('montarFila', () => {
     expect(mare?.previa).toEqual({ de: 'IA', texto: 'Rascunho pronto' });
   });
 
-  it('Todas mostra cada conversa uma vez, nas seções em ordem, com arquivadas recolhidas', () => {
+  it('Todas mostra cada conversa uma vez: fixadas, depois as outras, com arquivadas recolhidas', () => {
     const f = montarFila({ esperando, conversas, entregas, aguardandoOk }, { vista: 'todas' });
     expect(f.secoes.map((s) => [s.id, s.linhas.map((l) => l.slug)])).toEqual([
-      ['esperando', ['norte', 'ebano']],
-      ['ia', ['lume', 'mare']],
       ['fixadas', ['fixa']],
-      ['conversas', ['solta']],
+      ['conversas', ['norte', 'ebano', 'lume', 'mare', 'solta']],
       ['arquivadas', []],
     ]);
     expect(f.secoes.at(-1)).toMatchObject({ recolhida: true, total: 1 });
-    expect(f.ordem).toEqual(['norte', 'ebano', 'lume', 'mare', 'fixa', 'solta']);
+    expect(f.ordem).toEqual(['fixa', 'norte', 'ebano', 'lume', 'mare', 'solta']);
+  });
+
+  it('Todas ordena pela última mensagem e mostra a espera e a IA na própria linha', () => {
+    const agoraMs = Date.parse('2026-10-12T12:00:00Z');
+    const f = montarFila(
+      {
+        esperando: [espera('a', '2026-10-12T09:00:00Z'), espera('c', '2026-09-01T11:00:00Z')],
+        conversas: [
+          conversa('a', { ultimaEm: '2026-10-12T09:00:00Z' }),
+          conversa('b', { ultimaEm: '2026-10-12T11:00:00Z' }),
+          conversa('c', { ultimaEm: '2026-09-01T11:00:00Z' }),
+          conversa('sem-data'),
+          conversa('f', { ultimaEm: '2026-10-01T11:00:00Z', fixada: true }),
+          conversa('arq', { ultimaEm: '2026-10-12T11:30:00Z', arquivada: true }),
+        ],
+        entregas: [{ ticket: 't', slug: 'b', estado: 'entregando', enviados: 0, total: 2, entregarEm: '2026-10-12T11:10:00Z' }],
+        aguardandoOk: [],
+      },
+      { vista: 'todas', agoraMs },
+    );
+    expect(f.secoes.map((s) => [s.id, s.linhas.map((l) => l.slug)])).toEqual([
+      ['fixadas', ['f']],
+      ['conversas', ['b', 'a', 'c', 'sem-data']],
+      ['arquivadas', []],
+    ]);
+    const [b, a, c] = f.secoes[1]?.linhas ?? [];
+    expect(b?.ia).toMatchObject({ tipo: 'entregando' });
+    expect(a?.esperaDesde).toBe('2026-10-12T09:00:00Z');
+    // Em Todas a espera parada também aparece, no lugar dela na linha do tempo.
+    expect(c?.esperaDesde).toBe('2026-09-01T11:00:00Z');
+  });
+
+  it('espera parada há mais de 7 dias vai para uma seção recolhida no fim e sai das contagens', () => {
+    const agoraMs = Date.parse('2026-10-12T12:00:00Z');
+    const esp = [
+      espera('antiga', '2026-09-15T10:00:00Z'),
+      espera('media', '2026-10-01T10:00:00Z'),
+      espera('nova', '2026-10-11T10:00:00Z'),
+      espera('ontem', '2026-10-10T10:00:00Z'),
+    ];
+    const entrada = { esperando: esp, conversas: esp.map((e) => conversa(e.slug)), entregas: [], aguardandoOk: [] };
+    const f = montarFila(entrada, { vista: 'esperando', agoraMs });
+    expect(f.secoes.map((s) => [s.id, s.linhas.map((l) => l.slug)])).toEqual([
+      ['esperando', ['ontem', 'nova']],
+      ['paradas', []],
+    ]);
+    expect(f.secoes[1]).toMatchObject({ recolhida: true, total: 2, titulo: 'Paradas há mais de 7 dias' });
+    expect(f.contagens.esperando).toBe(2);
+    expect(f.abertas).toBe(2);
+    // Aberta, a menos parada vem primeiro.
+    const aberta = montarFila(entrada, { vista: 'esperando', agoraMs, paradasAbertas: true });
+    expect(aberta.secoes[1]?.linhas.map((l) => l.slug)).toEqual(['media', 'antiga']);
+    expect(aberta.ordem).toEqual(['ontem', 'nova', 'media', 'antiga']);
+    // Filtro procura nas paradas também.
+    expect(montarFila(entrada, { vista: 'esperando', agoraMs, filtro: 'antig' }).ordem).toEqual(['antiga']);
   });
 
   it('arquivadas abrem quando pedidas', () => {
@@ -204,7 +257,7 @@ describe('montarFila', () => {
     expect(ia.contagens).toEqual({ esperando: 1, ia: 2 });
     expect(ia.abertas).toBe(2);
     const todas = montarFila(entrada, { vista: 'todas', agoraMs });
-    expect(todas.ordem).toEqual(['b', 'a']);
+    expect(todas.ordem).toEqual(['a', 'b']);
   });
 
   it('pergunta antiga demais não prende a conversa em Com a IA', () => {

@@ -11,6 +11,7 @@ import {
   type EstadoColetor,
   estadoDoColetor,
   interrompidasHoje,
+  ESPERA_PARADA_MS,
   resumoEsperando,
   type SinalDoDia,
   sinaisDoDia,
@@ -48,7 +49,7 @@ export interface DadosHoje {
   /** "Segunda, 12 de outubro". */
   data: string;
   coletor: { estado: EstadoColetor; grupos: number };
-  esperando: { total: number; acimaDe4h: number; linhas: LinhaEsperando[] };
+  esperando: { total: number; acimaDe4h: number; paradas: number; linhas: LinhaEsperando[] };
   primeiraResposta: { medianaMs: number | null; respostas: number };
   entregas: { atual: number; anterior: number; nomeMes: string; nomeMesAnterior: string };
   ia: { enviadasHoje: number; interrompidasHoje: number; autonomo: number };
@@ -125,7 +126,7 @@ export async function montarHojeAtual(): Promise<DadosHoje> {
     coletor: { estado: estadoDoColetor(status), grupos: status.watchedCount },
     esperando: {
       ...resumoEsperando(inbox),
-      linhas: inbox.slice(0, LINHAS_POR_CARD).map((i) => {
+      linhas: inbox.filter((i) => i.waitingMs <= ESPERA_PARADA_MS).slice(0, LINHAS_POR_CARD).map((i) => {
         const g = porSlug.get(i.slug);
         return {
           slug: i.slug,

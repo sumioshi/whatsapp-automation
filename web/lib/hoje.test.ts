@@ -62,6 +62,14 @@ describe('resumoEsperando', () => {
     expect(resumoEsperando([{ waitingMs: 4 * H }, { waitingMs: 4 * H + 1 }, { waitingMs: 10 * MIN }])).toEqual({
       total: 3,
       acimaDe4h: 1,
+      paradas: 0,
+    });
+  });
+  it('espera de mais de 7 dias fica de fora do total e conta à parte, como na Caixa', () => {
+    expect(resumoEsperando([{ waitingMs: 2 * H }, { waitingMs: 7 * 24 * H + 1 }, { waitingMs: 30 * 24 * H }])).toEqual({
+      total: 1,
+      acimaDe4h: 0,
+      paradas: 2,
     });
   });
 });

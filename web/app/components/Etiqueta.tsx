@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { corDoMatiz, matizDaEtiqueta } from "@/lib/aparencia";
 import { Etiqueta } from "./ui/Etiqueta";
 
@@ -33,6 +33,27 @@ export function EditorEtiquetas({
   const [selecao, setSelecao] = useState<string[]>(atuais);
   const [nova, setNova] = useState("");
   const opcoes = [...new Set([...conhecidas, ...selecao])];
+  const ref = useRef<HTMLDivElement>(null);
+  const fechar = useRef(onFechar);
+  fechar.current = onFechar;
+
+  // Fecha com clique fora do bloco do editor (o pai, que também tem o botão que o abriu: esse
+  // botão continua alternando) e com Esc de qualquer lugar. Abrir o editor de outra linha fecha este.
+  useEffect(() => {
+    const zona = ref.current?.parentElement ?? ref.current;
+    const fora = (e: PointerEvent) => {
+      if (zona && !zona.contains(e.target as Node)) fechar.current();
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") fechar.current();
+    };
+    document.addEventListener("pointerdown", fora);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", fora);
+      document.removeEventListener("keydown", esc);
+    };
+  }, []);
 
   async function salvar(lista: string[]) {
     setSelecao(lista);
@@ -45,13 +66,11 @@ export function EditorEtiquetas({
   }
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: fecha ao clicar fora
+    // biome-ignore lint/a11y/noStaticElementInteractions: só impede o clique de chegar à linha
     <div
+      ref={ref}
       className="absolute top-full left-0 z-20 mt-1 w-64 rounded-card border border-line bg-surface p-2 [box-shadow:var(--float)]"
       onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onFechar();
-      }}
     >
       <div className="mb-2 flex flex-wrap gap-1">
         {opcoes.map((et) => {

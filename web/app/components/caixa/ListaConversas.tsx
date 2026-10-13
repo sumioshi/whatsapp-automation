@@ -35,7 +35,7 @@ function AnelSecao({ ms }: { ms: number }) {
   );
 }
 
-const ICONE_SECAO = { ia: "spark", fixadas: "pin", conversas: "chat", arquivadas: "archive" } as const;
+const ICONE_SECAO = { ia: "spark", paradas: "clock", fixadas: "pin", conversas: "chat", arquivadas: "archive" } as const;
 
 function CabecalhoSecao({
   secao,
@@ -111,6 +111,7 @@ export function ListaConversas({ dados, aviso, className }: { dados: DadosCaixa;
   const [vista, setVista] = useState<VistaFila>("esperando");
   const [filtro, setFiltro] = useState("");
   const [arquivadasAbertas, setArquivadasAbertas] = useState(false);
+  const [paradasAbertas, setParadasAbertas] = useState(false);
   // Os dados chegam do servidor na montagem (e quando a página se refaz) e depois pela rota leve da fila.
   const [atuais, setAtuais] = useState(dados);
   useEffect(() => setAtuais(dados), [dados]);
@@ -193,9 +194,9 @@ export function ListaConversas({ dados, aviso, className }: { dados: DadosCaixa;
     () =>
       montarFila(
         { esperando: atuais.esperando, conversas: atuais.conversas, entregas: dono ? ia.entregas : [], aguardandoOk: dono ? ia.aguardandoOk : [] },
-        { vista, filtro, arquivadasAbertas, agoraMs: agora },
+        { vista, filtro, arquivadasAbertas, paradasAbertas, agoraMs: agora },
       ),
-    [atuais.esperando, atuais.conversas, ia, dono, vista, filtro, arquivadasAbertas, agora],
+    [atuais.esperando, atuais.conversas, ia, dono, vista, filtro, arquivadasAbertas, paradasAbertas, agora],
   );
 
   const atual = useMemo(() => {
@@ -280,7 +281,7 @@ export function ListaConversas({ dados, aviso, className }: { dados: DadosCaixa;
       {aviso}
 
       <nav ref={listaRef} aria-label="Conversas da fila" className="min-h-0 flex-1 overflow-y-auto">
-        {fila.ordem.length === 0 && fila.secoes.every((s) => s.id !== "arquivadas") ? (
+        {fila.ordem.length === 0 && fila.secoes.every((s) => s.id !== "arquivadas" && s.id !== "paradas") ? (
           filtro.trim() ? (
             <Vazio titulo={`Nada encontrado para “${filtro.trim()}”`}>
               <p>Tente outro nome ou etiqueta, ou procure em Todas.</p>
@@ -320,8 +321,21 @@ export function ListaConversas({ dados, aviso, className }: { dados: DadosCaixa;
               <CabecalhoSecao
                 secao={s}
                 agoraMs={agora}
-                onAlternar={s.id === "arquivadas" && !filtro.trim() ? () => setArquivadasAbertas((v) => !v) : undefined}
+                onAlternar={
+                  filtro.trim()
+                    ? undefined
+                    : s.id === "arquivadas"
+                      ? () => setArquivadasAbertas((v) => !v)
+                      : s.id === "paradas"
+                        ? () => setParadasAbertas((v) => !v)
+                        : undefined
+                }
               />
+              {s.id === "esperando" && s.total === 0 && !filtro.trim() && (
+                <p className="px-5 py-4 text-[13px] text-fg-faint max-[860px]:px-4">
+                  Ninguém esperando há menos de 7 dias. As conversas paradas ficam logo abaixo.
+                </p>
+              )}
               {s.linhas.map((l) => {
                 posicao += 1;
                 const i = posicao;

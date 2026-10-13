@@ -55,9 +55,17 @@ export function fraseDoDia(p: { esperando: number; comIa: number | null; comprom
   return `${juntar(partes)}.`;
 }
 
-/** Total esperando e quantos passaram de 4 h (o anel cheio, em vermelho). */
-export function resumoEsperando(itens: Array<{ waitingMs: number }>): { total: number; acimaDe4h: number } {
-  return { total: itens.length, acimaDe4h: itens.filter((i) => i.waitingMs > QUATRO_HORAS).length };
+/** Espera sem resposta há mais que isso não conta como "esperando": é a mesma régua da Caixa. */
+export const ESPERA_PARADA_MS = 7 * 24 * H_MS;
+
+/** Esperando (só o que ainda dá para salvar), quantos passaram de 4 h e quantos estão parados. */
+export function resumoEsperando(itens: Array<{ waitingMs: number }>): { total: number; acimaDe4h: number; paradas: number } {
+  const vivas = itens.filter((i) => i.waitingMs <= ESPERA_PARADA_MS);
+  return {
+    total: vivas.length,
+    acimaDe4h: vivas.filter((i) => i.waitingMs > QUATRO_HORAS).length,
+    paradas: itens.length - vivas.length,
+  };
 }
 
 export type EstadoColetor = 'conectado' | 'pareando' | 'desconectado';

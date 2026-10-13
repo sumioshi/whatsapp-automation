@@ -15,7 +15,7 @@ export default async function AtendimentoLayout({ children }: Readonly<{ childre
   const dados = await filaDaEquipe(p.a.chats, p.canonicoDe, (await listaDaPagina()) ?? []);
   return (
     <RotasPainelProvider modo="atendimento">
-      <div className="flex h-dvh overflow-hidden max-[860px]:flex-col-reverse">
+      <div className="relative flex h-dvh overflow-hidden max-[860px]:flex-col-reverse">
         <AtendimentoSidebar nome={p.a.usuario.nome} naoLidas={dados.conversas.filter((c) => c.naoLidas > 0).length} />
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           <Caixa dados={dados} aviso={<AvisoDesconectado />}>

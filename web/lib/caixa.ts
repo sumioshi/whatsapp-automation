@@ -109,7 +109,7 @@ export interface LinhaFila {
   ultimaEm: string | null;
 }
 
-export type IdSecao = 'esperando' | 'ia' | 'fixadas' | 'conversas' | 'arquivadas';
+export type IdSecao = 'esperando' | 'paradas' | 'ia' | 'fixadas' | 'conversas' | 'arquivadas';
 
 export interface SecaoFila {
   id: IdSecao;
@@ -117,7 +117,7 @@ export interface SecaoFila {
   linhas: LinhaFila[];
   /** Quantas conversas a seção tem, mesmo recolhida. */
   total: number;
-  /** Só as arquivadas: fechadas até abrir ou filtrar. */
+  /** Arquivadas e paradas: fechadas até abrir ou filtrar. */
   recolhida?: boolean;
 }
 
@@ -133,9 +133,12 @@ export interface Fila {
 
 /** Pergunta da triagem mais velha que isso não prende mais a conversa na seção da IA. */
 export const OK_VALIDO_MS = 7 * DIA_MS;
+/** Espera sem resposta há mais que isso sai do topo de Esperando: vai para "Paradas", recolhida. */
+export const ESPERA_PARADA_MS = 7 * DIA_MS;
 
 const TITULO: Record<IdSecao, string> = {
   esperando: 'Esperando você',
+  paradas: 'Paradas há mais de 7 dias',
   ia: 'Com a IA',
   fixadas: 'Fixadas',
   conversas: 'Conversas',
@@ -183,7 +186,7 @@ const ORDEM_IA: Record<EstadoIa['tipo'], number> = { entregando: 0, ok: 1, agend
 
 export function montarFila(
   entrada: { esperando: EsperaFila[]; conversas: ConversaFila[]; entregas: EntregaViva[]; aguardandoOk: AguardandoOk[] },
-  opts: { vista: VistaFila; filtro?: string; arquivadasAbertas?: boolean; agoraMs?: number },
+  opts: { vista: VistaFila; filtro?: string; arquivadasAbertas?: boolean; paradasAbertas?: boolean; agoraMs?: number },
 ): Fila {
   const porSlug = new Map(entrada.conversas.map((c) => [c.slug, c]));
 
@@ -237,18 +240,26 @@ export function montarFila(
   });
 
   // Esperando você: só a entrega viva (a resposta já está saindo) tira a conversa daqui. Com
-  // pergunta da triagem pendente, a linha fica e ganha a marca do OK. Mais antigo primeiro.
+  // pergunta da triagem pendente, a linha fica e ganha a marca do OK. Mais antigo primeiro, mas
+  // só o que ainda dá para salvar: espera de mais de 7 dias vai para "Paradas", recolhida no fim.
   const comEntrega = new Set(entrada.entregas.filter((e) => estadoDaEntrega(e)).map((e) => e.slug));
-  const linhasEspera = entrada.esperando
-    .filter((e) => !comEntrega.has(e.slug))
+  const esperaViva = entrada.esperando.filter((e) => !comEntrega.has(e.slug));
+  const parada = (e: EsperaFila) => opts.agoraMs !== undefined && opts.agoraMs - Date.parse(e.desde) > ESPERA_PARADA_MS;
+  const linhaDaEspera = (e: EsperaFila): LinhaFila => ({
+    ...base(e.slug, e.nome),
+    mencao: e.motivo === 'mentioned',
+    esperaDesde: e.desde,
+    aguardaOk: okPorSlug.get(e.slug)?.n ?? null,
+    previa: { de: e.de, texto: semColchetes(e.previa) },
+  });
+  const linhasEspera = esperaViva
+    .filter((e) => !parada(e))
     .sort((a, b) => a.desde.localeCompare(b.desde))
-    .map((e) => ({
-      ...base(e.slug, e.nome),
-      mencao: e.motivo === 'mentioned',
-      esperaDesde: e.desde,
-      aguardaOk: okPorSlug.get(e.slug)?.n ?? null,
-      previa: { de: e.de, texto: semColchetes(e.previa) },
-    }));
+    .map(linhaDaEspera);
+  const linhasParadas = esperaViva
+    .filter(parada)
+    .sort((a, b) => b.desde.localeCompare(a.desde))
+    .map(linhaDaEspera);
   const slugsEspera = new Set(linhasEspera.map((l) => l.slug));
 
   const q = normalizar(opts.filtro ?? '');
@@ -256,37 +267,50 @@ export function montarFila(
     !q || normalizar(l.nome).includes(q) || (porSlug.get(l.slug)?.etiquetas ?? []).some((et) => normalizar(et).includes(q));
 
   const secoes: SecaoFila[] = [];
-  const secao = (id: IdSecao, linhas: LinhaFila[], extra: Partial<SecaoFila> = {}) => {
+  const secao = (id: IdSecao, linhas: LinhaFila[]) => {
     const visiveis = linhas.filter(casa);
-    secoes.push({ id, titulo: TITULO[id], linhas: visiveis, total: visiveis.length, ...extra });
+    secoes.push({ id, titulo: TITULO[id], linhas: visiveis, total: visiveis.length });
+  };
+  /** Seção que fica fechada até abrir ou filtrar; sem nenhuma conversa, nem aparece. */
+  const recolhivel = (id: IdSecao, linhas: LinhaFila[], aberta: boolean | undefined) => {
+    const visiveis = linhas.filter(casa);
+    if (visiveis.length === 0) return;
+    const recolhida = !q && !aberta;
+    secoes.push({ id, titulo: TITULO[id], linhas: recolhida ? [] : visiveis, total: visiveis.length, recolhida });
   };
 
-  if (opts.vista === 'esperando') secao('esperando', linhasEspera);
-  else if (opts.vista === 'ia') secao('ia', linhasIa);
+  if (opts.vista === 'esperando') {
+    secao('esperando', linhasEspera);
+    recolhivel('paradas', linhasParadas, opts.paradasAbertas);
+  } else if (opts.vista === 'ia') secao('ia', linhasIa);
   else {
-    const vistos = new Set([...linhasEspera.map((l) => l.slug), ...linhasIa.map((l) => l.slug)]);
-    const resto = entrada.conversas.filter((c) => !vistos.has(c.slug));
-    const fixadas = resto.filter((c) => c.fixada && !c.arquivada).map((c) => base(c.slug));
-    const soltas = resto.filter((c) => !c.fixada && !c.arquivada).map((c) => base(c.slug));
-    const arquivadas = resto.filter((c) => c.arquivada).map((c) => base(c.slug));
-    for (const [id, linhas] of [
-      ['esperando', linhasEspera],
-      ['ia', linhasIa.filter((l) => !slugsEspera.has(l.slug))],
-      ['fixadas', fixadas],
-      ['conversas', soltas],
-    ] as const) {
-      secao(id, linhas);
-    }
-    const arquivadasVisiveis = arquivadas.filter(casa);
-    const recolhida = !q && !opts.arquivadasAbertas;
-    secoes.push({
-      id: 'arquivadas',
-      titulo: TITULO.arquivadas,
-      linhas: recolhida ? [] : arquivadasVisiveis,
-      total: arquivadasVisiveis.length,
-      recolhida,
-    });
-    // Com filtro, seção sem resultado some; sem filtro, some só a que nunca teve conversa.
+    // Todas: a lista do WhatsApp, pela última mensagem, com a espera (até a parada) e a IA na
+    // própria linha. Fixadas em cima; arquivadas recolhidas no fim.
+    const esperaPorSlugViva = new Map(esperaViva.map((e) => [e.slug, e]));
+    const completa = (slug: string, nomeReserva?: string): LinhaFila => {
+      const linha = base(slug, nomeReserva);
+      const e = esperaPorSlugViva.get(slug);
+      const doIa = ia.get(slug);
+      return {
+        ...linha,
+        ...(e ? { mencao: e.motivo === 'mentioned', esperaDesde: e.desde, aguardaOk: okPorSlug.get(slug)?.n ?? null } : {}),
+        ...(doIa ? { ia: doIa.ia } : {}),
+      };
+    };
+    const recente = (a: LinhaFila, b: LinhaFila) => (b.ultimaEm ?? '').localeCompare(a.ultimaEm ?? '');
+    const naLista = new Set(entrada.conversas.map((c) => c.slug));
+    const foraDaLista = [...new Set([...esperaViva.map((e) => e.slug), ...ia.keys()])]
+      .filter((slug) => !naLista.has(slug))
+      // Conversa que não veio na lista (raro): entra na linha do tempo pela espera.
+      .map((slug) => {
+        const e = esperaPorSlugViva.get(slug);
+        return { ...completa(slug, e?.nome), ultimaEm: e?.desde ?? null };
+      });
+    const ativas = entrada.conversas.filter((c) => !c.arquivada);
+    secao('fixadas', ativas.filter((c) => c.fixada).map((c) => completa(c.slug)).sort(recente));
+    secao('conversas', [...ativas.filter((c) => !c.fixada).map((c) => completa(c.slug)), ...foraDaLista].sort(recente));
+    recolhivel('arquivadas', entrada.conversas.filter((c) => c.arquivada).map((c) => completa(c.slug)).sort(recente), opts.arquivadasAbertas);
+    // Seção sem nenhuma conversa (ou sem resultado no filtro) some.
     for (let i = secoes.length - 1; i >= 0; i--) {
       const s = secoes[i] as SecaoFila;
       if (s.total === 0) secoes.splice(i, 1);

@@ -23,6 +23,7 @@ export function CardEsperando({ esperando }: { esperando: DadosHoje["esperando"]
         <>
           <span className="font-mono tabular-nums">
             {esperando.total} no total · {esperando.acimaDe4h} há mais de 4 h
+            {esperando.paradas > 0 && ` · ${esperando.paradas} parados há mais de 7 dias`}
           </span>
           <LinkRodape href="/inbox">Ver na caixa</LinkRodape>
         </>
