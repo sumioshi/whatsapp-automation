@@ -22,7 +22,10 @@ export type ColunaId =
 
 export interface DefColuna {
   id: ColunaId;
+  /** Nome inteiro, no menu Colunas e no title do cabeçalho. */
   rotulo: string;
+  /** Cabeçalho mais curto, para a tabela caber na tela. */
+  cabecalho?: string;
   /** "largo": aparece sozinha só em tela de 1600 px ou mais; "oculta": só quando ligada em Colunas. */
   padrao: 'sempre' | 'largo' | 'oculta';
   direita?: boolean;
@@ -35,7 +38,7 @@ export const COLUNAS: DefColuna[] = [
   { id: 'contrato', rotulo: 'Contrato', padrao: 'sempre', ordem: 'contrato' },
   { id: 'uso', rotulo: 'Uso do contrato', padrao: 'sempre', ordem: 'uso' },
   { id: 'atividade', rotulo: 'Atividade, 30 dias', padrao: 'sempre', ordem: 'atividade' },
-  { id: 'entregas', rotulo: 'Entregas 30 d', padrao: 'sempre', direita: true, ordem: 'entregas' },
+  { id: 'entregas', rotulo: 'Entregas em 30 dias', cabecalho: 'Entregas', padrao: 'sempre', direita: true, ordem: 'entregas' },
   { id: 'esperando', rotulo: 'Esperando', padrao: 'sempre', direita: true, ordem: 'espera' },
   { id: 'ultima', rotulo: 'Última msg', padrao: 'sempre', direita: true, ordem: 'ultima' },
   { id: 'renovacao', rotulo: 'Renovação', padrao: 'largo' },

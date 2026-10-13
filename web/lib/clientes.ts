@@ -40,12 +40,12 @@ export interface ClienteCard {
 
 /** O que a tabela de clientes mostra além da conversa: atividade, contrato, entregas e equipe. */
 export interface NegocioDoChat {
-  /** Mensagens por dia de Brasília nos últimos 30 dias, do mais antigo para hoje. */
+  /** Mensagens do cliente por dia de Brasília nos últimos 30 dias, do mais antigo para hoje. */
   atividade30d: number[];
-  /** Soma de `atividade30d`: as mensagens das duas partes na janela. */
-  msgs30d: number;
+  /** Mensagens do cliente em 30 dias, a mesma conta do painel e do sinal "acima do contrato". */
+  msgsCliente30d: number;
   contrato: Contrato;
-  /** Mensagens em 30 dias que o contrato comporta; null = sem limite. */
+  /** Mensagens do cliente em 30 dias que o contrato comporta; null = sem limite. */
   limite: number | null;
   entregas30d: number;
   entregasTotal: number;
@@ -120,6 +120,7 @@ export function ordenarCards<T extends Ordenavel>(cards: T[]): T[] {
 /**
  * Contrato, entregas, equipe e atividade de um chat. Os sinais e as contas por
  * entrega vêm do mesmo cálculo do painel, para as duas telas dizerem o mesmo.
+ * A atividade conta só o que o cliente mandou: é a régua do limite do contrato.
  */
 export function negocioDoChat(
   chat: { slug: string; nome: string; mensagens: ReadonlyArray<{ timestamp: string; fromMe?: boolean }> },
@@ -128,7 +129,10 @@ export function negocioDoChat(
   equipe: ReadonlyArray<{ login: string; nome: string; ativo: boolean; chats: string[] }>,
   agoraMs: number,
 ): NegocioDoChat {
-  const atividade30d = atividadeDiaria(chat.mensagens, agoraMs);
+  const atividade30d = atividadeDiaria(
+    chat.mensagens.filter((m) => !m.fromMe),
+    agoraMs,
+  );
   const doChat = features.filter((f) => f.slug === chat.slug);
   const [linha] = montarDashboard(
     [{ slug: chat.slug, nome: chat.nome, mensagens: chat.mensagens.map((m) => ({ timestamp: m.timestamp, fromMe: Boolean(m.fromMe) })) }],
@@ -136,11 +140,12 @@ export function negocioDoChat(
     doChat,
     agoraMs,
   ).linhas;
+  const contrato = contratos[chat.slug] ?? CONTRATO_PADRAO;
   return {
     atividade30d,
-    msgs30d: atividade30d.reduce((a, b) => a + b, 0),
-    contrato: contratos[chat.slug] ?? CONTRATO_PADRAO,
-    limite: null,
+    msgsCliente30d: linha?.msgsCliente30d ?? 0,
+    contrato,
+    limite: contrato.limiteMensagens ?? null,
     entregas30d: linha?.features30d ?? 0,
     entregasTotal: doChat.length,
     msgsPorEntrega: linha?.msgsPorFeature30d ?? null,

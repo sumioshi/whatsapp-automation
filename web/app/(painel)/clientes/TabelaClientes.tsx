@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { EditorEtiquetas } from "@/app/components/Etiqueta";
 import { useRotas } from "@/app/components/RotasPainel";
-import { AnelEspera, Avatar, Button, Contador, Etiqueta, MedidorUso, MiniBarras, cn } from "@/app/components/ui";
+import { AnelEspera, Avatar, Contador, Etiqueta, MedidorUso, MiniBarras, cn } from "@/app/components/ui";
 import type { ClienteLinha } from "@/lib/clientes";
 import { type ColunaId, type DefColuna, classeDaColuna, type EscolhaColunas } from "@/lib/clientes-colunas";
 import {
@@ -64,9 +64,11 @@ const PONTO: Record<TomContrato, string> = {
 const VAZIO = <span className="text-fg-mute">—</span>;
 
 const TH =
-  "sticky top-0 h-[38px] whitespace-nowrap border-b border-line bg-surface-2 px-3.5 text-left text-[12px] font-medium text-fg-dim";
-const TD = "h-12 whitespace-nowrap border-b border-line px-3.5 group-hover:bg-surface-2";
-const TF = "sticky bottom-0 h-10 whitespace-nowrap border-t border-line bg-surface-2 px-3.5 font-mono text-[12px] tabular-nums text-fg-faint";
+  "sticky top-0 h-[38px] whitespace-nowrap border-b border-line bg-surface-2 px-3 text-left text-[12px] font-medium text-fg-dim";
+const TD = "h-12 whitespace-nowrap border-b border-line px-3 group-hover:bg-surface-2";
+const TF = "sticky bottom-0 h-10 whitespace-nowrap border-t border-line bg-surface-2 px-3 font-mono text-[12px] tabular-nums text-fg-faint";
+/** Etiquetas que cabem na célula; o resto vira "+N" com a lista no title. */
+const ETIQUETAS_NA_LINHA = 2;
 /** A primeira coluna fica presa à esquerda quando a tabela rola para o lado. */
 const PRESA = "sticky left-0 border-r border-line pl-8 max-[860px]:pl-4";
 
@@ -116,7 +118,8 @@ export function TabelaClientes({
             {colunas.map((c) => (
               <Cabecalho
                 key={c.id}
-                rotulo={c.rotulo}
+                rotulo={c.cabecalho ?? c.rotulo}
+                descricao={c.rotulo}
                 icone={ICONE[c.id]}
                 chave={c.ordem}
                 ordem={ordem}
@@ -159,6 +162,7 @@ export function TabelaClientes({
 
 function Cabecalho({
   rotulo,
+  descricao,
   icone,
   chave,
   ordem,
@@ -167,6 +171,8 @@ function Cabecalho({
   className,
 }: {
   rotulo: string;
+  /** Nome inteiro da coluna, quando o cabeçalho é encurtado ("Entregas" → "Entregas em 30 dias"). */
+  descricao?: string;
   icone: ReactNode;
   chave?: ChaveOrdem;
   ordem: Ordem;
@@ -194,7 +200,7 @@ function Cabecalho({
         <button
           type="button"
           onClick={() => aoOrdenar(chave)}
-          title={`Ordenar por ${rotulo.toLowerCase()}`}
+          title={`Ordenar por ${(descricao ?? rotulo).toLowerCase()}`}
           className={cn("rounded-[4px] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent", ativa && "text-fg")}
         >
           {conteudo}
@@ -232,9 +238,14 @@ function Linha({
       }}
     >
       <td className={cn(TD, PRESA, "z-[1] bg-surface")}>
-        <span className="flex max-w-[280px] items-center gap-2.5 max-[860px]:max-w-[200px]">
+        {/* Nome longo quebra em até duas linhas na largura da coluna, sem reticências no meio da palavra. */}
+        <span className="flex w-[248px] items-center gap-2.5 max-[860px]:w-[188px]">
           <Avatar nome={l.nome} tipo={l.tipo} fotoUrl={l.avatarPath ? rotas.midia(l.avatarPath) : null} tamanho="sm" />
-          <Link href={href} className="min-w-0 truncate font-medium text-fg hover:text-accent" title={l.nome}>
+          <Link
+            href={href}
+            className="line-clamp-2 min-w-0 whitespace-normal break-words font-medium leading-[1.3] text-fg hover:text-accent"
+            title={l.nome}
+          >
             {l.nome}
           </Link>
           <Contador n={l.naoLidas} destaque={!l.silenciado} />
@@ -301,7 +312,13 @@ function Celula({
           {l.limite === null ? (
             <span className="text-[12.5px] text-fg-mute">sem limite</span>
           ) : (
-            <MedidorUso compacto valor={l.msgs30d} limite={l.limite} rotuloAcessivel={`Uso do contrato de ${l.nome}`} className="w-[132px]" />
+            <MedidorUso
+              compacto
+              valor={l.msgsCliente30d}
+              limite={l.limite}
+              rotuloAcessivel={`Mensagens de ${l.nome} em 30 dias contra o limite do contrato`}
+              className="w-[132px]"
+            />
           )}
         </td>
       );
@@ -311,7 +328,7 @@ function Celula({
           <MiniBarras
             valores={l.atividade30d}
             limiteDiario={l.limite ? l.limite / DIAS_ATIVIDADE : undefined}
-            rotulo={`Atividade nos últimos ${DIAS_ATIVIDADE} dias: ${l.msgs30d} ${l.msgs30d === 1 ? "mensagem" : "mensagens"}`}
+            rotulo={`Mensagens do cliente nos últimos ${DIAS_ATIVIDADE} dias, por dia: ${l.atividade30d.reduce((a, b) => a + b, 0)} no total`}
           />
         </td>
       );
@@ -364,29 +381,45 @@ function Celula({
   }
 }
 
-/** Etiquetas da linha com o editor de sempre: o "+" aparece no hover e no foco. */
+/** Etiquetas da linha: a célula toda abre o editor de sempre (sem botão extra ocupando largura). */
 function EtiquetasDaLinha({ slug, iniciais, conhecidas }: { slug: string; iniciais: string[]; conhecidas: string[] }) {
   const [etiquetas, setEtiquetas] = useState(iniciais);
   const [editando, setEditando] = useState(false);
+  const resto = etiquetas.slice(ETIQUETAS_NA_LINHA);
   return (
-    <span className="relative flex items-center gap-1" data-editor>
-      {etiquetas.length === 0 && !editando && <span className="text-fg-mute group-hover:hidden [@media(hover:none)]:hidden">—</span>}
-      {etiquetas.map((e) => (
-        <Etiqueta key={e} nome={e} tamanho="sm" />
-      ))}
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label={etiquetas.length ? "Editar etiquetas" : "Pôr etiqueta"}
+    <span className="relative inline-flex" data-editor>
+      <button
+        type="button"
+        aria-label={etiquetas.length ? `Editar etiquetas: ${etiquetas.join(", ")}` : "Pôr etiqueta"}
         aria-expanded={editando}
+        title={etiquetas.length ? "Editar etiquetas" : "Pôr etiqueta"}
         onClick={() => setEditando((v) => !v)}
-        className={cn(
-          "h-6 px-1.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100",
-          editando && "opacity-100",
-        )}
+        className="-mx-1.5 flex min-h-7 items-center gap-1 rounded-[6px] px-1.5 transition-colors hover:bg-elevated focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <IcMais className="h-3.5 w-3.5" />
-      </Button>
+        {etiquetas.length === 0 ? (
+          <>
+            <span className="text-fg-mute group-hover:hidden [@media(hover:none)]:hidden">—</span>
+            <span className="hidden items-center gap-1 text-[12px] text-fg-faint group-hover:inline-flex [@media(hover:none)]:inline-flex">
+              <IcMais className="h-3 w-3" />
+              etiqueta
+            </span>
+          </>
+        ) : (
+          <>
+            {etiquetas.slice(0, ETIQUETAS_NA_LINHA).map((e) => (
+              <Etiqueta key={e} nome={e} tamanho="sm" />
+            ))}
+            {resto.length > 0 && (
+              <span
+                title={resto.join(", ")}
+                className="inline-flex h-5 items-center rounded-full bg-elevated px-1.5 font-mono text-[11px] tabular-nums text-fg-dim"
+              >
+                +{resto.length}
+              </span>
+            )}
+          </>
+        )}
+      </button>
       {editando && (
         <EditorEtiquetas slug={slug} atuais={etiquetas} conhecidas={conhecidas} onSalvo={setEtiquetas} onFechar={() => setEditando(false)} />
       )}

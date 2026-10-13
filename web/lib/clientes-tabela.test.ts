@@ -3,6 +3,7 @@ import {
   type FiltrosClientes,
   type LinhaCliente,
   atividadeDiaria,
+  contagemDosSegmentos,
   ehTrabalho,
   filtrarLinhas,
   formatarReais,
@@ -16,7 +17,7 @@ import type { Contrato } from './contratos';
 // 12/10/2026 15:00 em Brasília.
 const AGORA = Date.parse('2026-10-12T18:00:00Z');
 
-const SEM: Contrato = { estado: 'sem', inicio: null, fim: null, valorMensal: null, nota: '' };
+const SEM: Contrato = { estado: 'sem', inicio: null, fim: null, valorMensal: null, limiteMensagens: null, nota: '' };
 const contrato = (p: Partial<Contrato>): Contrato => ({ ...SEM, ...p });
 
 function linha(over: Partial<LinhaCliente> = {}): LinhaCliente {
@@ -29,7 +30,7 @@ function linha(over: Partial<LinhaCliente> = {}): LinhaCliente {
     waitingMs: 0,
     silenciado: false,
     ultimaTimestamp: null,
-    msgs30d: 0,
+    msgsCliente30d: 0,
     limite: null,
     entregas30d: 0,
     entregasTotal: 0,
@@ -163,7 +164,7 @@ describe('filtrarLinhas', () => {
     linha({ slug: 'dm-2', nome: 'Mãe', tipo: 'dm', etiquetas: ['Pessoal'] }),
     linha({ slug: 'g3', nome: 'Alfa', tipo: 'grupo', contrato: contrato({ estado: 'ativo', fim: '2026-10-20' }) }),
   ];
-  const base: FiltrosClientes = { contexto: 'trabalho', busca: '', esperando: false, tipo: null, etiqueta: null, contrato: null };
+  const base: FiltrosClientes = { contexto: 'trabalho', busca: '', segmento: 'todos', etiqueta: null, contrato: null };
   const slugs = (f: Partial<FiltrosClientes>) => filtrarLinhas(linhas, { ...base, ...f }, AGORA).map((l) => l.slug);
 
   it('contexto de trabalho tira o pessoal; tudo mostra todos', () => {
@@ -174,10 +175,26 @@ describe('filtrarLinhas', () => {
     expect(slugs({ busca: 'clinica' })).toEqual(['g1']);
     expect(slugs({ busca: '  LOGÍS ' })).toEqual(['g2']);
   });
-  it('esperando, tipo e etiqueta', () => {
-    expect(slugs({ esperando: true })).toEqual(['g1']);
-    expect(slugs({ tipo: 'dm' })).toEqual(['dm-1']);
+  it('segmentos esperando, grupos e conversas diretas; etiqueta', () => {
+    expect(slugs({ segmento: 'esperando' })).toEqual(['g1']);
+    expect(slugs({ segmento: 'grupos' })).toEqual(['g1', 'g2', 'g3']);
+    expect(slugs({ segmento: 'dms' })).toEqual(['dm-1']);
     expect(slugs({ etiqueta: 'Lead' })).toEqual(['dm-1']);
+  });
+  it('silenciado esperando não entra em Esperando, como no rodapé e no cabeçalho', () => {
+    const comMudo = [...linhas, linha({ slug: 'g4', nome: 'Mudo', aguardando: true, silenciado: true })];
+    expect(filtrarLinhas(comMudo, { ...base, segmento: 'esperando' }, AGORA).map((l) => l.slug)).toEqual(['g1']);
+    expect(contagemDosSegmentos(comMudo, base, AGORA).esperando).toBe(1);
+  });
+  it('contagem de cada segmento com os outros filtros valendo', () => {
+    expect(contagemDosSegmentos(linhas, base, AGORA)).toEqual({ todos: 4, esperando: 1, grupos: 3, dms: 1 });
+    expect(contagemDosSegmentos(linhas, { ...base, contexto: 'tudo', segmento: 'grupos' }, AGORA)).toEqual({
+      todos: 5,
+      esperando: 1,
+      grupos: 3,
+      dms: 2,
+    });
+    expect(contagemDosSegmentos(linhas, { ...base, contrato: 'ativo' }, AGORA)).toEqual({ todos: 2, esperando: 1, grupos: 2, dms: 0 });
   });
   it('contrato por estado e quem renova em 30 dias', () => {
     expect(slugs({ contrato: 'ativo' })).toEqual(['g1', 'g3']);
@@ -189,10 +206,10 @@ describe('filtrarLinhas', () => {
 
 describe('ordenarLinhas', () => {
   const linhas = [
-    linha({ slug: 'a', nome: 'Beta', msgs30d: 40, limite: 100, entregas30d: 1, ultimaTimestamp: '2026-10-10T10:00:00Z' }),
-    linha({ slug: 'b', nome: 'alfa', msgs30d: 90, limite: 60, entregas30d: 3, ultimaTimestamp: '2026-10-12T10:00:00Z' }),
-    linha({ slug: 'c', nome: 'Ômega', msgs30d: 300, limite: null, entregas30d: 0, ultimaTimestamp: null }),
-    linha({ slug: 'd', nome: 'Delta', msgs30d: 10, limite: 10, entregas30d: 2, ultimaTimestamp: '2026-10-11T10:00:00Z' }),
+    linha({ slug: 'a', nome: 'Beta', msgsCliente30d: 40, limite: 100, entregas30d: 1, ultimaTimestamp: '2026-10-10T10:00:00Z' }),
+    linha({ slug: 'b', nome: 'alfa', msgsCliente30d: 90, limite: 60, entregas30d: 3, ultimaTimestamp: '2026-10-12T10:00:00Z' }),
+    linha({ slug: 'c', nome: 'Ômega', msgsCliente30d: 300, limite: null, entregas30d: 0, ultimaTimestamp: null }),
+    linha({ slug: 'd', nome: 'Delta', msgsCliente30d: 10, limite: 10, entregas30d: 2, ultimaTimestamp: '2026-10-11T10:00:00Z' }),
   ];
   const ordem = (chave: Parameters<typeof ordenarLinhas>[1]['chave'], desc = true) =>
     ordenarLinhas(linhas, { chave, desc }).map((l) => l.slug);
@@ -228,11 +245,11 @@ describe('totaisDaTabela', () => {
   it('soma o valor dos contratos valendo, conta quem passou do limite, entregas e quem espera', () => {
     const t = totaisDaTabela(
       [
-        linha({ contrato: contrato({ estado: 'ativo', valorMensal: 1800 }), msgs30d: 412, limite: 300, entregas30d: 3, aguardando: true }),
-        linha({ contrato: contrato({ estado: 'ativo', valorMensal: 1200, fim: '2026-09-01' }), msgs30d: 10, limite: 100 }),
+        linha({ contrato: contrato({ estado: 'ativo', valorMensal: 1800 }), msgsCliente30d: 412, limite: 300, entregas30d: 3, aguardando: true }),
+        linha({ contrato: contrato({ estado: 'ativo', valorMensal: 1200, fim: '2026-09-01' }), msgsCliente30d: 10, limite: 100 }),
         linha({ contrato: contrato({ estado: 'pausado', valorMensal: 700 }), entregas30d: 1 }),
-        linha({ contrato: contrato({ estado: 'ativo', valorMensal: 600 }), msgs30d: 50, limite: 50, aguardando: true, silenciado: true }),
-        linha({ msgs30d: 999, limite: null }),
+        linha({ contrato: contrato({ estado: 'ativo', valorMensal: 600 }), msgsCliente30d: 50, limite: 50, aguardando: true, silenciado: true }),
+        linha({ msgsCliente30d: 999, limite: null }),
       ],
       AGORA,
     );

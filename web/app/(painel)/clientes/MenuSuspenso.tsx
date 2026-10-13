@@ -15,6 +15,8 @@ export function MenuSuspenso({
   classeGatilho,
   alinhar = "esquerda",
   largura = "w-64",
+  dica,
+  className,
   children,
 }: {
   /** Nome do menu para leitor de tela ("Ordenar clientes"). */
@@ -23,6 +25,10 @@ export function MenuSuspenso({
   classeGatilho: string;
   alinhar?: "esquerda" | "direita";
   largura?: string;
+  /** Title do botão, para quando ele mostra só o ícone. */
+  dica?: string;
+  /** Classes do invólucro (ordem e largura na barra). */
+  className?: string;
   children: (fechar: () => void) => ReactNode;
 }) {
   const [aberto, setAberto] = useState(false);
@@ -68,7 +74,7 @@ export function MenuSuspenso({
   }, [aberto, fechar]);
 
   return (
-    <div className="relative">
+    <div className={cn("relative", className)}>
       <button
         ref={botao}
         type="button"
@@ -76,6 +82,7 @@ export function MenuSuspenso({
         aria-expanded={aberto}
         aria-controls={aberto ? id : undefined}
         onClick={() => setAberto((a) => !a)}
+        title={dica}
         className={classeGatilho}
       >
         {conteudoGatilho}

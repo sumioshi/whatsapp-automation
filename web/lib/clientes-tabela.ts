@@ -26,9 +26,9 @@ export interface LinhaCliente {
   waitingMs: number;
   silenciado: boolean;
   ultimaTimestamp: string | null;
-  /** Mensagens (das duas partes) nos últimos 30 dias de Brasília. */
-  msgs30d: number;
-  /** Mensagens em 30 dias que o contrato comporta; null = sem limite. */
+  /** Mensagens do cliente nos últimos 30 dias: o que o limite do contrato mede. */
+  msgsCliente30d: number;
+  /** Mensagens do cliente em 30 dias que o contrato comporta; null = sem limite. */
   limite: number | null;
   entregas30d: number;
   entregasTotal: number;
@@ -152,19 +152,21 @@ export function ehTrabalho(l: Pick<LinhaCliente, 'tipo' | 'etiquetas' | 'contrat
   return l.tipo === 'grupo' || empresas.length > 0;
 }
 
-export function acimaDoLimite(l: Pick<LinhaCliente, 'msgs30d' | 'limite'>): boolean {
-  return l.limite !== null && l.limite > 0 && l.msgs30d > l.limite;
+export function acimaDoLimite(l: Pick<LinhaCliente, 'msgsCliente30d' | 'limite'>): boolean {
+  return l.limite !== null && l.limite > 0 && l.msgsCliente30d > l.limite;
 }
 
 /** "renova" é o ativo que vence em até 30 dias; o resto é o estado do contrato. */
 export type FiltroContrato = EstadoContrato | 'renova';
 
+/** Recorte rápido da barra de filtros, um de cada vez, como no filtro de antes. */
+export type Segmento = 'todos' | 'esperando' | 'grupos' | 'dms';
+
 export interface FiltrosClientes {
   /** "trabalho" esconde o pessoal e as conversas soltas. */
   contexto: 'trabalho' | 'tudo';
   busca: string;
-  esperando: boolean;
-  tipo: 'grupo' | 'dm' | null;
+  segmento: Segmento;
   etiqueta: string | null;
   contrato: FiltroContrato | null;
 }
@@ -173,18 +175,45 @@ function semAcento(s: string): string {
   return s.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('pt-BR').trim();
 }
 
+/** Esperando é quem aguarda resposta e não foi silenciado: a mesma conta do rodapé. */
+function esperando(l: LinhaCliente): boolean {
+  return l.aguardando && !l.silenciado;
+}
+
+function noSegmento(l: LinhaCliente, s: Segmento): boolean {
+  if (s === 'esperando') return esperando(l);
+  if (s === 'grupos') return l.tipo === 'grupo';
+  if (s === 'dms') return l.tipo === 'dm';
+  return true;
+}
+
+/** Tudo menos o segmento: a base das contagens do seletor. */
+function passaNoResto(l: LinhaCliente, f: FiltrosClientes, q: string, agoraMs: number): boolean {
+  if (f.contexto === 'trabalho' && !ehTrabalho(l)) return false;
+  if (f.etiqueta && !l.etiquetas.includes(f.etiqueta)) return false;
+  if (f.contrato === 'renova' ? !renovaEmBreve(l.contrato, agoraMs) : f.contrato && l.contrato.estado !== f.contrato) {
+    return false;
+  }
+  return !q || semAcento(l.nome).includes(q);
+}
+
 export function filtrarLinhas<T extends LinhaCliente>(linhas: T[], f: FiltrosClientes, agoraMs: number): T[] {
   const q = semAcento(f.busca);
-  return linhas.filter((l) => {
-    if (f.contexto === 'trabalho' && !ehTrabalho(l)) return false;
-    if (f.esperando && !l.aguardando) return false;
-    if (f.tipo && l.tipo !== f.tipo) return false;
-    if (f.etiqueta && !l.etiquetas.includes(f.etiqueta)) return false;
-    if (f.contrato === 'renova' ? !renovaEmBreve(l.contrato, agoraMs) : f.contrato && l.contrato.estado !== f.contrato) {
-      return false;
-    }
-    return !q || semAcento(l.nome).includes(q);
-  });
+  return linhas.filter((l) => noSegmento(l, f.segmento) && passaNoResto(l, f, q, agoraMs));
+}
+
+/** Quantos cairiam em cada segmento com o resto dos filtros como está. */
+export function contagemDosSegmentos(linhas: LinhaCliente[], f: FiltrosClientes, agoraMs: number): Record<Segmento, number> {
+  const q = semAcento(f.busca);
+  const out: Record<Segmento, number> = { todos: 0, esperando: 0, grupos: 0, dms: 0 };
+  for (const l of linhas) {
+    if (!passaNoResto(l, f, q, agoraMs)) continue;
+    out.todos++;
+    if (esperando(l)) out.esperando++;
+    if (l.tipo === 'grupo') out.grupos++;
+    else out.dms++;
+  }
+  return out;
 }
 
 /** "espera" é a ordem do servidor: quem espera há mais tempo primeiro, silenciados no fim. */
@@ -200,9 +229,9 @@ const NOMES = new Intl.Collator('pt-BR', { sensitivity: 'base' });
 function valorDaOrdem(l: LinhaCliente, chave: ChaveOrdem): number | null {
   switch (chave) {
     case 'uso':
-      return l.limite !== null && l.limite > 0 ? l.msgs30d / l.limite : null;
+      return l.limite !== null && l.limite > 0 ? l.msgsCliente30d / l.limite : null;
     case 'atividade':
-      return l.msgs30d;
+      return l.msgsCliente30d;
     case 'entregas':
       return l.entregas30d;
     case 'ultima': {
@@ -224,7 +253,7 @@ export function ordenarLinhas<T extends LinhaCliente>(linhas: T[], o: Ordem): T[
     const va = valorDaOrdem(a, o.chave);
     const vb = valorDaOrdem(b, o.chave);
     if (va === null || vb === null) return va === vb ? 0 : va === null ? 1 : -1;
-    return (o.desc ? vb - va : va - vb) || b.msgs30d - a.msgs30d;
+    return (o.desc ? vb - va : va - vb) || b.msgsCliente30d - a.msgsCliente30d;
   });
 }
 
@@ -243,12 +272,12 @@ export function totaisDaTabela(linhas: LinhaCliente[], agoraMs: number): TotaisT
   let somaMensal = 0;
   let acima = 0;
   let entregas30d = 0;
-  let esperando = 0;
+  let aguardam = 0;
   for (const l of linhas) {
     if (contratoValendo(l.contrato, agoraMs)) somaMensal += l.contrato.valorMensal ?? 0;
     if (acimaDoLimite(l)) acima++;
     entregas30d += l.entregas30d;
-    if (l.aguardando && !l.silenciado) esperando++;
+    if (esperando(l)) aguardam++;
   }
-  return { clientes: linhas.length, somaMensal, acima, entregas30d, esperando };
+  return { clientes: linhas.length, somaMensal, acima, entregas30d, esperando: aguardam };
 }

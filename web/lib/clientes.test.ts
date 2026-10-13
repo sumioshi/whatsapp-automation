@@ -104,7 +104,7 @@ describe('negocioDoChat', () => {
     { timestamp: '2026-08-01T13:00:00Z', fromMe: false },
   ];
   const contratos = {
-    acme: { estado: 'ativo' as const, inicio: '2026-01-01', fim: '2026-11-01', valorMensal: 1800, nota: '' },
+    acme: { estado: 'ativo' as const, inicio: '2026-01-01', fim: '2026-11-01', valorMensal: 1800, limiteMensagens: 1, nota: '' },
   };
   const features = [
     { id: '1', slug: 'acme', nome: 'Lembretes', ref: null, origem: 'mcp' as const, em: '2026-10-01T12:00:00Z', por: null },
@@ -117,26 +117,28 @@ describe('negocioDoChat', () => {
     { login: 'caio', nome: 'Caio', ativo: false, chats: ['acme'] },
   ];
 
-  it('junta atividade, contrato, entregas e equipe', () => {
+  it('junta atividade do cliente, contrato com limite, entregas e equipe', () => {
     const n = negocioDoChat({ slug: 'acme', nome: 'Acme', mensagens: msgs }, contratos, features, equipe, agora);
+    // A atividade e o uso contam o que o cliente mandou, a mesma régua do limite.
     expect(n.atividade30d).toHaveLength(30);
-    expect(n.atividade30d[29]).toBe(2);
+    expect(n.atividade30d[29]).toBe(1);
     expect(n.atividade30d[27]).toBe(1);
-    expect(n.msgs30d).toBe(3);
+    expect(n.msgsCliente30d).toBe(2);
+    expect(n.limite).toBe(1);
     expect(n.contrato.estado).toBe('ativo');
     expect(n.entregas30d).toBe(1);
     expect(n.entregasTotal).toBe(2);
     expect(n.msgsPorEntrega).toBe(2);
     expect(n.valorPorEntrega).toBe(1800);
-    expect(n.sinais).toEqual(['renovacao-30d']);
+    expect(n.sinais).toEqual(['renovacao-30d', 'acima-do-contrato']);
     expect(n.equipe).toEqual(['Ana', 'bia']);
-    expect(n.limite).toBeNull();
   });
 
   it('chat sem nada de negócio sai com o contrato padrão', () => {
     const n = negocioDoChat({ slug: 'solto', nome: 'Solto', mensagens: [] }, contratos, features, equipe, agora);
     expect(n.contrato.estado).toBe('sem');
-    expect(n.msgs30d).toBe(0);
+    expect(n.limite).toBeNull();
+    expect(n.msgsCliente30d).toBe(0);
     expect(n.entregas30d).toBe(0);
     expect(n.entregasTotal).toBe(0);
     expect(n.msgsPorEntrega).toBeNull();

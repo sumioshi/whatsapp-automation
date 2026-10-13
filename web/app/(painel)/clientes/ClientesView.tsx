@@ -5,12 +5,19 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, CabecalhoPagina, EmptyState, Segmentado } from "@/app/components/ui";
 import type { ClienteLinha } from "@/lib/clientes";
 import { type ColunaId, type EscolhaColunas, alternarColuna, colunasDoHtml } from "@/lib/clientes-colunas";
-import { type ChaveOrdem, type Ordem, ehTrabalho, filtrarLinhas, ordenarLinhas, totaisDaTabela } from "@/lib/clientes-tabela";
+import {
+  type ChaveOrdem,
+  type Ordem,
+  contagemDosSegmentos,
+  ehTrabalho,
+  filtrarLinhas,
+  ordenarLinhas,
+  totaisDaTabela,
+} from "@/lib/clientes-tabela";
 import type { KanbanState } from "@/lib/kanban";
 import { BarraClientes, type FiltrosExtras } from "./BarraClientes";
 import { KanbanBoard } from "./KanbanBoard";
 import { MetricasResumo } from "./MetricasResumo";
-import { SyncWidget } from "./SyncWidget";
 import { TabelaClientes } from "./TabelaClientes";
 
 type Modo = "tabela" | "quadro";
@@ -25,7 +32,7 @@ const CHAVE_METRICAS = "wac-metricas-aberto";
 /** Etiquetas sugeridas antes do primeiro uso (as em uso nos chats somam a estas). */
 const SEMENTES = ["Pessoal"];
 const ORDEM_PADRAO: Ordem = { chave: "espera", desc: true };
-const SEM_FILTRO: FiltrosExtras = { esperando: false, tipo: null, etiqueta: null, contrato: null };
+const SEM_FILTRO: FiltrosExtras = { segmento: "todos", etiqueta: null, contrato: null };
 const CHAVES_ORDEM: ChaveOrdem[] = ["espera", "uso", "atividade", "entregas", "ultima", "nome", "contrato"];
 
 function ler(chave: string): string | null {
@@ -81,8 +88,10 @@ export function ClientesView({ linhas, kanban, agoraMs }: { linhas: ClienteLinha
   const conhecidas = useMemo(() => [...new Set([...SEMENTES, ...linhas.flatMap((c) => c.etiquetas)])], [linhas]);
   const doContexto = contexto === "trabalho" ? linhas.filter(ehTrabalho) : linhas;
   const esperando = doContexto.filter((l) => l.aguardando && !l.silenciado).length;
-  const visiveis = ordenarLinhas(filtrarLinhas(linhas, { contexto, busca, ...filtros }, agoraMs), ordem);
-  const comFiltro = busca.trim() !== "" || Object.values(filtros).some((v) => v !== null && v !== false);
+  const todosFiltros = { contexto, busca, ...filtros };
+  const visiveis = ordenarLinhas(filtrarLinhas(linhas, todosFiltros, agoraMs), ordem);
+  const contagem = contagemDosSegmentos(linhas, todosFiltros, agoraMs);
+  const comFiltro = busca.trim() !== "" || filtros.segmento !== "todos" || filtros.etiqueta !== null || filtros.contrato !== null;
 
   function trocarModo(m: Modo) {
     setModo(m);
@@ -131,10 +140,12 @@ export function ClientesView({ linhas, kanban, agoraMs }: { linhas: ClienteLinha
       title="Nenhum cliente com esses filtros"
       description={
         <>
-          <p>Tire um filtro ou mude a busca para ver mais gente.</p>
-          <Button variant="subtle" size="sm" className="mt-3" onClick={limparFiltros}>
-            Limpar filtros
-          </Button>
+          Tire um filtro ou mude a busca para ver mais gente.
+          <span className="mt-3 block">
+            <Button variant="subtle" size="sm" onClick={limparFiltros}>
+              Limpar filtros
+            </Button>
+          </span>
         </>
       }
     />
@@ -167,7 +178,6 @@ export function ClientesView({ linhas, kanban, agoraMs }: { linhas: ClienteLinha
         }
         acoes={
           <>
-            <SyncWidget />
             <Segmentado<Modo>
               rotulo="Exibição"
               opcoes={[
@@ -185,6 +195,7 @@ export function ClientesView({ linhas, kanban, agoraMs }: { linhas: ClienteLinha
         aoMudarContexto={trocarContexto}
         filtros={filtros}
         aoMudarFiltros={setFiltros}
+        contagem={contagem}
         busca={busca}
         aoBuscar={setBusca}
         etiquetas={conhecidas}

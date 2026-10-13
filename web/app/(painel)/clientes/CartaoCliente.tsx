@@ -38,7 +38,7 @@ export function CartaoCliente({
         <Link
           href={rotas.chat(c.slug)}
           title={c.nome}
-          className="min-w-0 flex-1 truncate text-[14px] font-semibold text-fg outline-none after:absolute after:inset-0 after:rounded-card after:content-['']"
+          className="line-clamp-2 min-w-0 flex-1 break-words text-[14px] font-semibold leading-[1.3] text-fg outline-none after:absolute after:inset-0 after:rounded-card after:content-['']"
         >
           {c.nome}
         </Link>
