@@ -6,13 +6,13 @@
  *  - publico: fora do login (login, API v1 e control com Bearer próprio).
  */
 export const CLASSIFICACAO: Record<string, 'dono' | 'atendimento' | 'publico'> = {
+  '(painel)/(caixa)/g/[slug]/page.tsx': 'dono',
+  '(painel)/(caixa)/inbox/page.tsx': 'dono',
   '(painel)/agenda/page.tsx': 'dono',
   '(painel)/clientes/page.tsx': 'dono',
   '(painel)/config/page.tsx': 'dono',
   '(painel)/dashboard/page.tsx': 'dono',
   '(painel)/equipe/page.tsx': 'dono',
-  '(painel)/g/[slug]/page.tsx': 'dono',
-  '(painel)/inbox/page.tsx': 'dono',
   '(painel)/links/page.tsx': 'dono',
   '(painel)/novo/page.tsx': 'dono',
   '(painel)/page.tsx': 'dono',
@@ -29,6 +29,7 @@ export const CLASSIFICACAO: Record<string, 'dono' | 'atendimento' | 'publico'> =
   'api/atendimento/status/route.ts': 'atendimento',
   'api/atendimento/transcrever/route.ts': 'atendimento',
   'api/atendimento/visto/route.ts': 'atendimento',
+  'api/caixa/ia/route.ts': 'dono',
   'api/cancelar-envio/route.ts': 'dono',
   'api/contacts/raw/route.ts': 'dono',
   'api/contacts/route.ts': 'dono',

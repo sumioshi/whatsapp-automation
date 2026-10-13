@@ -1,246 +1,233 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import type { PainelCliente as DadosPainel } from "@/lib/caixa";
 import type { MessageView } from "@/lib/data";
-import { cn } from "./ui";
-import { CopilotPanel } from "./CopilotPanel";
-import { NotesPanel } from "./NotesPanel";
-import { type ChatContexto, ContextoCard } from "./ContextoCard";
+import { Icone } from "./caixa/icones";
+import { PainelCliente } from "./caixa/PainelCliente";
+import { useRotas } from "./RotasPainel";
 import { Timeline } from "./Timeline";
+import { Button, IconButton } from "./ui";
+import { atalhoBloqueado } from "./useListNav";
 
-type Panel = "notas" | "copiloto";
+const CHAVE_PAINEL = "wac-painel-cliente";
+const ESTREITO = "(max-width: 1360px)";
 
-/** Conversa + painel lateral togglável (Notas / Copiloto) à direita. */
+type Resolucao = "parada" | "salvando" | "feita" | "erro";
+
+/**
+ * Conversa e painel do cliente: o centro e a direita da Caixa. Aqui moram as
+ * ações da conversa (modo de envio, silenciar, resolver) e o painel, que abre
+ * e fecha com "]" ou pelo botão do cabeçalho. "E" resolve a conversa aberta.
+ */
 export function GroupWorkspace({
   slug,
   groupName,
   messages,
   total,
-  contexto,
+  painel,
+  agora,
+  donoLogin = null,
 }: {
   slug: string;
   groupName: string;
   messages: MessageView[];
   /** Total real de mensagens do chat (a lista acima é só a janela final). */
   total?: number;
-  contexto?: ChatContexto;
+  painel: DadosPainel;
+  /** Relógio do servidor na montagem. */
+  agora: number;
+  /** Login do dono no painel, para separar o envio dele do da equipe. */
+  donoLogin?: string | null;
 }) {
-  const [panel, setPanel] = useState<Panel | null>(null);
-  // Rascunho do copiloto → composer. O nonce reaplica o mesmo texto a cada "→ composer".
+  const rotas = useRotas();
+  const router = useRouter();
+  const dono = rotas.modo === "dono" ? painel.dono : null;
+
+  // Rascunho do copiloto para o compositor; o nonce reaplica o mesmo texto.
   const [draft, setDraft] = useState<{ text: string; nonce: number } | null>(null);
   const pushDraft = useCallback((text: string) => {
     setDraft((d) => ({ text, nonce: (d?.nonce ?? 0) + 1 }));
   }, []);
 
-  // Lembra qual painel abrir ao clicar no trigger (default: copiloto).
-  const lastPanelRef = useRef<Panel>("copiloto");
+  // Painel: ao lado da conversa nas telas largas (lembrado), por cima nas estreitas.
+  const [aberto, setAberto] = useState(true);
+  const [sobreposto, setSobreposto] = useState(false);
+  const [estreito, setEstreito] = useState(false);
+  const [pedidoCopiloto, setPedidoCopiloto] = useState(0);
 
-  const openPanel = useCallback((p: Panel) => {
-    lastPanelRef.current = p;
-    setPanel(p);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(CHAVE_PAINEL) === "fechado") setAberto(false);
+    } catch {
+      /* sem armazenamento: começa aberto */
+    }
+    const mq = window.matchMedia(ESTREITO);
+    const ler = () => setEstreito(mq.matches);
+    ler();
+    mq.addEventListener("change", ler);
+    return () => mq.removeEventListener("change", ler);
   }, []);
 
-  const closePanel = useCallback(() => setPanel(null), []);
-
-  const switchPanel = useCallback((p: Panel) => {
-    lastPanelRef.current = p;
-    setPanel(p);
+  const alternarPainel = useCallback(() => {
+    if (window.matchMedia(ESTREITO).matches) {
+      setSobreposto((v) => !v);
+      return;
+    }
+    setAberto((v) => {
+      try {
+        window.localStorage.setItem(CHAVE_PAINEL, v ? "fechado" : "aberto");
+      } catch {
+        /* vale só nesta aba */
+      }
+      return !v;
+    });
   }, []);
 
-  const handleTrigger = useCallback(() => {
-    setPanel(lastPanelRef.current);
+  const abrirCopiloto = useCallback(() => {
+    if (window.matchMedia(ESTREITO).matches) setSobreposto(true);
+    else setAberto(true);
+    setPedidoCopiloto((n) => n + 1);
   }, []);
+
+  const fecharSobreposto = useCallback(() => setSobreposto(false), []);
+
+  const [silenciado, setSilenciado] = useState(dono?.silenciado ?? false);
+  const [resolucao, setResolucao] = useState<Resolucao>("parada");
+
+  const triagem = useCallback(async (action: "resolved" | "muted", value: string | boolean) => {
+    const res = await fetch("/api/triage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, slug, value }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
+    if (!res.ok || !data.ok) throw new Error("falha");
+  }, [slug]);
+
+  // Resolver tira a conversa de "Esperando você" até o cliente escrever de novo.
+  const resolver = useCallback(async () => {
+    if (!dono || resolucao === "salvando") return;
+    setResolucao("salvando");
+    try {
+      await triagem("resolved", new Date().toISOString());
+      setResolucao("feita");
+      router.refresh();
+    } catch {
+      setResolucao("erro");
+    }
+  }, [dono, resolucao, triagem, router]);
+
+  useEffect(() => {
+    if (resolucao !== "feita" && resolucao !== "erro") return;
+    const t = setTimeout(() => setResolucao("parada"), 2500);
+    return () => clearTimeout(t);
+  }, [resolucao]);
+
+  const silenciar = useCallback(async () => {
+    const novo = !silenciado;
+    setSilenciado(novo);
+    try {
+      await triagem("muted", novo);
+      router.refresh();
+    } catch {
+      setSilenciado(!novo);
+    }
+  }, [silenciado, triagem, router]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || atalhoBloqueado()) return;
+      if (e.key === "]") {
+        e.preventDefault();
+        alternarPainel();
+      } else if ((e.key === "e" || e.key === "E") && dono) {
+        e.preventDefault();
+        void resolver();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [alternarPainel, resolver, dono]);
+
+  const painelVisivel = estreito ? sobreposto : aberto;
+
+  const acoes = (
+    <>
+      {dono && (
+        <span
+          className="inline-flex h-[22px] shrink-0 items-center whitespace-nowrap rounded-tag px-2 text-[12px] font-medium text-fg-dim shadow-[inset_0_0_0_1px_var(--color-line-2)] max-[1180px]:hidden"
+          title={dono.autonomo ? "A IA envia direto nesta conversa" : "A IA mostra o texto e espera o seu OK antes de enviar"}
+        >
+          {dono.autonomo ? "autônomo" : "com confirmação"}
+        </span>
+      )}
+      {dono && (
+        <IconButton
+          size="sm"
+          aria-pressed={silenciado}
+          active={silenciado}
+          onClick={silenciar}
+          title={silenciado ? "Voltar a mostrar esta conversa em Esperando você" : "Silenciar: a conversa sai de Esperando você"}
+          aria-label={silenciado ? "Deixar de silenciar a conversa" : "Silenciar a conversa"}
+          className="max-[860px]:hidden"
+        >
+          <Icone nome="silenciar" />
+        </IconButton>
+      )}
+      {dono && (
+        <Button
+          size="sm"
+          onClick={resolver}
+          loading={resolucao === "salvando"}
+          title="Marcar como resolvida (E)"
+          className="max-[860px]:h-10"
+        >
+          {resolucao !== "salvando" && <Icone nome="check" tamanho={15} />}
+          {resolucao === "feita" ? "Resolvida" : resolucao === "erro" ? "Tente de novo" : "Resolver"}
+        </Button>
+      )}
+      <IconButton
+        size="sm"
+        data-alterna-painel
+        aria-pressed={painelVisivel}
+        active={painelVisivel}
+        onClick={alternarPainel}
+        title="Painel do cliente (])"
+        aria-label={painelVisivel ? "Fechar o painel do cliente" : "Abrir o painel do cliente"}
+        className="max-[860px]:h-10 max-[860px]:w-10"
+      >
+        <Icone nome="painel" />
+      </IconButton>
+    </>
+  );
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1">
-      {/* ── Área principal (timeline + trigger de painel) ─────────────── */}
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      <section aria-label={`Conversa com ${groupName}`} className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Timeline
           slug={slug}
           groupName={groupName}
           messages={messages}
           total={total}
+          agoraInicial={agora}
+          donoLogin={donoLogin}
           draft={draft}
-          onUseDraft={pushDraft}
+          onAbrirCopiloto={dono ? abrirCopiloto : undefined}
+          cabecalho={{ avatarPath: painel.avatarPath, tipo: painel.tipo, pessoas: painel.pessoas.length, acoes }}
         />
-
-        {/* Trigger compacto: só aparece quando o painel está fechado. Em telas
-            menores que lg o painel não existe, então não mostramos o trigger. */}
-        {panel === null && (
-          <button
-            type="button"
-            title="Abrir painel lateral"
-            onClick={handleTrigger}
-            className={cn(
-              "pressable absolute top-2.5 right-4 z-10",
-              "hidden lg:flex items-center justify-center",
-              "h-7 w-7 rounded-control border border-line bg-surface-2 text-fg-faint",
-              "hover:border-line-2 hover:text-fg transition-colors",
-            )}
-            aria-label="Abrir painel lateral"
-          >
-            {/* Ícone de painel lateral (layout-panel-right) */}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <rect width="18" height="18" x="3" y="3" rx="2" />
-              <path d="M15 3v18" />
-            </svg>
-          </button>
-        )}
-      </div>
-
-      {/* ── Painel lateral ────────────────────────────────────────────── */}
-      {panel && (
-        <aside
-          className={cn(
-            "hidden lg:flex flex-col",
-            "w-80 shrink-0 border-l border-line bg-surface",
-            "pop-in", // entrada sutil
-          )}
-        >
-          {contexto && <ContextoCard contexto={contexto} />}
-
-          {/* Tab bar do painel — vive dentro do aside, sem colisão */}
-          <PanelTabBar
-            active={panel}
-            onSwitch={switchPanel}
-            onClose={closePanel}
-          />
-
-          {/* Conteúdo do painel */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-3">
-            {panel === "notas" ? (
-              <NotesPanel slug={slug} />
-            ) : (
-              <CopilotPanel slug={slug} onDraft={pushDraft} />
-            )}
-          </div>
-        </aside>
-      )}
-    </div>
-  );
-}
-
-/* ── Tab bar do painel lateral ──────────────────────────────────────── */
-
-function PanelTabBar({
-  active,
-  onSwitch,
-  onClose,
-}: {
-  active: Panel;
-  onSwitch: (p: Panel) => void;
-  onClose: () => void;
-}) {
-  return (
-    <div className="flex shrink-0 items-center gap-1 border-b border-line px-2 py-1.5">
-      <PanelTab
-        active={active === "notas"}
-        onClick={() => onSwitch("notas")}
-        label="Notas"
-        icon={
-          <>
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <path d="M14 2v6h6M8 13h8M8 17h5" />
-          </>
-        }
+      </section>
+      <PainelCliente
+        dados={painel}
+        aberto={aberto}
+        sobreposto={sobreposto}
+        agora={agora}
+        onFechar={fecharSobreposto}
+        onDraft={dono ? pushDraft : undefined}
+        onSalvo={() => router.refresh()}
+        pedidoCopiloto={pedidoCopiloto}
       />
-      <PanelTab
-        active={active === "copiloto"}
-        onClick={() => onSwitch("copiloto")}
-        label="Copiloto"
-        icon={
-          <>
-            <path d="M12 8V4H8" />
-            <rect width="16" height="12" x="4" y="8" rx="2" />
-            <path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
-          </>
-        }
-      />
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Fechar painel */}
-      <button
-        type="button"
-        onClick={onClose}
-        title="Fechar painel"
-        aria-label="Fechar painel"
-        className={cn(
-          "pressable flex items-center justify-center",
-          "h-6 w-6 rounded-[6px] border border-transparent text-fg-faint",
-          "hover:border-line hover:text-fg transition-colors",
-        )}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="M18 6 6 18M6 6l12 12" />
-        </svg>
-      </button>
     </div>
-  );
-}
-
-/** Aba do painel lateral (Notas / Copiloto). */
-function PanelTab({
-  active,
-  onClick,
-  label,
-  icon,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  icon: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-xs font-medium",
-        "transition-colors",
-        active
-          ? "bg-accent/12 text-accent"
-          : "text-fg-faint hover:bg-surface-2 hover:text-fg",
-      )}
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="12"
-        height="12"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-      >
-        {icon}
-      </svg>
-      {label}
-    </button>
   );
 }

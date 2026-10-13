@@ -1,14 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, cn, ScanShimmer } from "../ui";
+import { Icone } from "../caixa/icones";
+import { Button, ScanShimmer } from "../ui";
 
 /** Sugestões dispensadas nesta sessão (não reaparecem ao repollar). */
 const dismissedSuggestions = new Set<string>();
 
-/* Cartão de sugestão do copiloto (resposta sugerida / follow-up) exibido na
-   conversa. Extraído do Timeline. */
+/** Pedido explícito de rascunho ("IA" no compositor) traz de volta uma sugestão dispensada. */
+export function liberarSugestao(messageId: string) {
+  dismissedSuggestions.delete(messageId);
+}
 
+/**
+ * Card "Rascunho da IA" no topo do compositor: a sugestão do copiloto para a
+ * última mensagem do cliente (ou o acompanhamento, quando a sua última ficou
+ * sem resposta). Dispara sozinho uma vez, escreve aos poucos e NUNCA envia:
+ * "Usar texto" só preenche o campo para você revisar.
+ */
 export function SuggestionCard({
   slug,
   messageId,
@@ -17,7 +26,7 @@ export function SuggestionCard({
 }: {
   slug: string;
   messageId: string;
-  /** true = follow-up (minha msg sem resposta) em vez de sugestão de resposta. */
+  /** true = acompanhamento (a sua mensagem ficou sem resposta) em vez de resposta. */
   followup?: boolean;
   onUseDraft?: (text: string) => void;
 }) {
@@ -27,13 +36,6 @@ export function SuggestionCard({
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(() => dismissedSuggestions.has(messageId));
   const abortRef = useRef<AbortController | null>(null);
-  const reduceMotion = useRef(false);
-
-  useEffect(() => {
-    reduceMotion.current =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  }, []);
 
   const run = useCallback(
     async (refresh = false) => {
@@ -53,7 +55,7 @@ export function SuggestionCard({
           body: JSON.stringify({ slug, messageId, refresh }),
           signal: controller.signal,
         });
-        // Opt-in off / sem provedor / alvo inválido: silencia o card (sem ruído).
+        // Copiloto desligado, sem provedor ou alvo inválido: o card some, sem ruído.
         if (res.status === 403 || res.status === 409 || res.status === 404) {
           setLoading(false);
           dismissedSuggestions.add(messageId);
@@ -95,7 +97,7 @@ export function SuggestionCard({
                   setText(acc);
                 }
               } catch {
-                /* frame fora do contrato → ignora */
+                /* frame fora do contrato: ignora */
               }
             }
             sep = buffer.indexOf("\n\n");
@@ -103,7 +105,7 @@ export function SuggestionCard({
         }
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
-        setError("Não consegui sugerir. Tente de novo.");
+        setError("Não consegui escrever o rascunho.");
       } finally {
         setLoading(false);
         abortRef.current = null;
@@ -112,8 +114,7 @@ export function SuggestionCard({
     [slug, messageId],
   );
 
-  // Auto-dispara 1x por alvo, com debounce (o poll é 3s — espera estabilizar).
-  // Cancela em voo ao trocar de alvo/desmontar. Não dispara se foi dispensado.
+  // Dispara uma vez por alvo, depois de a conversa assentar (o polling é de 3 s).
   useEffect(() => {
     if (dismissedSuggestions.has(messageId)) return;
     const id = setTimeout(() => void run(false), 1200);
@@ -132,97 +133,52 @@ export function SuggestionCard({
   }
 
   const hasText = text.trim().length > 0;
+  const meta = followup
+    ? "para retomar a conversa"
+    : grounded === true
+      ? "com base na memória do cliente"
+      : grounded === false
+        ? "sem base na memória do cliente"
+        : loading
+          ? "escrevendo…"
+          : null;
 
   return (
-    <div className="flex justify-start">
-      <div
-        className={cn(
-          "relative ml-2 max-w-[560px] rounded-card border border-accent/20 bg-accent/[0.04] px-3 py-2.5",
-          reduceMotion.current ? "" : "reveal",
-        )}
-      >
-        <div className="mb-1.5 flex items-center gap-2">
-          <span className="inline-block text-[12px] text-accent font-medium first-letter:uppercase">
-            {followup ? "follow-up" : "sugestão"}
-          </span>
-          {grounded !== null && (
-            <span
-              className={cn(
-                "mono text-[10px] tracking-wide",
-                grounded ? "text-accent/80" : "text-fg-faint",
-              )}
-              title={
-                grounded
-                  ? "A resposta se apoia na memória curada/projeto."
-                  : "Sem fato curado sobre o assunto — sugestão genérica."
-              }
-            >
-              {grounded ? "✓ com base na memória" : "⚠ sem base na memória"}
-            </span>
-          )}
-          <span className="flex-1" />
-          <button
-            type="button"
-            onClick={dismiss}
-            aria-label="Dispensar sugestão"
-            className="focus-ring grid h-5 w-5 place-items-center rounded text-fg-faint transition-colors hover:text-fg"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <div className="reveal m-2.5 rounded-[8px] border border-line bg-surface-2 px-3.5 py-3" aria-live="polite">
+      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[12px] text-fg-faint">
+        <span className="inline-flex items-center gap-1 font-semibold text-id-ia">
+          <Icone nome="ia" tamanho={14} />
+          {followup ? "Acompanhamento da IA" : "Rascunho da IA"}
+        </span>
+        {meta && <span>{meta}</span>}
+      </div>
 
-        {loading && !hasText ? (
-          <ScanShimmer lines={2} className="w-full max-w-sm" />
-        ) : error ? (
-          <div className="flex items-center gap-2">
-            <span className="mono text-[11px] text-danger">{error}</span>
-            <button
-              type="button"
-              onClick={() => void run(true)}
-              className="mono text-[11px] text-fg-dim underline hover:no-underline"
-            >
-              tentar de novo
-            </button>
-          </div>
-        ) : (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-fg/90">{text}</p>
-        )}
+      {loading && !hasText ? (
+        <ScanShimmer lines={2} className="mb-3 w-full max-w-sm" />
+      ) : error ? (
+        <p className="mb-3 text-[13px] text-danger">{error}</p>
+      ) : (
+        <p className="mb-3 whitespace-pre-wrap text-[14px] leading-[1.55] text-fg">{text}</p>
+      )}
 
-        {hasText && !error && (
-          <div className="mt-2 flex items-center gap-1.5">
-            <Button
-              variant="subtle"
-              size="sm"
-              disabled={!onUseDraft || loading}
-              onClick={() => onUseDraft?.(text.trim())}
-            >
-              → usar
-            </Button>
-            <Button variant="ghost" size="sm" disabled={loading} onClick={() => void run(true)}>
-              regenerar
-            </Button>
-          </div>
-        )}
+      <div className="flex flex-wrap gap-1.5">
+        <Button
+          size="sm"
+          disabled={!onUseDraft || loading || !hasText || Boolean(error)}
+          onClick={() => {
+            onUseDraft?.(text.trim());
+            dismiss();
+          }}
+        >
+          Usar texto
+        </Button>
+        <Button variant="subtle" size="sm" disabled={loading} onClick={() => void run(true)}>
+          {error ? "Tentar de novo" : "Outra versão"}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={dismiss}>
+          Descartar
+        </Button>
       </div>
     </div>
   );
 }
-
-/**
- * Balão de enquete: pergunta em destaque, cada opção com barra de proporção
- * (ember sutil) + contagem, total embaixo, e "você votou" quando aplicável.
- * Atualiza no polling existente (recebe `poll` já apurado do servidor).
- */

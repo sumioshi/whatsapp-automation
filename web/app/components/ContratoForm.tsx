@@ -2,18 +2,19 @@
 
 import { useEffect, useState } from "react";
 import type { Contrato, EstadoContrato } from "@/lib/contratos";
+import { Field, Input, Select } from "./ui";
 
 const ESTADOS: Array<{ id: EstadoContrato; rotulo: string }> = [
-  { id: "sem", rotulo: "sem contrato" },
-  { id: "ativo", rotulo: "ativo" },
-  { id: "pausado", rotulo: "pausado" },
-  { id: "encerrado", rotulo: "encerrado" },
+  { id: "sem", rotulo: "Sem contrato" },
+  { id: "ativo", rotulo: "Ativo" },
+  { id: "pausado", rotulo: "Pausado" },
+  { id: "encerrado", rotulo: "Encerrado" },
 ];
 
 const VAZIO: Contrato = { estado: "sem", inicio: null, fim: null, valorMensal: null, nota: "" };
 
 /** Estado comercial do chat, salvo em /api/contratos. Campos vazios viram null. */
-export function ContratoForm({ slug }: { slug: string }) {
+export function ContratoForm({ slug, aoSalvar }: { slug: string; aoSalvar?: () => void }) {
   const [c, setC] = useState<Contrato | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -25,13 +26,17 @@ export function ContratoForm({ slug }: { slug: string }) {
       .then((todos: Record<string, Contrato>) => {
         if (vivo) setC(todos[slug] ?? VAZIO);
       })
-      .catch(() => { if (vivo) setC(VAZIO); });
-    return () => { vivo = false; };
+      .catch(() => {
+        if (vivo) setC(VAZIO);
+      });
+    return () => {
+      vivo = false;
+    };
   }, [slug]);
 
   /**
    * Salva o patch. Os campos de texto salvam no blur, e sair do campo sem ter
-   * digitado nada é o caso comum — comparar com o valor atual evita um POST
+   * digitado nada é o caso comum: comparar com o valor atual evita um POST
    * (e uma reescrita do arquivo) a cada passagem de foco.
    */
   async function salvar(patch: Partial<Contrato>) {
@@ -49,6 +54,7 @@ export function ContratoForm({ slug }: { slug: string }) {
       const body = (await res.json()) as { contrato?: Contrato; error?: string };
       if (!res.ok || !body.contrato) throw new Error(body.error ?? "falha ao salvar");
       setC(body.contrato);
+      aoSalvar?.();
     } catch (e) {
       setErro(e instanceof Error ? e.message : "erro");
     } finally {
@@ -56,34 +62,70 @@ export function ContratoForm({ slug }: { slug: string }) {
     }
   }
 
-  if (!c) return <div className="mono text-xs text-fg-dim">contrato…</div>;
-  const campo = "w-full rounded-[6px] border border-line bg-transparent px-2 py-1 text-xs text-fg focus:border-line-2 focus:outline-none";
-  // Os campos seguem editáveis durante o salvamento: desabilitá-los tira o foco
-  // de quem está digitando no campo seguinte. O aviso "salvando…" basta.
+  if (!c) return <p className="mt-3 text-[12.5px] text-fg-faint">Carregando o contrato…</p>;
+  const campo = "bg-surface py-1.5 text-[13px]";
+  // Os campos seguem editáveis durante o salvamento: desabilitar tira o foco de
+  // quem está digitando no campo seguinte. O aviso "salvando…" basta.
   return (
-    <section className="space-y-2 border-t border-line pt-3" aria-label="Contrato do cliente">
-      <div className="flex items-baseline gap-2 text-[12px] font-medium text-fg-faint">
-        Contrato
-        {salvando && <span className="normal-case tracking-normal text-fg-dim" aria-live="polite">salvando…</span>}
-      </div>
-      <select className={campo} value={c.estado} onChange={(e) => salvar({ estado: e.target.value as EstadoContrato })} aria-label="Estado do contrato">
-        {ESTADOS.map((e) => <option key={e.id} value={e.id}>{e.rotulo}</option>)}
-      </select>
+    <section className="mt-3 space-y-3 rounded-control border border-line bg-surface p-3" aria-label="Editar contrato">
+      <Field label="Estado" htmlFor={`contrato-estado-${slug}`}>
+        <Select
+          id={`contrato-estado-${slug}`}
+          className={campo}
+          value={c.estado}
+          onChange={(e) => salvar({ estado: e.target.value as EstadoContrato })}
+        >
+          {ESTADOS.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.rotulo}
+            </option>
+          ))}
+        </Select>
+      </Field>
       <div className="grid grid-cols-2 gap-2">
-        <label className="mono text-[10px] text-fg-dim">início
-          <input type="date" className={campo} value={c.inicio ?? ""} onChange={(e) => salvar({ inicio: e.target.value || null })} />
-        </label>
-        <label className="mono text-[10px] text-fg-dim">fim
-          <input type="date" className={campo} value={c.fim ?? ""} onChange={(e) => salvar({ fim: e.target.value || null })} />
-        </label>
+        <Field label="Início" htmlFor={`contrato-inicio-${slug}`}>
+          <Input
+            id={`contrato-inicio-${slug}`}
+            type="date"
+            className={campo}
+            value={c.inicio ?? ""}
+            onChange={(e) => salvar({ inicio: e.target.value || null })}
+          />
+        </Field>
+        <Field label="Fim" htmlFor={`contrato-fim-${slug}`}>
+          <Input
+            id={`contrato-fim-${slug}`}
+            type="date"
+            className={campo}
+            value={c.fim ?? ""}
+            onChange={(e) => salvar({ fim: e.target.value || null })}
+          />
+        </Field>
       </div>
-      <label className="mono text-[10px] text-fg-dim">valor mensal (R$)
-        <input type="number" min={0} step="0.01" className={campo} defaultValue={c.valorMensal ?? ""} onBlur={(e) => salvar({ valorMensal: e.target.value === "" ? null : Number(e.target.value) })} />
-      </label>
-      <label className="mono text-[10px] text-fg-dim">nota
-        <input type="text" className={campo} defaultValue={c.nota} onBlur={(e) => salvar({ nota: e.target.value })} placeholder="ex.: renovação anual em dezembro" />
-      </label>
-      {erro && <div className="text-xs text-danger">{erro}</div>}
+      <Field label="Valor mensal (R$)" htmlFor={`contrato-valor-${slug}`}>
+        <Input
+          id={`contrato-valor-${slug}`}
+          type="number"
+          min={0}
+          step="0.01"
+          className={`${campo} font-mono tabular-nums`}
+          defaultValue={c.valorMensal ?? ""}
+          onBlur={(e) => salvar({ valorMensal: e.target.value === "" ? null : Number(e.target.value) })}
+        />
+      </Field>
+      <Field label="Nota" htmlFor={`contrato-nota-${slug}`}>
+        <Input
+          id={`contrato-nota-${slug}`}
+          type="text"
+          className={campo}
+          defaultValue={c.nota}
+          onBlur={(e) => salvar({ nota: e.target.value })}
+          placeholder="Ex.: renovação anual em dezembro"
+        />
+      </Field>
+      <p className="min-h-[1lh] text-[12px]" aria-live="polite">
+        {erro ? <span className="text-danger">{erro}</span> : salvando ? <span className="text-fg-faint">Salvando…</span> : null}
+      </p>
     </section>
   );
 }

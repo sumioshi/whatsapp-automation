@@ -1,46 +1,54 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ContratoForm } from "./ContratoForm";
-import { SectionLabel, Textarea } from "./ui";
+import { horaCurta } from "@/lib/caixa";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-/** Mini-CRM por grupo: notas livres do cliente (stack, contato, prazos, contexto). */
-export function NotesPanel({ slug }: { slug: string }) {
-  const [value, setValue] = useState("");
+export interface Notas {
+  valor: string;
+  mudar: (texto: string) => void;
+  status: SaveStatus;
+  /** ISO do último salvamento nesta sessão. */
+  salvoEm: string | null;
+}
+
+/** Notas livres do cliente (mini-CRM): carrega do /api/triage e salva sozinho ~600 ms depois de parar de digitar. */
+export function useNotas(slug: string, ativo = true): Notas {
+  const [valor, setValor] = useState("");
   const [status, setStatus] = useState<SaveStatus>("idle");
+  const [salvoEm, setSalvoEm] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Carrega a nota salva do grupo ao montar (e ao trocar de grupo).
   useEffect(() => {
+    if (!ativo) return;
     let alive = true;
     fetch("/api/triage", { cache: "no-store" })
       .then((r) => r.json())
       .then((t: { notes?: Record<string, string> }) => {
-        if (alive) setValue(t.notes?.[slug] ?? "");
+        if (alive) setValor(t.notes?.[slug] ?? "");
       })
       .catch(() => {
-        /* painel pode estar reiniciando — deixa o textarea vazio */
+        /* painel reiniciando: o campo fica vazio */
       });
     return () => {
       alive = false;
     };
-  }, [slug]);
+  }, [slug, ativo]);
 
-  // Persiste a nota (chamado pelo debounce). Indica salvando/salvo/erro.
-  const save = useCallback(
-    async (note: string) => {
+  const salvar = useCallback(
+    async (nota: string) => {
       setStatus("saving");
       try {
         const res = await fetch("/api/triage", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "note", slug, value: note }),
+          body: JSON.stringify({ action: "note", slug, value: nota }),
         });
         const data = (await res.json()) as { ok?: boolean; error?: string };
         if (!res.ok || !data.ok) throw new Error(data.error ?? "falha ao salvar");
         setStatus("saved");
+        setSalvoEm(new Date().toISOString());
       } catch {
         setStatus("error");
       }
@@ -48,50 +56,47 @@ export function NotesPanel({ slug }: { slug: string }) {
     [slug],
   );
 
-  // Autosave com debounce (~600ms): cada tecla rearma o timer.
-  function onChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    const next = e.target.value;
-    setValue(next);
-    setStatus("saving");
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => save(next), 600);
-  }
+  const mudar = useCallback(
+    (texto: string) => {
+      setValor(texto);
+      setStatus("saving");
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => salvar(texto), 600);
+    },
+    [salvar],
+  );
 
-  // Limpa o timer pendente ao desmontar (evita salvar fora de tela).
+  // Timer pendente ao desmontar não salva fora de tela.
   useEffect(() => {
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
   }, []);
 
+  return { valor, mudar, status, salvoEm };
+}
+
+/** Estado do salvamento, para o cabeçalho da seção ("salvo 14:02"). */
+export function EstadoNotas({ notas }: { notas: Notas }) {
+  if (notas.status === "idle") return null;
+  if (notas.status === "error") return <span className="text-danger">erro ao salvar</span>;
+  if (notas.status === "saving") return <span>salvando…</span>;
   return (
-    <section className="rounded-card border border-line bg-surface p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <SectionLabel>Notas</SectionLabel>
-        <StatusHint status={status} />
-      </div>
-      <Textarea
-        value={value}
-        onChange={onChange}
-        rows={6}
-        placeholder="Notas do cliente: stack, contato, prazos, contexto…"
-        aria-label="Notas do cliente"
-      />
-      <ContratoForm slug={slug} />
-    </section>
+    <span>
+      salvo <span className="font-mono tabular-nums">{horaCurta(notas.salvoEm)}</span>
+    </span>
   );
 }
 
-/** Indicador discreto de estado do autosave (mono, text-fg-faint). */
-function StatusHint({ status }: { status: SaveStatus }) {
-  if (status === "idle") return null;
-  const text =
-    status === "saving" ? "salvando…" : status === "saved" ? "salvo" : "erro ao salvar";
+export function NotesPanel({ notas, nome }: { notas: Notas; nome: string }) {
   return (
-    <span
-      className={`mono text-[10px] ${status === "error" ? "text-danger" : "text-fg-faint"}`}
-    >
-      {text}
-    </span>
+    <textarea
+      value={notas.valor}
+      onChange={(e) => notas.mudar(e.target.value)}
+      rows={4}
+      placeholder="Stack, contato, prazos, o que pesa para este cliente…"
+      aria-label={`Notas sobre ${nome}`}
+      className="focus-ring block min-h-[84px] w-full resize-y rounded-control border border-line bg-surface px-3 py-2.5 text-[13px] leading-normal text-fg placeholder:text-fg-mute"
+    />
   );
 }
