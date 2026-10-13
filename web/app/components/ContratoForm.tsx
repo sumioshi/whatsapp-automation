@@ -80,6 +80,17 @@ export function ContratoForm({ slug }: { slug: string }) {
       <label className="mono text-[10px] text-fg-dim">valor mensal (R$)
         <input type="number" min={0} step="0.01" className={campo} defaultValue={c.valorMensal ?? ""} onBlur={(e) => salvar({ valorMensal: e.target.value === "" ? null : Number(e.target.value) })} />
       </label>
+      <label className="mono text-[10px] text-fg-dim">limite de mensagens do cliente (30 dias)
+        <input
+          type="number"
+          min={1}
+          step={1}
+          className={campo}
+          defaultValue={c.limiteMensagens ?? ""}
+          placeholder="sem limite"
+          onBlur={(e) => salvar({ limiteMensagens: e.target.value === "" ? null : Number(e.target.value) })}
+        />
+      </label>
       <label className="mono text-[10px] text-fg-dim">nota
         <input type="text" className={campo} defaultValue={c.nota} onBlur={(e) => salvar({ nota: e.target.value })} placeholder="ex.: renovação anual em dezembro" />
       </label>

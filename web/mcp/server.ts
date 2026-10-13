@@ -1618,14 +1618,22 @@ server.registerTool(
   {
     description:
       "Define o estado comercial de um chat: estado (ativo/encerrado/pausado/sem), início e fim (YYYY-MM-DD), " +
-      "valor mensal e nota. Só os campos passados mudam. O dashboard cruza isso com a atividade pra apontar " +
-      "cliente ativo demais pro contrato, renovação próxima e custo por entrega. Pra ler, use a tool dashboard.",
+      "valor mensal, limite de mensagens do cliente em 30 dias e nota. Só os campos passados mudam. O dashboard " +
+      "cruza isso com a atividade pra apontar cliente acima do limite do plano, renovação próxima e custo por " +
+      "entrega. Pra ler, use a tool dashboard.",
     inputSchema: {
       grupo: z.string().describe("slug do grupo ou DM"),
       estado: z.enum(["ativo", "encerrado", "pausado", "sem"]).optional(),
       inicio: z.string().nullable().optional().describe("YYYY-MM-DD ou null"),
       fim: z.string().nullable().optional().describe("YYYY-MM-DD ou null"),
       valorMensal: z.number().nullable().optional().describe("reais por mês, ou null"),
+      limiteMensagens: z
+        .number()
+        .int()
+        .positive()
+        .nullable()
+        .optional()
+        .describe("mensagens do cliente em 30 dias que o plano comporta; null = sem limite"),
       nota: z.string().optional(),
     },
   },

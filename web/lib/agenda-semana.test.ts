@@ -175,3 +175,80 @@ describe('resumoParaIa', () => {
     });
   });
 });
+
+// ── cabeçalho e painel do evento ─────────────────────────────────────────────
+import { conversaDoEvento, eventoEmFoco, numeroDaSemana, rotuloDoEvento, rotuloDoMes } from './agenda-semana';
+
+describe('numeroDaSemana (ISO)', () => {
+  it('semana de 5 a 11 de outubro de 2026 é a 41', () => {
+    expect(numeroDaSemana('2026-10-05')).toBe(41);
+    expect(numeroDaSemana('2026-10-11')).toBe(41);
+  });
+  it('virada de ano segue a quinta-feira', () => {
+    expect(numeroDaSemana('2025-12-29')).toBe(1);
+    expect(numeroDaSemana('2026-01-01')).toBe(1);
+    expect(numeroDaSemana('2026-12-28')).toBe(53);
+    expect(numeroDaSemana('2027-01-03')).toBe(53);
+    expect(numeroDaSemana('2027-01-04')).toBe(1);
+  });
+});
+
+describe('rotuloDoMes', () => {
+  it('semana num mês só', () => expect(rotuloDoMes(diasDaSemana('2026-10-05'))).toBe('Outubro 2026'));
+  it('semana entre dois meses', () => expect(rotuloDoMes(diasDaSemana('2026-09-28'))).toBe('Set – Out 2026'));
+  it('semana na virada do ano', () => expect(rotuloDoMes(diasDaSemana('2026-12-28'))).toBe('Dez 2026 – Jan 2027'));
+});
+
+describe('rotuloDoEvento', () => {
+  it('com hora no mesmo dia', () =>
+    expect(rotuloDoEvento(ev({ inicio: '2026-10-07T11:00:00-03:00', fim: '2026-10-07T12:00:00-03:00' }))).toBe(
+      'qua, 7 out · 11:00–12:00',
+    ));
+  it('com hora atravessando a meia-noite', () =>
+    expect(rotuloDoEvento(ev({ inicio: '2026-10-07T23:00:00-03:00', fim: '2026-10-08T01:00:00-03:00' }))).toBe(
+      'qua, 7 out 23:00 → qui, 8 out 01:00',
+    ));
+  it('dia inteiro de um dia e de vários', () => {
+    expect(rotuloDoEvento(ev({ diaInteiro: true, inicio: '2026-10-07', fim: '2026-10-08' }))).toBe('qua, 7 out · dia inteiro');
+    expect(rotuloDoEvento(ev({ diaInteiro: true, inicio: '2026-10-30', fim: '2026-11-03' }))).toBe(
+      'sex, 30 out → seg, 2 nov · dia inteiro',
+    );
+  });
+});
+
+describe('conversaDoEvento', () => {
+  const chats = [
+    { slug: 'norte-logistica', nome: 'Norte Logística' },
+    { slug: 'clinica-ebano', nome: 'Clínica Ébano' },
+    { slug: 'projeto-16', nome: 'Serviço PRO 🤝 Acme' },
+    { slug: 'dm-5511999998888', nome: 'Ana' },
+    { slug: 'ana-paula-x', nome: 'Ana Paula' },
+  ];
+  it('slug escrito na descrição (lembrete do radar)', () =>
+    expect(conversaDoEvento(ev({ titulo: 'Responder fulano', descricao: 'slug: norte-logistica · 26h sem resposta' }), chats)).toEqual(
+      chats[0],
+    ));
+  it('nome do chat no título, sem acento nem caixa', () => {
+    expect(conversaDoEvento(ev({ titulo: 'Call CLINICA EBANO · lembretes' }), chats)).toEqual(chats[1]);
+    expect(conversaDoEvento(ev({ titulo: '[radar] Ajuste do app — Serviço PRO 🤝 Acme' }), chats)).toEqual(chats[2]);
+  });
+  it('o nome mais longo ganha', () =>
+    expect(conversaDoEvento(ev({ titulo: 'Reunião com Ana Paula' }), chats)).toEqual(chats[4]));
+  it('nome curto demais ou só um pedaço de palavra não liga', () => {
+    expect(conversaDoEvento(ev({ titulo: 'Almoço com Ana' }), chats)).toBeNull();
+    expect(conversaDoEvento(ev({ titulo: 'Nortes logísticas' }), chats)).toBeNull();
+    expect(conversaDoEvento(ev({ titulo: 'Futebol', descricao: 'quadra norte-logisticas' }), chats)).toBeNull();
+  });
+});
+
+describe('eventoEmFoco', () => {
+  const agora = Date.parse('2026-10-07T15:17:00-03:00');
+  const a = ev({ id: 'a', inicio: '2026-10-07T09:00:00-03:00', fim: '2026-10-07T09:30:00-03:00' });
+  const b = ev({ id: 'b', inicio: '2026-10-07T15:00:00-03:00', fim: '2026-10-07T16:30:00-03:00' });
+  const c = ev({ id: 'c', inicio: '2026-10-07T16:00:00-03:00', fim: '2026-10-07T17:00:00-03:00' });
+  const d = ev({ id: 'd', inicio: '2026-10-08T08:00:00-03:00', fim: '2026-10-08T08:30:00-03:00' });
+  const dia = ev({ id: 'dia', diaInteiro: true, inicio: '2026-10-07', fim: '2026-10-08' });
+  it('o que está acontecendo agora', () => expect(eventoEmFoco([a, dia, c, b, d], agora)?.id).toBe('b'));
+  it('senão o próximo', () => expect(eventoEmFoco([a, dia, d, c], agora)?.id).toBe('c'));
+  it('só passado ou dia inteiro: nenhum', () => expect(eventoEmFoco([a, dia], agora)).toBeNull());
+});

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IcRelogio } from "./icones";
 
 interface Pendencia {
   slug: string;
@@ -8,7 +9,7 @@ interface Pendencia {
   horas: number;
 }
 
-/** Pill âmbar com o nº de clientes aguardando resposta (fonte: /api/radar). */
+/** Pílula âmbar com quantos clientes o radar vê sem resposta (fonte: /api/radar); filtra quem espera. */
 export function RadarBadge({ onClick }: { onClick?: () => void }) {
   const [pendencias, setPendencias] = useState<Pendencia[]>([]);
   const [ativo, setAtivo] = useState(false);
@@ -45,10 +46,12 @@ export function RadarBadge({ onClick }: { onClick?: () => void }) {
       type="button"
       onClick={onClick}
       title={pendencias.map((p) => `${p.nome} (${p.horas}h)`).join(" · ")}
-      className="pressable inline-flex items-center gap-1.5 rounded-control border border-warn/30 bg-warn-bg px-2.5 py-1 text-xs font-medium text-warn transition-colors hover:border-warn/50"
+      className="inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-control border border-transparent bg-warn-bg px-2.5 text-[12.5px] font-medium text-warn transition-colors hover:border-warn/40 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
     >
-      <span aria-hidden>⏰</span>
-      {pendencias.length} aguardando
+      <IcRelogio className="h-3.5 w-3.5" />
+      <span>
+        <span className="font-mono tabular-nums">{pendencias.length}</span> sem resposta no radar
+      </span>
     </button>
   );
 }
