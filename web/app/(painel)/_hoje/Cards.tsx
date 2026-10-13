@@ -96,7 +96,7 @@ export function CardSinais({ sinais }: { sinais: DadosHoje["sinais"] }) {
   );
 }
 
-/** Contratos pelo prazo: dias corridos contra a duração; o âmbar é o que passou do fim. */
+/** Uso dos contratos com limite de mensagens: o âmbar é o que passou do plano. */
 export function CardLimites({ limites }: { limites: DadosHoje["limites"] }) {
   return (
     <Card
@@ -104,17 +104,17 @@ export function CardLimites({ limites }: { limites: DadosHoje["limites"] }) {
       altura="padrao"
       icone={<Icone nome="medidor" />}
       titulo="Contratos no limite"
-      meta="dias de contrato"
+      meta="mensagens, 30 dias"
       rodape={
         <>
-          <span>a marca é o fim do contrato</span>
+          <span>a marca é o limite do plano</span>
           <LinkRodape href="/clientes">Ver clientes</LinkRodape>
         </>
       }
     >
       {limites.itens.length === 0 ? (
-        <Vazio titulo="Nenhum contrato com prazo">
-          Registre início e fim no contrato do cliente, na conversa dele, para acompanhar a renovação aqui.
+        <Vazio titulo="Nenhum contrato com limite">
+          Defina o limite de mensagens no contrato do cliente para acompanhar aqui quem está perto ou acima do plano.
         </Vazio>
       ) : (
         <div className="space-y-4 pt-0.5">
@@ -123,9 +123,9 @@ export function CardLimites({ limites }: { limites: DadosHoje["limites"] }) {
               <MedidorUso
                 rotulo={<span className="group-hover:text-accent">{l.nome}</span>}
                 avatar={<Avatar nome={l.nome} tipo={tipoPeloSlug(l.slug)} fotoUrl={foto(l.avatarPath)} tamanho="xs" />}
-                valor={l.decorridos}
-                limite={l.duracao}
-                rotuloAcessivel={`${l.nome}: ${l.decorridos} de ${l.duracao} dias de contrato${l.restam < 0 ? `, venceu há ${-l.restam} dias` : `, faltam ${l.restam} dias`}`}
+                valor={l.valor}
+                limite={l.limite}
+                rotuloAcessivel={`${l.nome}: ${l.valor} de ${l.limite} mensagens em 30 dias`}
               />
             </Link>
           ))}

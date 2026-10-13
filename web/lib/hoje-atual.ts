@@ -1,7 +1,6 @@
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readStatus } from './config';
-import { readContratos } from './contratos';
 import { montarDashboardAtual } from './dashboard-atual';
 import { listGroups } from './data';
 import { listarFeatures } from './features';
@@ -98,12 +97,11 @@ async function transicoesRecentes(): Promise<Array<{ ts: string; ticket: string;
 /** Tudo o que a tela Hoje mostra e mora no disco do painel (agenda e fila vêm do navegador). */
 export async function montarHojeAtual(): Promise<DadosHoje> {
   const agoraMs = Date.now();
-  const [grupos, inbox, status, dashboard, contratos, features, triagem, conversas, transicoes] = await Promise.all([
+  const [grupos, inbox, status, dashboard, features, triagem, conversas, transicoes] = await Promise.all([
     listGroups(),
     buildInbox(),
     readStatus(),
     montarDashboardAtual(),
-    readContratos(),
     listarFeatures(),
     readTriage(),
     conversasDoAtendimento(),
@@ -116,7 +114,7 @@ export async function montarHojeAtual(): Promise<DadosHoje> {
   const chat = (slug: string, nome?: string): ChatHoje => chats[slug] ?? { nome: nome ?? slug, avatarPath: null };
 
   const sinais = sinaisDoDia(dashboard.linhas, inbox, agoraMs);
-  const limites = contratosNoLimite(contratos, (slug) => chat(slug).nome, agoraMs);
+  const limites = contratosNoLimite(dashboard.linhas, agoraMs);
   const hoje = resumoDeHoje(conversas, agoraMs);
   const entregas = entregasPorMes(features, agoraMs);
 

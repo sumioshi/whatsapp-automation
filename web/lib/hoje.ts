@@ -102,6 +102,8 @@ function textoDoSinal(sinal: Sinal, contrato: Contrato, hoje: string): { texto: 
       return { texto: 'pausado, mas ativo', tom: 'atencao' };
     case 'sem-entrega-30d':
       return { texto: 'sem entrega há 30 dias', tom: 'atencao' };
+    case 'acima-do-contrato':
+      return { texto: 'acima do contrato', tom: 'atencao' };
     case 'renovacao-30d': {
       const dias = contrato.fim ? diasEntre(hoje, contrato.fim) : null;
       const texto = dias === null ? 'renova em breve' : dias <= 0 ? 'renova hoje' : dias === 1 ? 'renova amanhã' : `renova em ${dias} dias`;
@@ -141,36 +143,29 @@ export function sinaisDoDia(
 export interface ContratoNoLimite {
   slug: string;
   nome: string;
-  /** Dias desde o início (zero antes de começar). */
-  decorridos: number;
-  /** Dias de contrato, do início ao fim. */
-  duracao: number;
-  /** Dias até o fim; negativo quando já venceu. */
-  restam: number;
+  /** Mensagens do cliente em 30 dias (a mesma conta do sinal "acima do contrato"). */
+  valor: number;
+  /** Mensagens em 30 dias que o plano comporta. */
+  limite: number;
 }
 
 /**
- * O limite que o contrato registra é o prazo: mede os dias corridos contra a
- * duração, só nos contratos ativos com início e fim. O mais apertado primeiro.
+ * Uso dos contratos ativos que têm limite de mensagens, do mais acima do limite
+ * para o mais folgado (empate: quem mandou mais). Contrato com fim vencido não
+ * está mais ativo, a mesma leitura dos totais do dashboard.
  */
 export function contratosNoLimite(
-  contratos: Record<string, Contrato>,
-  nomeDe: (slug: string) => string,
+  linhas: Array<Pick<LinhaDashboard, 'slug' | 'nome' | 'contrato' | 'msgsCliente30d'>>,
   agoraMs: number,
 ): ContratoNoLimite[] {
   const hoje = diaBrt(agoraMs);
   const out: ContratoNoLimite[] = [];
-  for (const [slug, c] of Object.entries(contratos)) {
-    if (c.estado !== 'ativo' || !c.inicio || !c.fim) continue;
-    out.push({
-      slug,
-      nome: nomeDe(slug),
-      decorridos: Math.max(0, diasEntre(c.inicio, hoje)),
-      duracao: Math.max(1, diasEntre(c.inicio, c.fim)),
-      restam: diasEntre(hoje, c.fim),
-    });
+  for (const l of linhas) {
+    const c = l.contrato;
+    if (c.estado !== 'ativo' || c.limiteMensagens === null || (c.fim !== null && c.fim < hoje)) continue;
+    out.push({ slug: l.slug, nome: l.nome, valor: l.msgsCliente30d, limite: c.limiteMensagens });
   }
-  return out.sort((a, b) => a.restam - b.restam || a.slug.localeCompare(b.slug));
+  return out.sort((x, y) => y.valor / y.limite - x.valor / x.limite || y.valor - x.valor || x.slug.localeCompare(y.slug));
 }
 
 // ── Fila da IA ─────────────────────────────────────────────────────────────

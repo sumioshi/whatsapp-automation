@@ -86,7 +86,15 @@ describe('textoEntregasAnteriores', () => {
 });
 
 describe('sinaisDoDia', () => {
-  const contrato = (c: Partial<Contrato>): Contrato => ({ estado: 'ativo', inicio: null, fim: null, valorMensal: null, nota: '', ...c });
+  const contrato = (c: Partial<Contrato>): Contrato => ({
+    estado: 'ativo',
+    inicio: null,
+    fim: null,
+    valorMensal: null,
+    limiteMensagens: null,
+    nota: '',
+    ...c,
+  });
   const linhas = [
     { slug: 'rota', nome: 'Rota Fit', contrato: contrato({}), sinais: ['sem-entrega-30d' as const] },
     { slug: 'alfa', nome: 'Alfa Imóveis', contrato: contrato({ fim: '2026-11-04' }), sinais: ['renovacao-30d' as const] },
@@ -95,6 +103,7 @@ describe('sinaisDoDia', () => {
     { slug: 'nova', nome: 'Nova', contrato: contrato({ estado: 'sem' }), sinais: ['sem-contrato-ativo' as const] },
     { slug: 'verde', nome: 'Verde Agro', contrato: contrato({ estado: 'pausado' }), sinais: ['pausado-ativo' as const] },
     { slug: 'amanha', nome: 'Amanhã', contrato: contrato({ fim: '2026-10-13' }), sinais: ['renovacao-30d' as const] },
+    { slug: 'ebano', nome: 'Clínica Ébano', contrato: contrato({ limiteMensagens: 300 }), sinais: ['acima-do-contrato' as const] },
   ];
   const esperando = [
     { slug: 'norte', groupName: 'Norte Logística', waitingMs: 26 * H },
@@ -112,6 +121,7 @@ describe('sinaisDoDia', () => {
       ['rota', 'sem entrega há 30 dias', 'atencao'],
       ['nova', 'ativo sem contrato', 'atencao'],
       ['verde', 'pausado, mas ativo', 'atencao'],
+      ['ebano', 'acima do contrato', 'atencao'],
       ['alfa', 'renova em 23 dias', 'neutro'],
       ['amanha', 'renova amanhã', 'neutro'],
     ]);
@@ -130,31 +140,33 @@ describe('sinaisDoDia', () => {
 });
 
 describe('contratosNoLimite', () => {
-  const c = (estado: Contrato['estado'], inicio: string | null, fim: string | null): Contrato => ({
-    estado,
-    inicio,
-    fim,
-    valorMensal: null,
-    nota: '',
+  const linha = (slug: string, msgsCliente30d: number, c: Partial<Contrato>) => ({
+    slug,
+    nome: slug.toUpperCase(),
+    msgsCliente30d,
+    contrato: { estado: 'ativo' as const, inicio: null, fim: null, valorMensal: null, limiteMensagens: null, nota: '', ...c },
   });
-  it('só contrato ativo com início e fim, em dias, do mais apertado ao mais folgado', () => {
+  it('só contrato ativo com limite, do mais acima do limite para o mais folgado', () => {
     const r = contratosNoLimite(
-      {
-        a: c('ativo', '2026-10-01', '2026-10-31'),
-        b: c('ativo', '2026-01-01', '2026-10-10'),
-        pausado: c('pausado', '2026-01-01', '2026-12-31'),
-        semInicio: c('ativo', null, '2026-12-31'),
-      },
-      (slug) => slug.toUpperCase(),
+      [
+        linha('folgado', 40, { limiteMensagens: 200 }),
+        linha('acima', 412, { limiteMensagens: 300 }),
+        linha('perto', 142, { limiteMensagens: 150 }),
+        linha('semLimite', 900, {}),
+        linha('pausado', 500, { estado: 'pausado', limiteMensagens: 100 }),
+        linha('vencido', 500, { limiteMensagens: 100, fim: '2026-10-01' }),
+      ],
       AGORA,
     );
     expect(r).toEqual([
-      { slug: 'b', nome: 'B', decorridos: 284, duracao: 282, restam: -2 },
-      { slug: 'a', nome: 'A', decorridos: 11, duracao: 30, restam: 19 },
+      { slug: 'acima', nome: 'ACIMA', valor: 412, limite: 300 },
+      { slug: 'perto', nome: 'PERTO', valor: 142, limite: 150 },
+      { slug: 'folgado', nome: 'FOLGADO', valor: 40, limite: 200 },
     ]);
   });
-  it('contrato que ainda não começou fica com zero dias corridos', () => {
-    expect(contratosNoLimite({ x: c('ativo', '2026-11-01', '2026-11-30') }, (s) => s, AGORA)[0]?.decorridos).toBe(0);
+  it('empate no uso vai para quem mandou mais', () => {
+    const r = contratosNoLimite([linha('a', 50, { limiteMensagens: 100 }), linha('b', 100, { limiteMensagens: 200 })], AGORA);
+    expect(r.map((x) => x.slug)).toEqual(['b', 'a']);
   });
 });
 
