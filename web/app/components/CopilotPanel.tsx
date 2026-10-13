@@ -445,7 +445,7 @@ function CopilotChat({
             disabled={noApiKey}
             placeholder="Pergunte sobre esta conversa…"
             aria-label="Pergunta para o copiloto"
-            className="bg-surface text-[13px]"
+            className="text-[13px]"
           />
           <Button
             size="sm"
@@ -691,7 +691,7 @@ function MemoryCard({ slug }: { slug: string }) {
             rows={6}
             placeholder="Fatos sobre o cliente que o copiloto deve lembrar: stack, tom, prazos, preferências…"
             aria-label="Memória do cliente"
-            className="bg-surface text-[13px]"
+            className="text-[13px]"
           />
         </div>
       )}
@@ -947,7 +947,7 @@ function MemorySourcesCard({ slug }: { slug: string }) {
                 if (e.key === "Enter") addCustomPath();
               }}
               placeholder="/caminho/absoluto/para/memory"
-              className="bg-surface font-mono text-[12px]"
+              className="font-mono text-[12px]"
             />
             <Button
               size="sm"
