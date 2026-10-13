@@ -43,6 +43,7 @@ export const CLASSIFICACAO: Record<string, 'dono' | 'atendimento' | 'publico'> =
   'api/dashboard/route.ts': 'dono',
   'api/document/route.ts': 'dono',
   'api/edit-message/route.ts': 'dono',
+  'api/entregas/historico/route.ts': 'dono',
   'api/entregas/route.ts': 'dono',
   'api/equipe/route.ts': 'dono',
   'api/events/route.ts': 'dono',

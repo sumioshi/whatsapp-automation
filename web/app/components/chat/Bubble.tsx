@@ -222,9 +222,22 @@ function PollCard({ poll }: { poll: PollView }) {
 }
 
 /** Linha de quem escreveu, acima do balão. */
-function QuemEscreveu({ m, mine, autoria, contacts }: { m: MessageView; mine: boolean; autoria: Autoria | null; contacts: Contacts }) {
+function QuemEscreveu({
+  m,
+  mine,
+  autoria,
+  entrega,
+  contacts,
+}: {
+  m: MessageView;
+  mine: boolean;
+  autoria: Autoria | null;
+  entrega?: { texto: string; ticket: string };
+  contacts: Contacts;
+}) {
   if (mine && autoria) {
     const icone = ICONE_AUTORIA[autoria.id];
+    const via = entrega && autoria.id === "ia" ? entrega.texto : autoria.via;
     return (
       <div className="mx-0.5 mb-1.5 flex items-center gap-1.5 text-[12.5px] text-fg-faint">
         <span className="inline-flex items-center gap-[5px] font-semibold" style={{ color: EDGE[autoria.id] }}>
@@ -235,7 +248,7 @@ function QuemEscreveu({ m, mine, autoria, contacts }: { m: MessageView; mine: bo
           )}
           {autoria.quem}
         </span>
-        {autoria.via && <span>{autoria.via}</span>}
+        {via && <span title={entrega ? `Entrega ${entrega.ticket}` : undefined}>{via}</span>}
       </div>
     );
   }
@@ -258,6 +271,7 @@ export function Bubble({
   m,
   contacts,
   autoria,
+  entrega,
   continua = false,
   fresh = false,
 }: {
@@ -266,6 +280,8 @@ export function Bubble({
   contacts: Contacts;
   /** Quem escreveu, quando a mensagem é da própria conta. */
   autoria: Autoria | null;
+  /** Bloco de balões de uma entrega da IA ("1–3 de 3 balões"), no começo do bloco. */
+  entrega?: { texto: string; ticket: string };
   /** Mesmo autor da anterior há pouco: sem avatar nem nome, colado nela. */
   continua?: boolean;
   fresh?: boolean;
@@ -275,7 +291,7 @@ export function Bubble({
   const reacoes = agruparReacoes(m.reactions);
   const celular = autoria?.id === "celular" || autoria?.id === "web" || autoria?.id === "voce";
 
-  const balao = (
+  const corpo = (
     <div
       style={edge ? ({ "--edge": edge } as CSSProperties) : undefined}
       className={cn(
@@ -341,8 +357,8 @@ export function Bubble({
   if (mine) {
     return (
       <div className={cn("flex max-w-[76%] flex-col items-end self-end max-[860px]:max-w-[92%]", continua ? "mt-1" : "mt-4", fresh && "msg-in")}>
-        {!continua && <QuemEscreveu m={m} mine autoria={autoria} contacts={contacts} />}
-        {balao}
+        {!continua && <QuemEscreveu m={m} mine autoria={autoria} entrega={entrega} contacts={contacts} />}
+        {corpo}
         {rodape}
       </div>
     );
@@ -352,7 +368,7 @@ export function Bubble({
       {continua ? <span className="w-7 shrink-0" aria-hidden /> : <Avatar nome={m.senderName} tipo="dm" tamanho="sm" className="mt-px" />}
       <div className="flex min-w-0 flex-col items-start">
         {!continua && <QuemEscreveu m={m} mine={false} autoria={null} contacts={contacts} />}
-        {balao}
+        {corpo}
         {rodape}
       </div>
     </div>

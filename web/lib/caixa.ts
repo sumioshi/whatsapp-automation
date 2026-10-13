@@ -331,6 +331,113 @@ export function agruparReacoes(
   return [...porEmoji.values()];
 }
 
+/** Transição de uma entrega da fila de envio humanizado (uma linha do registro de entregas). */
+export interface EventoEntrega {
+  ts: string;
+  ticket: string;
+  slug: string;
+  estado: string;
+  motivo: string | null;
+  enviados: number;
+  total: number;
+  iniciadoEm: string | null;
+}
+
+export interface BalaoDaIa {
+  ticket: string;
+  n: number;
+  total: number;
+}
+
+export interface AvisoEntrega {
+  ts: string;
+  ticket: string;
+  texto: string;
+}
+
+const TERMINAIS = new Set(['entregue', 'interrompido', 'cancelado']);
+/** Folga entre o relógio do coletor e o horário que o WhatsApp dá à mensagem. */
+const FOLGA_ANTES_MS = 5_000;
+const FOLGA_DEPOIS_MS = 10_000;
+
+function oQueNaoSaiu(enviados: number, total: number): string {
+  if (enviados === 0) return total === 1 ? 'Nada saiu.' : `Os ${total} balões não saíram.`;
+  const resto = total - enviados;
+  return resto === 1 ? 'O outro não saiu.' : `Os outros ${resto} não saíram.`;
+}
+
+function textoDoAviso(e: EventoEntrega): string | null {
+  const resto = e.total - e.enviados;
+  if (resto <= 0) return null;
+  const antes = `antes do ${e.enviados + 1}º balão`;
+  if (e.estado === 'cancelado') {
+    if (e.motivo === 'substituido') {
+      return e.enviados > 0 ? `Resposta da IA trocada por outra ${antes}. ${oQueNaoSaiu(e.enviados, e.total)}` : null;
+    }
+    return `Entrega cancelada ${antes}. ${oQueNaoSaiu(e.enviados, e.total)}`;
+  }
+  if (e.estado !== 'interrompido') return null;
+  if (e.motivo === 'mensagem_nova') return `Entrega interrompida: chegou mensagem nova ${antes}. ${oQueNaoSaiu(e.enviados, e.total)}`;
+  if (e.motivo === 'operador_respondeu') return `Entrega interrompida: você respondeu ${antes}. ${oQueNaoSaiu(e.enviados, e.total)}`;
+  return `Entrega interrompida ${antes}. ${oQueNaoSaiu(e.enviados, e.total)}`;
+}
+
+/**
+ * Liga as mensagens da IA (origem do próprio coletor, fora do painel) às
+ * entregas da fila: cada balão ganha "n de total" pela ordem dentro da janela
+ * da entrega, e entrega interrompida ou cancelada vira um aviso na conversa.
+ */
+export function ligarEntregas(
+  mensagens: Array<{ id: string; timestamp: string; fromMe?: boolean; origem?: string; ator?: string }>,
+  eventos: EventoEntrega[],
+  agoraMs: number,
+): { baloes: Record<string, BalaoDaIa>; avisos: AvisoEntrega[] } {
+  const daIa = mensagens
+    .filter((m) => m.fromMe && m.origem === 'coletor' && !m.ator)
+    .map((m) => ({ id: m.id, t: Date.parse(m.timestamp) }))
+    .filter((m) => Number.isFinite(m.t))
+    .sort((a, b) => a.t - b.t);
+
+  const porTicket = new Map<string, EventoEntrega[]>();
+  for (const e of eventos) porTicket.set(e.ticket, [...(porTicket.get(e.ticket) ?? []), e]);
+
+  const baloes: Record<string, BalaoDaIa> = {};
+  const avisos: AvisoEntrega[] = [];
+  const usados = new Set<string>();
+  for (const [ticket, lista] of porTicket) {
+    const ordem = [...lista].sort((a, b) => a.ts.localeCompare(b.ts));
+    const fim = ordem.find((e) => TERMINAIS.has(e.estado));
+    const ultimo = fim ?? ordem.at(-1);
+    if (!ultimo) continue;
+    if (fim) {
+      const texto = textoDoAviso(fim);
+      if (texto) avisos.push({ ts: fim.ts, ticket, texto });
+    }
+    const iniciado = ordem.find((e) => e.iniciadoEm)?.iniciadoEm ?? ordem.find((e) => e.estado === 'entregando')?.ts;
+    if (!iniciado) continue;
+    const de = Date.parse(iniciado) - FOLGA_ANTES_MS;
+    const ate = fim ? Date.parse(fim.ts) + FOLGA_DEPOIS_MS : agoraMs;
+    const limite = fim ? fim.enviados : Number.POSITIVE_INFINITY;
+    const dentro = daIa.filter((m) => !usados.has(m.id) && m.t >= de && m.t <= ate).slice(0, limite);
+    dentro.forEach((m, i) => {
+      usados.add(m.id);
+      baloes[m.id] = { ticket, n: i + 1, total: Math.max(ultimo.total, dentro.length) };
+    });
+  }
+  avisos.sort((a, b) => a.ts.localeCompare(b.ts));
+  return { baloes, avisos };
+}
+
+/** Rótulo de um bloco de balões seguidos da mesma entrega: "1 de 3 balões" ou "1–3 de 3 balões". */
+export function rotuloDosBaloes(bloco: BalaoDaIa[]): string {
+  const primeiro = bloco[0];
+  const ultimo = bloco.at(-1);
+  if (!primeiro || !ultimo) return '';
+  if (primeiro.total === 1) return '1 balão';
+  const faixa = bloco.length === 1 ? String(primeiro.n) : `${primeiro.n}–${ultimo.n}`;
+  return `${faixa} de ${primeiro.total} balões`;
+}
+
 // ── Painel do cliente ────────────────────────────────────────────────────
 
 export interface Pessoa {

@@ -8,7 +8,9 @@ import {
   dividirPrevia,
   type EsperaFila,
   horaCurta,
+  ligarEntregas,
   midiaDaConversa,
+  rotuloDosBaloes,
   montarFila,
   pessoasDaConversa,
   quandoCurto,
@@ -326,5 +328,110 @@ describe('datas em Brasília', () => {
     expect(rotuloDia('2026-10-06T12:00:00Z', agora)).toBe('ontem');
     expect(rotuloDia('2026-08-12T12:00:00Z', agora)).toBe('12 de agosto');
     expect(rotuloDia('2025-08-12T12:00:00Z', agora)).toBe('12 de agosto de 2025');
+  });
+});
+
+describe('ligarEntregas', () => {
+  const ia = (id: string, timestamp: string) => ({ id, timestamp, fromMe: true, origem: 'coletor' });
+  const ev = (ticket: string, estado: string, ts: string, extra: Record<string, unknown> = {}) => ({
+    ts,
+    ticket,
+    slug: 'g',
+    estado,
+    motivo: null,
+    enviados: 0,
+    total: 3,
+    iniciadoEm: null,
+    ...extra,
+  });
+
+  it('numera os balões da IA dentro da janela da entrega', () => {
+    const r = ligarEntregas(
+      [
+        { id: 'c1', timestamp: '2026-10-07T12:00:30Z', fromMe: false },
+        ia('a', '2026-10-07T12:00:10Z'),
+        ia('b', '2026-10-07T12:00:25Z'),
+        ia('c', '2026-10-07T12:00:40Z'),
+        ia('depois', '2026-10-07T13:00:00Z'),
+      ],
+      [
+        ev('t1', 'agendado', '2026-10-07T11:59:00Z'),
+        ev('t1', 'entregando', '2026-10-07T12:00:00Z', { iniciadoEm: '2026-10-07T12:00:00Z' }),
+        ev('t1', 'entregue', '2026-10-07T12:00:41Z', { enviados: 3 }),
+      ],
+      Date.parse('2026-10-07T14:00:00Z'),
+    );
+    expect(r.baloes).toEqual({
+      a: { ticket: 't1', n: 1, total: 3 },
+      b: { ticket: 't1', n: 2, total: 3 },
+      c: { ticket: 't1', n: 3, total: 3 },
+    });
+    expect(r.avisos).toEqual([]);
+  });
+
+  it('mensagem do painel ou do celular nunca vira balão da IA', () => {
+    const r = ligarEntregas(
+      [
+        { id: 'p', timestamp: '2026-10-07T12:00:10Z', fromMe: true, origem: 'coletor', ator: 'painel' },
+        { id: 'cel', timestamp: '2026-10-07T12:00:12Z', fromMe: true, origem: 'celular' },
+        ia('a', '2026-10-07T12:00:20Z'),
+      ],
+      [
+        ev('t1', 'entregando', '2026-10-07T12:00:00Z', { iniciadoEm: '2026-10-07T12:00:00Z', total: 1 }),
+        ev('t1', 'entregue', '2026-10-07T12:00:21Z', { enviados: 1, total: 1 }),
+      ],
+      Date.parse('2026-10-07T14:00:00Z'),
+    );
+    expect(Object.keys(r.baloes)).toEqual(['a']);
+  });
+
+  it('entrega interrompida vira aviso com o que não saiu', () => {
+    const r = ligarEntregas(
+      [ia('a', '2026-10-07T12:00:10Z')],
+      [
+        ev('t1', 'entregando', '2026-10-07T12:00:00Z', { iniciadoEm: '2026-10-07T12:00:00Z' }),
+        ev('t1', 'interrompido', '2026-10-07T12:00:20Z', { motivo: 'mensagem_nova', enviados: 1 }),
+        ev('t2', 'entregando', '2026-10-07T13:00:00Z', { iniciadoEm: '2026-10-07T13:00:00Z', total: 2 }),
+        ev('t2', 'interrompido', '2026-10-07T13:00:05Z', { motivo: 'operador_respondeu', enviados: 0, total: 2 }),
+        ev('t3', 'entregando', '2026-10-07T14:00:00Z', { iniciadoEm: '2026-10-07T14:00:00Z', total: 1 }),
+        ev('t3', 'cancelado', '2026-10-07T14:00:02Z', { motivo: 'operador', enviados: 0, total: 1 }),
+      ],
+      Date.parse('2026-10-07T15:00:00Z'),
+    );
+    expect(r.baloes).toEqual({ a: { ticket: 't1', n: 1, total: 3 } });
+    expect(r.avisos).toEqual([
+      { ts: '2026-10-07T12:00:20Z', ticket: 't1', texto: 'Entrega interrompida: chegou mensagem nova antes do 2º balão. Os outros 2 não saíram.' },
+      { ts: '2026-10-07T13:00:05Z', ticket: 't2', texto: 'Entrega interrompida: você respondeu antes do 1º balão. Os 2 balões não saíram.' },
+      { ts: '2026-10-07T14:00:02Z', ticket: 't3', texto: 'Entrega cancelada antes do 1º balão. Nada saiu.' },
+    ]);
+  });
+
+  it('troca por resposta nova sem nada enviado não vira aviso', () => {
+    const r = ligarEntregas(
+      [],
+      [ev('t1', 'cancelado', '2026-10-07T12:00:20Z', { motivo: 'substituido', enviados: 0 })],
+      Date.parse('2026-10-07T15:00:00Z'),
+    );
+    expect(r.avisos).toEqual([]);
+  });
+
+  it('entrega ainda saindo numera o que já chegou', () => {
+    const r = ligarEntregas(
+      [ia('a', '2026-10-07T12:00:10Z')],
+      [ev('t1', 'entregando', '2026-10-07T12:00:00Z', { iniciadoEm: '2026-10-07T12:00:00Z', total: 2 })],
+      Date.parse('2026-10-07T12:00:30Z'),
+    );
+    expect(r.baloes).toEqual({ a: { ticket: 't1', n: 1, total: 2 } });
+  });
+});
+
+describe('rotuloDosBaloes', () => {
+  const b = (n: number, total: number) => ({ ticket: 't', n, total });
+  it('um balão diz qual é; vários seguidos viram faixa', () => {
+    expect(rotuloDosBaloes([b(1, 3)])).toBe('1 de 3 balões');
+    expect(rotuloDosBaloes([b(1, 3), b(2, 3), b(3, 3)])).toBe('1–3 de 3 balões');
+    expect(rotuloDosBaloes([b(2, 3), b(3, 3)])).toBe('2–3 de 3 balões');
+    expect(rotuloDosBaloes([b(1, 1)])).toBe('1 balão');
+    expect(rotuloDosBaloes([])).toBe('');
   });
 });

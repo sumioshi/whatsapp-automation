@@ -2,7 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { autoria, chaveDia, continuaSequencia, rotuloDia } from "@/lib/caixa";
+import {
+  type AvisoEntrega,
+  autoria,
+  type BalaoDaIa,
+  chaveDia,
+  continuaSequencia,
+  type EventoEntrega,
+  ligarEntregas,
+  rotuloDia,
+  rotuloDosBaloes,
+} from "@/lib/caixa";
 import type { MessageView } from "@/lib/data";
 import { instanteLongo } from "@/lib/formatar-data";
 import { Icone } from "./caixa/icones";
@@ -18,6 +28,19 @@ function SeparadorDia({ iso, agora }: { iso: string; agora: number }) {
   return (
     <div className="mb-1 mt-6 flex items-center gap-3 font-mono text-[11px] font-medium leading-none text-fg-faint before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line">
       {rotuloDia(iso, agora)}
+    </div>
+  );
+}
+
+/** Aviso da fila de envio (entrega interrompida ou cancelada), como linha de sistema. */
+function AvisoLine({ aviso }: { aviso: AvisoEntrega }) {
+  return (
+    <div
+      className="mt-4 inline-flex max-w-full items-center gap-2 self-center rounded-full border border-line bg-surface px-3 py-1.5 text-center text-[12.5px] text-fg-dim"
+      title={instanteLongo(aviso.ts)}
+    >
+      <Icone nome="alerta" tamanho={14} className="shrink-0 text-warn" />
+      {aviso.texto}
     </div>
   );
 }
@@ -240,6 +263,33 @@ export function Timeline({
     return { names, mine, team: teamIds };
   }, [messages, teamIds]);
 
+  // Entregas da IA nesta conversa (só no painel do dono): numeram os balões e avisam o que não saiu.
+  const [eventos, setEventos] = useState<EventoEntrega[]>([]);
+  const primeiraTs = messages[0]?.timestamp ?? "";
+  useEffect(() => {
+    if (rotas.modo !== "dono") return;
+    let vivo = true;
+    // Uma hora antes da primeira mensagem carregada: pega a entrega que começou um pouco antes.
+    const desde = primeiraTs ? new Date(Date.parse(primeiraTs) - 3_600_000).toISOString() : "";
+    const ler = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch(`/api/entregas/historico?slug=${encodeURIComponent(slug)}&desde=${encodeURIComponent(desde)}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const d = (await res.json()) as { eventos?: EventoEntrega[] };
+        if (vivo) setEventos(d.eventos ?? []);
+      } catch {
+        /* painel reiniciando: fica o que já havia */
+      }
+    };
+    void ler();
+    const id = setInterval(ler, 10_000);
+    return () => {
+      vivo = false;
+      clearInterval(id);
+    };
+  }, [slug, rotas, primeiraTs]);
+
   // Relógio da tela: começa no do servidor (sem diferença na hidratação) e anda a cada minuto,
   // para "hoje"/"ontem" virarem e o acompanhamento amadurecer sem recarregar.
   const [agora, setAgora] = useState(agoraInicial);
@@ -329,6 +379,54 @@ export function Timeline({
     [cabecalho.tipo, groupName, contacts],
   );
 
+  const entregas = useMemo(() => ligarEntregas(messages, eventos, agora), [messages, eventos, agora]);
+
+  // Mensagens e avisos da fila numa linha só, na ordem do tempo (os avisos só na vista completa).
+  const itens = useMemo(() => {
+    type Item = { tipo: "msg"; m: MessageView } | { tipo: "aviso"; a: AvisoEntrega };
+    const lista: Item[] = shown.map((m) => ({ tipo: "msg", m }));
+    if (mediaFilter !== "all" || entregas.avisos.length === 0 || shown.length === 0) return lista;
+    const inicio = shown[0]?.timestamp ?? "";
+    for (const a of entregas.avisos) if (a.ts >= inicio) lista.push({ tipo: "aviso", a });
+    const ts = (i: Item) => (i.tipo === "msg" ? i.m.timestamp : i.a.ts);
+    return lista.sort((x, y) => ts(x).localeCompare(ts(y)));
+  }, [shown, entregas.avisos, mediaFilter]);
+
+  // Quem continua o bloco da mensagem anterior (sem nome nem avatar) e, no começo de
+  // cada bloco da IA, o rótulo da entrega ("1–3 de 3 balões").
+  const blocos = useMemo(() => {
+    const continua = new Set<string>();
+    const rotulos: Record<string, { texto: string; ticket: string }> = {};
+    let inicio: { id: string; baloes: BalaoDaIa[] } | null = null;
+    const fechar = () => {
+      if (inicio?.baloes.length) {
+        rotulos[inicio.id] = { texto: rotuloDosBaloes(inicio.baloes), ticket: inicio.baloes[0]?.ticket ?? "" };
+      }
+    };
+    itens.forEach((item, i) => {
+      if (item.tipo !== "msg") {
+        fechar();
+        inicio = null;
+        return;
+      }
+      const anterior = itens[i - 1];
+      const prev = anterior?.tipo === "msg" ? anterior.m : undefined;
+      const m = item.m;
+      const segue = Boolean(prev) && chaveDia((prev as MessageView).timestamp) === chaveDia(m.timestamp) && continuaSequencia(prev, m, donoLogin);
+      const b = entregas.baloes[m.id];
+      if (segue && inicio && (!b || inicio.baloes[0]?.ticket === b.ticket || inicio.baloes.length === 0)) {
+        continua.add(m.id);
+        if (b && (inicio.baloes.length === 0 || inicio.baloes[0]?.ticket === b.ticket)) inicio.baloes.push(b);
+        return;
+      }
+      if (segue && !inicio) continua.add(m.id);
+      fechar();
+      inicio = { id: m.id, baloes: b ? [b] : [] };
+    });
+    fechar();
+    return { continua, rotulos };
+  }, [itens, entregas.baloes, donoLogin]);
+
   const contagem = new Intl.NumberFormat("pt-BR").format(totalCount);
   const filtroAtivo = mediaFilter !== "all";
 
@@ -417,9 +515,20 @@ export function Timeline({
                 {mediaFilter === "all" ? "Nenhuma mensagem capturada ainda nesta conversa." : "Nada deste tipo nas mensagens carregadas."}
               </p>
             ) : (
-              shown.map((m, i) => {
-                const prev = shown[i - 1];
-                const novoDia = !prev || chaveDia(prev.timestamp) !== chaveDia(m.timestamp);
+              itens.map((item, i) => {
+                const anterior = itens[i - 1];
+                const tsAnterior = anterior ? (anterior.tipo === "msg" ? anterior.m.timestamp : anterior.a.ts) : null;
+                const ts = item.tipo === "msg" ? item.m.timestamp : item.a.ts;
+                const novoDia = !tsAnterior || chaveDia(tsAnterior) !== chaveDia(ts);
+                if (item.tipo === "aviso") {
+                  return (
+                    <Fragment key={`aviso-${item.a.ticket}`}>
+                      {novoDia && <SeparadorDia iso={ts} agora={agora} />}
+                      <AvisoLine aviso={item.a} />
+                    </Fragment>
+                  );
+                }
+                const m = item.m;
                 return (
                   <Fragment key={m.id}>
                     {novoDia && <SeparadorDia iso={m.timestamp} agora={agora} />}
@@ -431,7 +540,8 @@ export function Timeline({
                         m={m}
                         contacts={contacts}
                         autoria={autoria(m, donoLogin)}
-                        continua={!novoDia && continuaSequencia(prev, m, donoLogin)}
+                        entrega={blocos.rotulos[m.id]}
+                        continua={!novoDia && blocos.continua.has(m.id)}
                         fresh={!initialIds.current.has(m.id)}
                       />
                     )}

@@ -1,9 +1,11 @@
+import { open } from 'node:fs/promises';
+import { join } from 'node:path';
 import { cache } from 'react';
-import type { AguardandoOk, ConversaFila, EntregaViva, EsperaFila } from './caixa';
+import type { AguardandoOk, ConversaFila, EntregaViva, EsperaFila, EventoEntrega } from './caixa';
 import { type GroupSummary, listGroups } from './data';
 import { listarDespachos } from './despacho-store';
 import type { InboxItem } from './inbox';
-import { CONTROL_URL } from './paths';
+import { CONTROL_URL, DATA_DIR } from './paths';
 
 /**
  * Dados da Caixa lidos no servidor (layout e rota). A parte pura mora em
@@ -77,4 +79,54 @@ async function perguntasPendentes(): Promise<AguardandoOk[]> {
 export async function iaDaCaixa(): Promise<IaDaCaixa> {
   const [entregas, aguardandoOk] = await Promise.all([entregasVivas(), perguntasPendentes().catch(() => [])]);
   return { entregas, aguardandoOk };
+}
+
+/** O registro de entregas só cresce: lê o fim dele (o bastante para semanas de conversa). */
+const TETO_REGISTRO = 4 * 1024 * 1024;
+
+async function fimDoRegistro(caminho: string): Promise<string> {
+  const h = await open(caminho, 'r');
+  try {
+    const { size } = await h.stat();
+    const inicio = Math.max(0, size - TETO_REGISTRO);
+    const buf = Buffer.alloc(size - inicio);
+    await h.read(buf, 0, buf.length, inicio);
+    const texto = buf.toString('utf8');
+    // Começou no meio de uma linha: descarta o pedaço.
+    return inicio > 0 ? texto.slice(texto.indexOf('\n') + 1) : texto;
+  } finally {
+    await h.close();
+  }
+}
+
+/** Transições das entregas da IA numa conversa, desde um instante (o registro que o coletor grava). */
+export async function eventosDaConversa(slug: string, desde = ''): Promise<EventoEntrega[]> {
+  let texto: string;
+  try {
+    texto = await fimDoRegistro(join(DATA_DIR, '.entregas.jsonl'));
+  } catch {
+    return [];
+  }
+  const out: EventoEntrega[] = [];
+  for (const linha of texto.split('\n')) {
+    if (!linha.includes(slug)) continue;
+    try {
+      const e = JSON.parse(linha) as Partial<EventoEntrega>;
+      if (e.slug !== slug || typeof e.ticket !== 'string' || typeof e.estado !== 'string' || typeof e.ts !== 'string') continue;
+      if (desde && e.ts < desde) continue;
+      out.push({
+        ts: e.ts,
+        ticket: e.ticket,
+        slug: e.slug,
+        estado: e.estado,
+        motivo: typeof e.motivo === 'string' ? e.motivo : null,
+        enviados: Number(e.enviados) || 0,
+        total: Number(e.total) || 0,
+        iniciadoEm: typeof e.iniciadoEm === 'string' ? e.iniciadoEm : null,
+      });
+    } catch {
+      /* linha cortada no meio da escrita */
+    }
+  }
+  return out;
 }
