@@ -21,6 +21,8 @@ const ALTURA: Record<Altura, string> = {
 export interface CardProps {
   className?: string;
   children: ReactNode;
+  /** Âncora da seção (navegação por seção); com título, o card passa a ser nomeado por ele. */
+  id?: string;
   /** Com título, o card usa a moldura do Balcão: cabeçalho, corpo e rodapé opcional. */
   titulo?: ReactNode;
   icone?: ReactNode;
@@ -31,19 +33,26 @@ export interface CardProps {
   altura?: Altura;
 }
 
-export function Card({ className = "", children, titulo, icone, meta, acoes, rodape, largura, altura = "livre" }: CardProps) {
+export function Card({ className = "", children, id, titulo, icone, meta, acoes, rodape, largura, altura = "livre" }: CardProps) {
   const base = cn(
     "min-w-0 rounded-card border border-line bg-surface [box-shadow:var(--shadow-card)]",
     largura && LARGURA[largura],
   );
   if (titulo === undefined) {
-    return <section className={cn(base, "p-4", className)}>{children}</section>;
+    return (
+      <section id={id} className={cn(base, "p-4", className)}>
+        {children}
+      </section>
+    );
   }
+  const idTitulo = id ? `${id}-titulo` : undefined;
   return (
-    <section className={cn(base, "flex flex-col", className)}>
+    <section id={id} aria-labelledby={idTitulo} className={cn(base, "flex flex-col", className)}>
       <header className="flex min-h-[52px] shrink-0 items-center gap-2 px-5">
         {icone && <span className="shrink-0 text-fg-faint [&>svg]:h-4 [&>svg]:w-4">{icone}</span>}
-        <h3 className="text-[14.5px] font-semibold tracking-[-0.006em] text-fg">{titulo}</h3>
+        <h3 id={idTitulo} className="text-[14.5px] font-semibold tracking-[-0.006em] text-fg">
+          {titulo}
+        </h3>
         {meta && <span className="truncate text-[12.5px] text-fg-faint">{meta}</span>}
         {acoes && <div className="ml-auto flex items-center gap-2">{acoes}</div>}
       </header>

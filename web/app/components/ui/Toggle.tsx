@@ -13,39 +13,12 @@ export interface ToggleProps {
 }
 
 /**
- * Switch on/off — Signal Room.
- *
- * Anatomia: trilho (track) + knob.
- * ON  → trilho ember com glow contido, knob branco com sombra.
- * OFF → trilho surface-2 com borda hairline, knob fg-dim.
- *
- * Referências:
- *   • Three.tools "midnight command center" — ember exclusivo no estado ativo, sem cor no off.
- *   • Linear Changelog — profundidade por tonal shift, sem sombras pesadas.
- *   • Kraken Pro / Xbox settings — trilho+knob com thumb deslocado, ON=accent, OFF=muted gray.
- *   • Signal Room globals.css — shadow-pressable, focus-ring, ease-out-quint.
+ * Chave liga/desliga. Desligada: trilho vazado com borda e botão cinza. Ligada: trilho no
+ * acento e botão na cor de texto sobre o acento. Uma borda invisível leva a área de toque a
+ * 40 px de altura sem mudar o desenho.
  */
-export function Toggle({
-  checked,
-  onChange,
-  disabled,
-  "aria-label": ariaLabel,
-  className = "",
-  size = "md",
-}: ToggleProps) {
-  const isSm = size === "sm";
-
-  /* ── dimensões ──────────────────────────────────────────────────────── */
-  // track
-  const trackW = isSm ? "w-8"  : "w-10";
-  const trackH = isSm ? "h-4"  : "h-[22px]";
-
-  // knob: fica com 2 px de inset em cima/baixo → knob = track-h - 4 px
-  const knobSize   = isSm ? "h-3 w-3"      : "h-[14px] w-[14px]";
-  // deslocamento: OFF = translate-x-[3px], ON = track-width - knob - 3px
-  const knobOff    = "translate-x-[3px]";
-  const knobOn     = isSm ? "translate-x-[17px]" : "translate-x-[23px]";
-
+export function Toggle({ checked, onChange, disabled, "aria-label": ariaLabel, className = "", size = "md" }: ToggleProps) {
+  const sm = size === "sm";
   return (
     <button
       type="button"
@@ -55,36 +28,22 @@ export function Toggle({
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}
       className={cn(
-        // layout base — min touch 44 × 44 via padding invisível
-        "focus-ring group relative inline-flex shrink-0 cursor-pointer select-none items-center rounded-full",
-        "p-0 focus:outline-none",
+        "focus-ring relative inline-flex shrink-0 cursor-pointer select-none items-center rounded-full border",
+        "before:absolute before:-inset-x-1.5 before:-inset-y-2.5 before:content-['']",
+        "transition-[background-color,border-color] duration-150 ease-out motion-reduce:transition-none",
         "disabled:cursor-not-allowed disabled:opacity-40",
-        trackW,
-        trackH,
-        /* ── trilho OFF ── */
-        !checked && "border border-line-2 bg-surface-2 [box-shadow:inset_0_1px_2px_rgba(0,0,0,0.45)]",
-        /* ── trilho ON ── */
-        checked && "border border-accent/40 bg-accent [box-shadow:0_0_0_1px_color-mix(in_oklab,var(--color-accent)_30%,transparent),0_0_8px_-2px_color-mix(in_oklab,var(--color-accent)_55%,transparent),inset_0_1px_0_rgba(255,255,255,0.18)]",
-        // transição do trilho
-        "transition-[background-color,border-color,box-shadow] duration-[160ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
+        sm ? "h-4 w-7" : "h-5 w-9",
+        checked ? "border-accent bg-accent" : "border-line-2 bg-surface hover:border-fg-mute",
         className,
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
-          "absolute rounded-full",
-          knobSize,
-          /* ── knob OFF ── */
-          !checked && "bg-fg-dim [box-shadow:0_1px_2px_rgb(0_0_0/0.2)]",
-          /* ── knob ON ── */
-          checked && "bg-accent-ink [box-shadow:0_1px_3px_rgba(0,0,0,0.3)]",
-          // deslocamento
-          checked ? knobOn : knobOff,
-          // transição suave do knob
-          "transition-transform duration-[160ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]",
-          // reduced-motion: apenas a cor muda, sem slide
-          "motion-reduce:transition-none",
+          "pointer-events-none absolute rounded-full transition-transform duration-150 ease-out motion-reduce:transition-none",
+          sm ? "h-2.5 w-2.5" : "h-3.5 w-3.5",
+          checked ? "bg-accent-ink" : "bg-fg-mute",
+          checked ? (sm ? "translate-x-[14px]" : "translate-x-[18px]") : "translate-x-[2px]",
         )}
       />
     </button>
