@@ -686,7 +686,10 @@ export interface PainelCliente {
     contrato: Contrato | null;
     resumo: ReturnType<typeof resumoContrato>;
     entregas: { d30: number; total: number };
-    mensagens30d: number;
+    /** Mensagens do cliente em 30 dias (o que o limite do plano conta). */
+    mensagensCliente30d: number;
+    /** Limite de mensagens do cliente em 30 dias no contrato; null = sem limite. */
+    limiteMensagens: number | null;
     /** Contas da equipe com este chat liberado. */
     equipe: Array<{ login: string; nome: string }>;
     autonomo: boolean;

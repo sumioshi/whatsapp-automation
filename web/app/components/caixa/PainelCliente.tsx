@@ -9,7 +9,7 @@ import { ContratoForm } from "../ContratoForm";
 import { CopilotPanel } from "../CopilotPanel";
 import { EstadoNotas, NotesPanel, useNotas } from "../NotesPanel";
 import { useRotas } from "../RotasPainel";
-import { Avatar, Button, IconButton, Pares, cn } from "../ui";
+import { Avatar, Button, IconButton, MedidorUso, Pares, cn } from "../ui";
 import { Icone } from "./icones";
 
 type IdSecao = "contrato" | "pessoas" | "notas" | "copiloto" | "midia";
@@ -233,16 +233,27 @@ export function PainelCliente({
                   </>
                 ),
               },
-              {
-                rotulo: "Mensagens",
-                valor: (
-                  <>
-                    <span className="font-mono tabular-nums">{new Intl.NumberFormat("pt-BR").format(dono.mensagens30d)}</span> em 30 dias
-                  </>
-                ),
-              },
             ]}
           />
+          {/* Mensagens do cliente em 30 dias contra o limite do plano; sem limite, a contagem e o aviso na mesma linha. */}
+          {dono.limiteMensagens !== null ? (
+            <MedidorUso
+              className="mt-4"
+              rotulo="Mensagens em 30 dias"
+              rotuloAcessivel="Mensagens do cliente em 30 dias"
+              valor={dono.mensagensCliente30d}
+              limite={dono.limiteMensagens}
+            />
+          ) : (
+            <div className="mt-4 flex items-baseline justify-between gap-2 text-[12.5px] text-fg-dim">
+              <span className="min-w-0 truncate">Mensagens em 30 dias</span>
+              <span className="whitespace-nowrap">
+                <b className="font-mono font-medium tabular-nums text-fg">{new Intl.NumberFormat("pt-BR").format(dono.mensagensCliente30d)}</b>
+                {" · "}
+                <MedidorUso valor={dono.mensagensCliente30d} limite={null} />
+              </span>
+            </div>
+          )}
           {dono.contrato?.nota && <p className="mt-3 text-[12.5px] leading-relaxed text-fg-dim">{dono.contrato.nota}</p>}
           <Button variant="ghost" size="sm" className="-ml-2.5 mt-2" aria-expanded={editandoContrato} onClick={() => setEditandoContrato((v) => !v)}>
             {editandoContrato ? "Fechar edição" : "Editar contrato"}
