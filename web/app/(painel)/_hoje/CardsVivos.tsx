@@ -1,12 +1,11 @@
 "use client";
 
-import { Avatar, Card, cn } from "@/app/components/ui";
+import { Avatar, Card, cn, Icone } from "@/app/components/ui";
 import { hhmm, minutosBrt } from "@/lib/agenda-semana";
 import { tipoPeloSlug } from "@/lib/aparencia";
 import type { DadosHoje } from "@/lib/hoje-atual";
 import { agendaDoDia, ordenarTickets } from "@/lib/hoje";
 import { rotasPainel } from "@/lib/rotas-painel";
-import { Icone } from "./icones";
 import { LinkBotao, LinkRodape } from "./LinkBotao";
 import { Linha, Texto, Vazio } from "./pecas";
 import { useHoje } from "./ProvedorHoje";
@@ -28,7 +27,7 @@ export function CardAgenda() {
     <Card
       largura="p"
       altura="padrao"
-      icone={<Icone nome="calendario" />}
+      icone={<Icone nome="cal" />}
       titulo="Agenda de hoje"
       meta={<span className="font-mono tabular-nums">agora {hora(agoraMs)}</span>}
       rodape={
@@ -148,7 +147,7 @@ export function CardIa({ ia, chats }: { ia: DadosHoje["ia"]; chats: DadosHoje["c
     <Card
       largura="p"
       altura="padrao"
-      icone={<Icone nome="ia" />}
+      icone={<Icone nome="spark" />}
       titulo="IA trabalhando"
       meta={fila.tipo === "ok" ? <span className="font-mono tabular-nums">{tickets.length}</span> : undefined}
       rodape={<span>{ia.autonomo > 0 ? "nos outros chats, envio com confirmação" : "envio com confirmação em todos os chats"}</span>}
@@ -186,7 +185,7 @@ export function CardIa({ ia, chats }: { ia: DadosHoje["ia"]; chats: DadosHoje["c
                 </span>
                 {entregando ? (
                   <span className="inline-flex shrink-0 items-center gap-1.5 text-[12.5px] font-medium text-id-ia">
-                    <Icone nome="ia" className="h-3.5 w-3.5" />
+                    <Icone nome="spark" />
                     <span className="font-mono tabular-nums">
                       {t.enviados} de {t.total}
                     </span>

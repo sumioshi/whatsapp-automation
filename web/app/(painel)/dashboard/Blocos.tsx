@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { type CSSProperties, Fragment, type ReactNode } from "react";
-import { Avatar, Badge, cn } from "@/app/components/ui";
+import { Avatar, Badge, cn, Icone, type NomeIcone } from "@/app/components/ui";
 import { corDoMatiz, matizDoNome, tipoPeloSlug } from "@/lib/aparencia";
 import { arcosDaRosca, nivelDoCalor } from "@/lib/graficos";
 import { type Painel, partesDoTempo, type QuemRespondeu, type Rodape } from "@/lib/painel";
 import { rotasPainel } from "@/lib/rotas-painel";
-import { Icone, type NomeIcone } from "../_hoje/icones";
 import { FOCO } from "../_hoje/pecas";
 
 const rotas = rotasPainel("dono");
@@ -123,11 +122,11 @@ export function FaixasResposta({ faixas, total }: { faixas: Painel["faixas"]; to
 // ── Quem respondeu ─────────────────────────────────────────────────────────
 
 const ESTILO_QUEM: Record<QuemRespondeu, { cor: string; icone: NomeIcone; dica: string }> = {
-  celular: { cor: "var(--color-id-celular)", icone: "celular", dica: "você no celular ou no WhatsApp Web" },
+  celular: { cor: "var(--color-id-celular)", icone: "phone", dica: "você no celular ou no WhatsApp Web" },
   painel: { cor: "var(--color-id-painel)", icone: "monitor", dica: "você aqui no Balcão" },
-  equipe: { cor: "var(--color-id-equipe)", icone: "pessoa", dica: "alguém da equipe, pelo painel ou no grupo" },
-  ia: { cor: "var(--color-id-ia)", icone: "ia", dica: "a IA, com ritmo humano" },
-  "sem-registro": { cor: "var(--color-fg-mute)", icone: "historico", dica: "você, em mensagens de antes do registro de quem enviou" },
+  equipe: { cor: "var(--color-id-equipe)", icone: "user", dica: "alguém da equipe, pelo painel ou no grupo" },
+  ia: { cor: "var(--color-id-ia)", icone: "spark", dica: "a IA, com ritmo humano" },
+  "sem-registro": { cor: "var(--color-fg-mute)", icone: "history", dica: "você, em mensagens de antes do registro de quem enviou" },
 };
 
 export function QuemRespondeuRosca({ quem }: { quem: Painel["quem"] }) {
@@ -185,7 +184,7 @@ export function QuemRespondeuRosca({ quem }: { quem: Painel["quem"] }) {
               className="grid h-10 grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-line text-[13px] last:border-b-0"
             >
               <span className="grid h-[22px] w-[22px] place-items-center rounded-[6px] bg-[color-mix(in_srgb,var(--c)_var(--tint),var(--color-surface))] text-[var(--c)]">
-                <Icone nome={e.icone} className="h-[13px] w-[13px]" />
+                <Icone nome={e.icone} tamanho={13} />
               </span>
               <b className="truncate font-medium">{q.rotulo}</b>
               <span className="font-mono text-[12.5px] font-medium tabular-nums">

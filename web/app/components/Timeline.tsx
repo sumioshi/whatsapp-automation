@@ -13,14 +13,13 @@ import {
 } from "@/lib/caixa";
 import type { MessageView } from "@/lib/data";
 import { instanteLongo } from "@/lib/formatar-data";
-import { Icone } from "./caixa/icones";
 import { Bubble } from "./chat/Bubble";
 import { Composer } from "./chat/Composer";
 import { type Contacts, numberFromJid } from "./chat/format";
 import { liberarSugestao, SuggestionCard } from "./chat/SuggestionCard";
 import { PresenceLine } from "./PresenceLine";
 import { checarSessao, useRotas } from "./RotasPainel";
-import { Avatar, Button, IconButton, Segmentado, cn } from "./ui";
+import { Avatar, Button, IconButton, Segmentado, cn, Icone } from "./ui";
 
 function SeparadorDia({ iso, agora }: { iso: string; agora: number }) {
   return (
@@ -37,7 +36,7 @@ function AvisoLine({ aviso }: { aviso: AvisoEntrega }) {
       className="mt-4 inline-flex max-w-full items-center gap-2 self-center rounded-full border border-line bg-surface px-3 py-1.5 text-center text-[12.5px] text-fg-dim"
       title={instanteLongo(aviso.ts)}
     >
-      <Icone nome="alerta" tamanho={14} className="shrink-0 text-warn" />
+      <Icone nome="alert" tamanho={14} className="shrink-0 text-warn" />
       {aviso.texto}
     </div>
   );
@@ -62,7 +61,7 @@ function CallLine({ m }: { m: MessageView }) {
       className="mt-4 inline-flex items-center gap-2 self-center rounded-full border border-line bg-surface px-3 py-1.5 text-center text-[12.5px] text-fg-dim"
       title={instanteLongo(m.timestamp)}
     >
-      <Icone nome={call.isVideo ? "video" : "telefone"} tamanho={14} className={missed ? "text-danger" : "text-fg-faint"} />
+      <Icone nome={call.isVideo ? "video" : "call"} tamanho={14} className={missed ? "text-danger" : "text-fg-faint"} />
       {kind}
       {who} {outcome}
     </div>
@@ -405,7 +404,7 @@ export function Timeline({
           onClick={() => router.push(rotas.caixa)}
           className="-ml-1 min-[861px]:hidden max-[860px]:h-10 max-[860px]:w-10"
         >
-          <Icone nome="voltar" />
+          <Icone nome="chev-l" />
         </IconButton>
         <Avatar
           nome={groupName}
@@ -441,7 +440,7 @@ export function Timeline({
             onClick={() => setFiltroAberto((v) => !v)}
             className="max-[860px]:hidden"
           >
-            <Icone nome="filtro" />
+            <Icone nome="filter" />
           </IconButton>
         )}
         {cabecalho.acoes}
@@ -528,7 +527,7 @@ export function Timeline({
               "pop-in absolute bottom-4 right-5 grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-fg-dim [box-shadow:var(--float)] transition-colors hover:text-fg",
             )}
           >
-            <Icone nome="baixar" tamanho={18} />
+            <Icone nome="download" tamanho={18} />
           </button>
         )}
       </div>

@@ -1,5 +1,5 @@
 import { Kbd } from "../ui/Kbd";
-import { Icone } from "./icones";
+import { Icone } from "../ui";
 
 /** Centro da Caixa sem conversa aberta: orienta a escolher uma na fila. */
 export function CentroVazio() {

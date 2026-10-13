@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import type { PainelCliente, Tom } from "@/lib/caixa";
-import { Icone } from "./caixa/icones";
 import { EditorEtiquetas } from "./Etiqueta";
 import { useRotas } from "./RotasPainel";
-import { Avatar, Badge, Etiqueta } from "./ui";
+import { Avatar, Badge, Etiqueta, Icone } from "./ui";
 
 const VARIANTE: Record<Tom, "ok" | "neutral" | "warn" | "danger"> = { ok: "ok", neutro: "neutral", warn: "warn", danger: "danger" };
 
@@ -40,7 +39,7 @@ export function ContextoCard({ dados, onEtiquetas }: { dados: PainelCliente; onE
             aria-expanded={editando}
             className="inline-flex h-[22px] items-center gap-1 rounded-full border border-dashed border-line-2 px-2 text-[12px] text-fg-faint transition-colors hover:border-fg-mute hover:text-fg"
           >
-            <Icone nome="mais" tamanho={12} />
+            <Icone nome="plus" tamanho={12} />
             {etiquetas.length === 0 ? "Etiqueta" : <span className="sr-only">Editar etiquetas</span>}
           </button>
           {dono.sinais.map((s) => (

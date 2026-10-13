@@ -1,4 +1,4 @@
-export { AnelEspera } from "./AnelEspera";
+export { AnelCheio, AnelEspera } from "./AnelEspera";
 export { Avatar, type AvatarProps } from "./Avatar";
 export { Aviso } from "./Aviso";
 export { Badge } from "./Badge";

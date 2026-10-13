@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Icone } from "../caixa/icones";
-import { Button, ScanShimmer } from "../ui";
+import { Button, ScanShimmer, Icone } from "../ui";
 
 /** Sugestões dispensadas nesta sessão (não reaparecem ao repollar). */
 const dismissedSuggestions = new Set<string>();
@@ -147,7 +146,7 @@ export function SuggestionCard({
     <div className="reveal m-2.5 rounded-[8px] border border-line bg-surface-2 px-3.5 py-3" aria-live="polite">
       <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[12px] text-fg-faint">
         <span className="inline-flex items-center gap-1 font-semibold text-id-ia">
-          <Icone nome="ia" tamanho={14} />
+          <Icone nome="spark" tamanho={14} />
           {followup ? "Acompanhamento da IA" : "Rascunho da IA"}
         </span>
         {meta && <span>{meta}</span>}

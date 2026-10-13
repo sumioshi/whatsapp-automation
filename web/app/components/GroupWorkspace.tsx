@@ -4,11 +4,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { PainelCliente as DadosPainel } from "@/lib/caixa";
 import type { MessageView } from "@/lib/data";
-import { Icone } from "./caixa/icones";
 import { PainelCliente } from "./caixa/PainelCliente";
 import { useRotas } from "./RotasPainel";
 import { Timeline } from "./Timeline";
-import { Button, IconButton } from "./ui";
+import { Button, IconButton, Icone } from "./ui";
 import { atalhoBloqueado } from "./useListNav";
 
 const CHAVE_PAINEL = "wac-painel-cliente";
@@ -173,7 +172,7 @@ export function GroupWorkspace({
           aria-label={silenciado ? "Deixar de silenciar a conversa" : "Silenciar a conversa"}
           className="max-[860px]:hidden"
         >
-          <Icone nome="silenciar" />
+          <Icone nome="mute" />
         </IconButton>
       )}
       {dono && (
@@ -198,7 +197,7 @@ export function GroupWorkspace({
         aria-label={painelVisivel ? "Fechar o painel do cliente" : "Abrir o painel do cliente"}
         className="max-[860px]:h-10 max-[860px]:w-10"
       >
-        <Icone nome="painel" />
+        <Icone nome="panel" />
       </IconButton>
     </>
   );

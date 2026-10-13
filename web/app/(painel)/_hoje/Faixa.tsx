@@ -1,9 +1,8 @@
 import { Fragment, type ReactNode } from "react";
-import { cn } from "@/app/components/ui";
+import { cn, AnelCheio, Icone } from "@/app/components/ui";
 import type { DadosHoje } from "@/lib/hoje-atual";
 import { textoEntregasAnteriores } from "@/lib/hoje";
 import { partesDoTempo } from "@/lib/painel";
-import { AnelCheio, Icone } from "./icones";
 import { ValorColetor, ValorComIa } from "./Vivos";
 
 /** Texto de apoio ao lado do número, na fonte de interface. */
@@ -64,7 +63,7 @@ export function Faixa({ d }: { d: DadosHoje }) {
         indice={0}
         rotulo={
           <>
-            <Icone nome="atividade" className="text-fg-faint" />
+            <Icone nome="activity" className="text-fg-faint" />
             Coletor
           </>
         }
@@ -93,7 +92,7 @@ export function Faixa({ d }: { d: DadosHoje }) {
         indice={2}
         rotulo={
           <>
-            <Icone nome="ia" className="text-id-ia" />
+            <Icone nome="spark" className="text-id-ia" />
             Com a IA
           </>
         }
@@ -104,7 +103,7 @@ export function Faixa({ d }: { d: DadosHoje }) {
         indice={3}
         rotulo={
           <>
-            <Icone nome="relogio" className="text-fg-faint" />
+            <Icone nome="clock" className="text-fg-faint" />
             Primeira resposta
           </>
         }
@@ -124,7 +123,7 @@ export function Faixa({ d }: { d: DadosHoje }) {
         indice={4}
         rotulo={
           <>
-            <Icone nome="pacote" className="text-fg-faint" />
+            <Icone nome="package" className="text-fg-faint" />
             Entregas em {entregas.nomeMes}
           </>
         }
