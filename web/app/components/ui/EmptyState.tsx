@@ -13,9 +13,9 @@ export function EmptyState({ icon, title, description, className = "" }: EmptySt
   return (
     <div className={cn("flex flex-col items-center px-4 py-12 text-center", className)}>
       {icon && <div className="mb-3 text-fg-faint">{icon}</div>}
-      <p className="text-[14px] font-medium text-fg">{title}</p>
+      <p className="text-sm font-medium text-fg-dim">{title}</p>
       {description && (
-        <div className="mt-1.5 max-w-sm text-[13px] leading-relaxed text-fg-faint">{description}</div>
+        <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-fg-faint">{description}</p>
       )}
     </div>
   );

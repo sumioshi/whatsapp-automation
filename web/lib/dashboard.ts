@@ -13,14 +13,22 @@ import type { EntradaMetrica } from './metricas';
  * é consumido também por componente client (DashboardView), e `./contratos` carrega
  * `node:fs/promises` — importar um valor de lá quebraria o bundle do navegador.
  */
-const CONTRATO_PADRAO_LOCAL: Contrato = { estado: 'sem', inicio: null, fim: null, valorMensal: null, nota: '' };
+const CONTRATO_PADRAO_LOCAL: Contrato = {
+  estado: 'sem',
+  inicio: null,
+  fim: null,
+  valorMensal: null,
+  limiteMensagens: null,
+  nota: '',
+};
 
 export type Sinal =
   | 'encerrado-ativo'
   | 'sem-contrato-ativo'
   | 'pausado-ativo'
   | 'renovacao-30d'
-  | 'sem-entrega-30d';
+  | 'sem-entrega-30d'
+  | 'acima-do-contrato';
 
 export interface LinhaDashboard {
   slug: string;
@@ -53,6 +61,7 @@ const FRASES: Record<Sinal, string> = {
   'pausado-ativo': 'contrato pausado, mas o chat está ativo: retomar ou alinhar a pausa',
   'renovacao-30d': 'contrato vence em até 30 dias: abrir conversa de renovação',
   'sem-entrega-30d': 'cliente ativo e pagando, sem nenhuma entrega registrada em 30 dias',
+  'acima-do-contrato': 'o cliente passou do limite de mensagens do plano em 30 dias: conversar sobre um plano maior',
 };
 
 export function explicarSinal(s: Sinal): string {
@@ -109,6 +118,10 @@ export function montarDashboard(
     if (contrato.estado === 'pausado' && ativo) sinais.push('pausado-ativo');
     if (contrato.estado === 'ativo' && !encerrado && contrato.fim !== null && contrato.fim <= em30d) sinais.push('renovacao-30d');
     if (contrato.estado === 'ativo' && !encerrado && ativo && recentes.length === 0) sinais.push('sem-entrega-30d');
+    // O limite conta só o que o cliente mandou (a demanda dele), não as respostas.
+    if (contrato.estado === 'ativo' && !encerrado && contrato.limiteMensagens !== null && msgsCliente30d > contrato.limiteMensagens) {
+      sinais.push('acima-do-contrato');
+    }
     return {
       slug: e.slug,
       nome: e.nome,

@@ -10,7 +10,7 @@ const ESTADOS: Array<{ id: EstadoContrato; rotulo: string }> = [
   { id: "encerrado", rotulo: "encerrado" },
 ];
 
-const VAZIO: Contrato = { estado: "sem", inicio: null, fim: null, valorMensal: null, nota: "" };
+const VAZIO: Contrato = { estado: "sem", inicio: null, fim: null, valorMensal: null, limiteMensagens: null, nota: "" };
 
 /** Estado comercial do chat, salvo em /api/contratos. Campos vazios viram null. */
 export function ContratoForm({ slug }: { slug: string }) {

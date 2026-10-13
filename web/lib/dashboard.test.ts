@@ -71,6 +71,28 @@ describe('montarDashboard — sinais', () => {
   });
 });
 
+describe('montarDashboard — limite do contrato', () => {
+  it('acima-do-contrato quando as mensagens do cliente em 30 d passam do limite', () => {
+    const d = montarDashboard(
+      [chat('a', 12, 30), chat('b', 10), chat('c', 50), chat('d', 50)],
+      {
+        a: contrato({ estado: 'ativo', limiteMensagens: 10 }),
+        b: contrato({ estado: 'ativo', limiteMensagens: 10 }),
+        c: contrato({ estado: 'ativo' }),
+        d: contrato({ estado: 'pausado', limiteMensagens: 10 }),
+      },
+      [], agora,
+    );
+    const por = Object.fromEntries(d.linhas.map((l) => [l.slug, l.sinais]));
+    // Conta só o que o cliente mandou: as 30 respostas minhas não pesam.
+    expect(por.a).toContain('acima-do-contrato');
+    expect(por.b).not.toContain('acima-do-contrato');
+    expect(por.c).not.toContain('acima-do-contrato');
+    // Pausado já tem o próprio sinal; o limite só vale com contrato rodando.
+    expect(por.d).not.toContain('acima-do-contrato');
+  });
+});
+
 describe('montarDashboard — custos, totais e ordem', () => {
   it('msgs por entrega e valor por entrega; null sem dado', () => {
     const d = montarDashboard(
@@ -105,7 +127,7 @@ describe('montarDashboard — custos, totais e ordem', () => {
     expect(d.linhas.find((l) => l.slug === 'a')?.sinais).toEqual(['encerrado-ativo']);
   });
   it('explicarSinal tem frase pra cada sinal', () => {
-    for (const s of ['encerrado-ativo', 'sem-contrato-ativo', 'pausado-ativo', 'renovacao-30d', 'sem-entrega-30d'] as const) {
+    for (const s of ['encerrado-ativo', 'sem-contrato-ativo', 'pausado-ativo', 'renovacao-30d', 'sem-entrega-30d', 'acima-do-contrato'] as const) {
       expect(explicarSinal(s).length).toBeGreaterThan(10);
     }
   });
