@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Contacts } from "../contacts";
 import type { MessageView } from "../data";
-import { nomeDoOperador, pedeAval, perguntaSeEhIa, revelaAutomacao, travaAutonoma } from "./identidade";
+import { INSTRUCAO_PRIMEIRA_PESSOA, nomeDoOperador, pedeAval, perguntaSeEhIa, revelaAutomacao, travaAutonoma } from "./identidade";
 
 const contatos: Contacts = {
   names: new Map([["5511000000001", "Fulano Silva"]]),
@@ -62,6 +62,76 @@ describe("revelaAutomacao", () => {
   });
 });
 
+describe("revelaAutomacao: o nome do operador sem artigo", () => {
+  it("pega o nome dele como sujeito ou depois de preposição", () => {
+    for (const t of [
+      "Fulano vai ver isso amanhã",
+      "falo com Fulano e te retorno",
+      "Fulano pediu pra avisar que sai amanhã",
+      "amanhã fulano te responde",
+      "vou ver isso aqui\nFulano te chama depois",
+    ]) {
+      expect(revelaAutomacao(t, "Fulano"), t).not.toEqual([]);
+    }
+  });
+
+  it("deixa passar chamamento e apresentação", () => {
+    for (const t of [
+      "Fala Fulano, tudo certo?",
+      "valeu Fulano!",
+      "bom dia Fulano",
+      "Fulano aqui, tudo certo?",
+      "beleza, Fulano",
+      "pode testar, Fulano?",
+      "Fulano!",
+      "sou Fulano, do projeto",
+    ]) {
+      expect(revelaAutomacao(t, "Fulano"), t).toEqual([]);
+    }
+  });
+});
+
+describe("revelaAutomacao: sobrenome do operador", () => {
+  it("pega o sobrenome dele na terceira pessoa", () => {
+    expect(revelaAutomacao("o Souza vai ver isso", "Fulano Souza")).not.toEqual([]);
+    expect(revelaAutomacao("Souza já liberou", "Fulano Souza")).not.toEqual([]);
+  });
+
+  it("deixa passar o nome completo na apresentação e o sobrenome de outra pessoa", () => {
+    for (const t of ["aqui é o Fulano Souza", "sou o Fulano Souza, do projeto", "falei com a Maria Souza do financeiro"]) {
+      expect(revelaAutomacao(t, "Fulano Souza"), t).toEqual([]);
+    }
+  });
+
+  it("continua pegando o primeiro nome quando vem o nome completo", () => {
+    expect(revelaAutomacao("vou ver com o Fulano e te aviso", "Fulano Souza")).not.toEqual([]);
+    expect(revelaAutomacao("Fulano Souza vai te chamar", "Fulano Souza")).not.toEqual([]);
+  });
+});
+
+describe("revelaAutomacao: chefe e dono", () => {
+  it("pega quem fala como se tivesse chefe ou dono acima", () => {
+    for (const t of ["o dono vai te responder", "meu chefe pediu pra avisar", "a dona tá vendo isso", "minha gestora já aprovou", "o responsável vai te chamar"]) {
+      expect(revelaAutomacao(t), t).not.toEqual([]);
+    }
+  });
+
+  it("deixa passar o dono ou o responsável do lado do cliente", () => {
+    for (const t of ["o dono da loja pediu o relatório", "o responsável pelo servidor de vocês", "quem é o responsável aí?"]) {
+      expect(revelaAutomacao(t), t).toEqual([]);
+    }
+  });
+});
+
+describe("INSTRUCAO_PRIMEIRA_PESSOA", () => {
+  it("lembra a primeira pessoa e sugere uma saída que a revisão deixa passar", () => {
+    expect(INSTRUCAO_PRIMEIRA_PESSOA).toMatch(/primeira pessoa/);
+    expect(INSTRUCAO_PRIMEIRA_PESSOA).toMatch(/vou ver aqui/);
+    expect(revelaAutomacao("vou ver aqui", "Fulano Souza")).toEqual([]);
+    expect(pedeAval("vou ver aqui")).toEqual([]);
+  });
+});
+
 describe("perguntaSeEhIa", () => {
   it("reconhece o contato desconfiando da conversa", () => {
     for (const t of ["tá falando comigo por ia né", "isso é bot?", "vc é robô kkk", "é você mesmo ou é o chatgpt?", "tá respondendo automático?"]) {
@@ -95,7 +165,9 @@ describe("travaAutonoma", () => {
     const msgs = [msg({ de: "eu", text: "pronto", origem: "coletor", ts: T(5) }), msg({ de: "cliente", text: "tá falando comigo por ia né", ts: T(10) })];
     const t = travaAutonoma(msgs, contatos, agora);
     expect(t?.regra).toBe("perguntou_ia");
-    expect(t?.motivo).toMatch(/alertar_chat/);
+    // o aviso do alertar_chat depende do notificador local; o motivo não amarra o canal
+    expect(t?.motivo).toMatch(/chame o operador/);
+    expect(t?.motivo).not.toMatch(/alertar_chat/);
   });
 
   it("libera depois que o operador respondeu na mão e a janela passou", () => {
@@ -109,8 +181,8 @@ describe("travaAutonoma", () => {
 });
 
 describe("nomeDoOperador", () => {
-  it("usa a variável de ambiente ou o nome do próprio contato", () => {
-    expect(nomeDoOperador(contatos, { WAC_NOME_OPERADOR: "Beltrano Souza" })).toBe("Beltrano");
+  it("usa a variável de ambiente inteira (nome e sobrenome) ou o primeiro nome do próprio contato", () => {
+    expect(nomeDoOperador(contatos, { WAC_NOME_OPERADOR: "Beltrano Souza" })).toBe("Beltrano Souza");
     expect(nomeDoOperador(contatos, {})).toBe("Fulano");
     expect(nomeDoOperador(undefined, {})).toBeUndefined();
   });

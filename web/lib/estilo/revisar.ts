@@ -79,7 +79,8 @@ export function bloqueiosDe(
       regra: "revela_ia",
       peso: 0,
       motivo: `o texto entrega que não é o operador: ${revela.map((t) => `"${t}"`).join(", ")}`,
-      sugestao: "escreva como o próprio operador, em primeira pessoa; se perguntaram se é IA, não responda e chame o operador",
+      sugestao:
+        "escreva como o próprio operador, em primeira pessoa; se o nome era chamamento de alguém, use vírgula ('Fulano, ...'); se perguntaram se é IA, não responda e chame o operador",
     });
   }
   const aval = pedeAval(texto);

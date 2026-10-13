@@ -45,7 +45,7 @@ import { selectNew } from "../lib/novidades";
 import { baselineDoChat, carregarBaselinePadrao, contextoDeEscrita, type ContextoEscrita } from "../lib/estilo/contexto";
 import { resumirEstilo } from "../lib/estilo/resumo";
 import { revisar, type Revisao } from "../lib/estilo/revisar";
-import { travaAutonoma, type Trava } from "../lib/estilo/identidade";
+import { INSTRUCAO_PRIMEIRA_PESSOA, travaAutonoma, type Trava } from "../lib/estilo/identidade";
 import { escolherCandidato } from "../lib/estilo/escolher";
 import { registrarRevisao } from "../lib/estilo/registro";
 import {
@@ -823,7 +823,7 @@ server.registerTool(
       const { slug, label, jid, ctx, modo } = await contextoDoChat(grupo);
       const estilo = resumirEstilo(ctx.ultimasMinhas, ctx.baseline);
       const e = ctx.estado;
-      const instrucoes = [...estilo.instrucoes];
+      const instrucoes = [INSTRUCAO_PRIMEIRA_PESSOA, ...estilo.instrucoes];
       if (e.estado === "fria" && (ctx.intervaloDesdeMinhaUltima_s ?? Infinity) > 4 * 3600) instrucoes.push("conversa fria há horas: saudação curta cabe");
       if (e.estado === "ativa") instrucoes.push("conversa ativa: entra direto no assunto, sem saudação");
       if (e.perguntasAbertas.length) instrucoes.push(`cliente deixou ${e.perguntasAbertas.length} pergunta(s) em aberto: responde uma e, se precisar, diz quando vem o resto`);

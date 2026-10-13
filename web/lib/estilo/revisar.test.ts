@@ -24,6 +24,14 @@ describe("revisar — bloqueios", () => {
     const antigo = revisar({ ...ctx, ultimasMinhas: ["bom dia irmão"], baloes: ["bom dia irmão"] });
     expect(antigo.bloqueios).toEqual([]);
   });
+
+  it("o nome do operador sem artigo bloqueia mesmo com ignorarScore, e a sugestão ensina a vírgula do chamamento", () => {
+    const r = revisar({ ...ctx, nomeOperador: "Fulano Souza", baloes: ["Fulano vai ver isso amanhã"], ignorarScore: true });
+    expect(r.ok).toBe(false);
+    expect(r.bloqueios.map((b) => b.regra)).toEqual(["revela_ia"]);
+    expect(r.bloqueios[0]?.sugestao).toMatch(/vírgula/);
+    expect(revisar({ ...ctx, nomeOperador: "Fulano Souza", baloes: ["Fulano, vai ver isso amanhã?"] }).bloqueios).toEqual([]);
+  });
 });
 
 describe("revisar — score", () => {

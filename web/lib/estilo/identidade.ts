@@ -25,12 +25,23 @@ const REVELA: RegExp[] = [
   // "a IA tá respondendo", "o bot que fica atendendo"
   new RegExp(`${I}${ART}${IA}\\s+(?:que\\s+)?(?:t[áa]|est[áa]|fica|ficou|vai)\\s+(?:respondendo|falando|atendendo)${F}`, "iu"),
   new RegExp(`${I}(?:resposta|mensagem|atendimento) autom[áa]tic[oa]${F}`, "iu"),
+  // "meu chefe pediu", "minha gestora aprovou": quem fala é o dono, não tem chefe
+  new RegExp(`${I}(?:meu|minha)\\s+(?:chefe|patr[ãa]o|patroa|gestora?|superior)${F}`, "iu"),
+  // "o dono vai te responder", "o responsável vai te chamar": o dono falando de si como outro
+  new RegExp(
+    `${I}(?:o|a)\\s+(?:dono|dona|chefe|patr[ãa]o|patroa|respons[áa]vel)\\s+(?:j[áa]\\s+)?(?:vai|vem|volta|te|j[áa]|responde|chama|liga|fala|v[êe]|pediu|mandou|disse|falou|t[áa]|est[áa]|aprovou|liberou)${F}`,
+    "iu",
+  ),
 ];
 
-/** Primeiro nome do operador: `WAC_NOME_OPERADOR` ou o nome do próprio contato. */
+/** Lembrete do `preparar_resposta`: quem escreve é o operador, sempre em primeira pessoa. */
+export const INSTRUCAO_PRIMEIRA_PESSOA =
+  "você escreve como o próprio operador, em primeira pessoa: nunca fale dele como outra pessoa ('vou ver com fulano', '<nome dele> vai ver', 'ele te responde', 'o dono', 'meu chefe'); pra ganhar tempo, 'vou ver aqui'";
+
+/** Nome do operador: `WAC_NOME_OPERADOR` inteiro (nome e sobrenomes) ou o primeiro nome do próprio contato. */
 export function nomeDoOperador(contatos?: Contacts, env: Record<string, string | undefined> = process.env): string | undefined {
   const fixo = env.WAC_NOME_OPERADOR?.trim();
-  if (fixo) return fixo.split(/\s+/)[0];
+  if (fixo) return fixo.replace(/\s+/g, " ");
   if (!contatos) return undefined;
   for (const id of contatos.ownIds) {
     const n = nameOf(contatos, id).trim();
@@ -41,10 +52,47 @@ export function nomeDoOperador(contatos?: Contacts, env: Record<string, string |
 
 const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const PARTICULAS = new Set(["de", "da", "do", "das", "dos", "e", "di", "du", "van", "von", "der"]);
+/** Artigo logo antes do nome: caso da regra "o <nome>", que já trata a apresentação. */
+const ANTES_ARTIGO = new RegExp(`${I}(?:o|do|pro|pelo|no|ao)\\s+$`, "iu");
+/** Apresentação sem artigo: "sou <nome>", "aqui é <nome>". */
+const ANTES_APRESENTACAO = new RegExp(`${I}(?:[ée]|sou|eu sou|aqui [ée]|quem fala [ée])\\s+$`, "iu");
+/** Cumprimento ou agradecimento logo antes: o nome é chamamento ("fala <nome>"). */
+const ANTES_CHAMAMENTO = new RegExp(
+  `${I}(?:oi+|ol[áa]+|fala+|opa+|e a[íi]|eae|eai|bom dia|boa tarde|boa noite|valeu|vlw|obrigad[oa]|brigad[oa]|tmj|salve|ei|hey|beleza|blz|tudo (?:bem|certo|bom|joia))[\\s,!.]*$`,
+  "iu",
+);
+
+/**
+ * O nome sem artigo também é terceira pessoa ("<nome> vai ver", "falo com
+ * <nome>"). Passa o chamamento ("fala <nome>", "<nome>, tudo certo?", "beleza,
+ * <nome>"), a apresentação ("sou <nome>", "<nome> aqui") e, no sobrenome, o
+ * nome completo de outra pessoa ("a Maria <sobrenome>").
+ */
+function mencoesSemArtigo(texto: string, nome: string, sobrenome: boolean): string[] {
+  const trechos: string[] = [];
+  const re = new RegExp(`${I}${escapar(nome)}${F}`, "giu");
+  for (const linha of texto.split("\n")) {
+    for (const m of linha.matchAll(re)) {
+      const antes = linha.slice(0, m.index);
+      const depois = linha.slice((m.index ?? 0) + m[0].length);
+      if (ANTES_ARTIGO.test(antes) || ANTES_APRESENTACAO.test(antes) || ANTES_CHAMAMENTO.test(antes)) continue;
+      if (/^\s+aqui(?![\p{L}\d])/iu.test(depois)) continue;
+      if (antes.trim() === "" && (depois.trim() === "" || /^\s*[,!?.:;]/.test(depois))) continue;
+      if (/,\s*$/.test(antes) && (depois.trim() === "" || /^\s*[!?.]/.test(depois))) continue;
+      if (sobrenome && /\p{Lu}\p{L}*\s+$/u.test(antes)) continue;
+      const seguinte = depois.match(/^\s+([\p{L}\d]+)/u)?.[1];
+      trechos.push(seguinte ? `${m[0]} ${seguinte}` : m[0]);
+    }
+  }
+  return trechos;
+}
+
 /**
  * Trechos do rascunho que revelam a automação: o agente dizendo que é IA ou
- * falando do operador na terceira pessoa ("o <nome> já liberou"). Apresentar-se
- * ("é o <nome>", "sou o <nome>") é primeira pessoa e passa.
+ * falando do operador na terceira pessoa ("o <nome> já liberou", "<nome> vai
+ * ver"), pelo primeiro nome ou pelo sobrenome. Apresentar-se ("é o <nome>",
+ * "sou o <nome>") é primeira pessoa e passa.
  */
 export function revelaAutomacao(texto: string, nomeOperador?: string): string[] {
   const trechos: string[] = [];
@@ -53,9 +101,17 @@ export function revelaAutomacao(texto: string, nomeOperador?: string): string[] 
     if (m) trechos.push(m[0]);
   }
   if (nomeOperador) {
-    const re = new RegExp(`${I}(?<!${I}(?:[ée]|sou|aqui [ée]|quem fala [ée])\\s)(?:o|do|pro|pelo|no|ao|com o)\\s+${escapar(nomeOperador)}${F}`, "iu");
-    const m = texto.match(re);
-    if (m) trechos.push(m[0]);
+    const [primeiro, ...resto] = nomeOperador.trim().split(/\s+/);
+    const partes: Array<[string, boolean]> = [
+      [primeiro, false],
+      ...resto.filter((p) => p.length >= 3 && !PARTICULAS.has(p.toLowerCase())).map((p): [string, boolean] => [p, true]),
+    ];
+    for (const [nome, sobrenome] of partes) {
+      const re = new RegExp(`${I}(?<!${I}(?:[ée]|sou|aqui [ée]|quem fala [ée])\\s)(?:o|do|pro|pelo|no|ao|com o)\\s+${escapar(nome)}${F}`, "iu");
+      const m = texto.match(re);
+      if (m) trechos.push(m[0]);
+      trechos.push(...mencoesSemArtigo(texto, nome, sobrenome));
+    }
   }
   return trechos;
 }
@@ -133,7 +189,7 @@ export function travaAutonoma(msgs: MessageView[], contatos: Contacts, agora: Da
   if (pergunta) {
     return {
       regra: "perguntou_ia",
-      motivo: `o contato perguntou se é IA ("${pergunta.text.trim().slice(0, 80)}"). Não responda isso nem nada mais: chame o operador (alertar_chat) e espere ele responder na mão`,
+      motivo: `o contato perguntou se é IA ("${pergunta.text.trim().slice(0, 80)}"). Não responda isso nem nada mais: chame o operador e espere ele responder na mão`,
     };
   }
   return null;
