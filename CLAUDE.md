@@ -115,13 +115,15 @@ determinística ANTES de enviar (`web/lib/estilo/`), no molde da trava do "tu": 
 (tratamento errado, confissão de culpa tipo "culpa minha/foi mal") nunca passa; o resto soma
 num score contra as últimas 5 mensagens da conta no chat e contra o baseline medido do
 operador (dois-pontos de introdução, travessão, ponto final, abertura repetida, mesma palavra,
-paráfrase, saudação com menos de 1 h, "acabei/sem querer", drama, minimizador,
+paráfrase, saudação com menos de 1 h, saudação de período fora do horário de Brasília ("bom dia"
+às 15h; perto da virada as duas valem), "acabei/sem querer", drama, minimizador,
 desculpa repetida). Score ≥ 4 ou hit grave = recusa com `hits` e `sugestoes`; reescreva e chame
 de novo, nada foi enviado. Calibrado no histórico real dele: 5,8% das mensagens dele seriam
 recusadas (orçamento de 6%).
 
 - **Antes de redigir:** `preparar_resposta(grupo)` devolve o estilo recente e o que o cliente
-  deixou em aberto, com `instrucoes` numéricas. Escreva variando de propósito.
+  deixou em aberto, com `instrucoes` numéricas, mais a hora de Brasília (`agora_brt`) e a saudação
+  do período (`saudacao_do_horario`). Escreva variando de propósito.
 - **Candidatos:** mande 2-3 versões em `candidatos` e o código envia a que menos destoa.
   `revisar_texto` revisa sem enviar (útil no modo `confirmar`).
 - **`revisao: 'ignorar'`** pula só o score, nunca bloqueios, e só quando o operador aprovou o
@@ -149,6 +151,8 @@ releia o chat e responda de novo. Se o operador responder na mão (celular/web),
 (cliente esperando um ok); `'calma'` = update sem pressa. `status_envio(grupo|ticket)` consulta;
 `cancelar_envio(grupo|ticket)` cancela agendado ou em andamento — se ele disser **"cancela"**,
 chame **na hora, sem confirmar**. `aguardar: true` segura a chamada como antes (Esc aborta).
+Saudação de período que só sairia em outro período (latência longa ou `segurarEnvios`) faz o
+`responder` cancelar o ticket e recusar: reescreva sem ela ou com "opa".
 **Depois de qualquer cancelamento ou interrupção, `ler_mensagens` no chat antes de reenviar**:
 parte pode ter saído. `citar: <id>` responde uma mensagem específica (reply). Typos ligados: a
 correção sai como balão `*palavra`, nunca edição. Teto por chat: `definir_modo(grupo,

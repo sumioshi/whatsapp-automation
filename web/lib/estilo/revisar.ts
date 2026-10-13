@@ -7,6 +7,7 @@ import { avisoDeTratamento, tratamentoErrado } from "../voz-guard";
 import { type Culpa, contarDesculpas, detectarCulpa } from "./culpa";
 import { pedeAval, revelaAutomacao } from "./identidade";
 import type { EntradaRepeticao, Hit } from "./repeticao";
+import { horaBrt, saudacaoForaDoHorario } from "./saudacao";
 import { scoreRepeticao } from "./repeticao";
 import { detectarTells, type TellId } from "./tells";
 
@@ -14,8 +15,10 @@ export interface EntradaRevisao extends EntradaRepeticao {
   ignorarScore?: boolean;
   /** Mensagens da conta nos últimos minutos: balão idêntico a uma delas é bloqueio. */
   minhasRecentes?: string[];
-  /** Primeiro nome do operador: citá-lo na terceira pessoa entrega a automação. */
+  /** Nome do operador: citá-lo na terceira pessoa entrega a automação. */
   nomeOperador?: string;
+  /** Hora em que o texto é escrito. Ausente (edição de mensagem antiga) = não confere a saudação do horário. */
+  agora?: Date;
 }
 
 /** Compara balões ignorando caixa, espaços e pontuação final (mesma regra do coletor). */
@@ -109,6 +112,15 @@ export function revisar(e: EntradaRevisao): Revisao {
       minimizador += c.peso;
       hits.push({ regra: "minimizador", peso: c.peso, motivo: `minimiza: "${c.trecho}"`, sugestao: c.sugestao });
     } else if (c.grupo === "F") hits.push({ regra: "sem_alternativa", peso: c.peso, motivo: `"${c.trecho}" sem dizer o que dá`, sugestao: c.sugestao });
+  }
+  const fora = e.agora ? saudacaoForaDoHorario(texto, e.agora) : null;
+  if (fora && e.agora) {
+    hits.push({
+      regra: "saudacao_horario",
+      peso: 3,
+      motivo: `'${fora.usada}' às ${horaBrt(e.agora)} em Brasília`,
+      sugestao: `agora é '${fora.cabe}', ou entra sem saudação de período`,
+    });
   }
   const desculpasAgora = contarDesculpas(texto);
   const desculpasRecentes = e.ultimasMinhas.reduce((a, m) => a + contarDesculpas(m), 0);

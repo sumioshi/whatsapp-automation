@@ -34,6 +34,24 @@ describe("revisar — bloqueios", () => {
   });
 });
 
+describe("revisar — saudação do horário", () => {
+  it("saudação fora do horário de Brasília recusa e diz qual cabe; com ignorarScore passa", () => {
+    const tarde = new Date("2026-10-13T15:00:00-03:00");
+    const r = revisar({ ...ctx, agora: tarde, baloes: ["Bom dia! subiu a correção"] });
+    expect(r.ok).toBe(false);
+    expect(r.hits.map((h) => h.regra)).toContain("saudacao_horario");
+    expect(r.sugestoes.join(" ")).toMatch(/boa tarde/);
+    expect(revisar({ ...ctx, agora: tarde, baloes: ["Bom dia! subiu a correção"], ignorarScore: true }).ok).toBe(true);
+  });
+
+  it("sem `agora` (edição de mensagem antiga) não confere o horário", () => {
+    const r = revisar({ ...ctx, baloes: ["Bom dia! subiu a correção"] });
+    expect(r.hits.map((h) => h.regra)).not.toContain("saudacao_horario");
+    const manha = revisar({ ...ctx, agora: new Date("2026-10-13T09:00:00-03:00"), baloes: ["Bom dia! subiu a correção"] });
+    expect(manha.hits.map((h) => h.regra)).not.toContain("saudacao_horario");
+  });
+});
+
 describe("revisar — score", () => {
   it("rascunho limpo passa com score 0", () => {
     const r = revisar({ ...ctx, baloes: ["subi o ajuste, pode testar quando puder?"] });

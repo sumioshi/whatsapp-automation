@@ -46,6 +46,7 @@ import { baselineDoChat, carregarBaselinePadrao, contextoDeEscrita, type Context
 import { resumirEstilo } from "../lib/estilo/resumo";
 import { revisar, type Revisao } from "../lib/estilo/revisar";
 import { INSTRUCAO_PRIMEIRA_PESSOA, travaAutonoma, type Trava } from "../lib/estilo/identidade";
+import { horaBrt, instrucaoDeSaudacao, saudacaoDoHorario, saudacaoNaEntrega } from "../lib/estilo/saudacao";
 import { escolherCandidato } from "../lib/estilo/escolher";
 import { registrarRevisao } from "../lib/estilo/registro";
 import {
@@ -823,8 +824,9 @@ server.registerTool(
       const { slug, label, jid, ctx, modo } = await contextoDoChat(grupo);
       const estilo = resumirEstilo(ctx.ultimasMinhas, ctx.baseline);
       const e = ctx.estado;
+      const agora = new Date();
       const instrucoes = [INSTRUCAO_PRIMEIRA_PESSOA, ...estilo.instrucoes];
-      if (e.estado === "fria" && (ctx.intervaloDesdeMinhaUltima_s ?? Infinity) > 4 * 3600) instrucoes.push("conversa fria há horas: saudação curta cabe");
+      if (e.estado === "fria" && (ctx.intervaloDesdeMinhaUltima_s ?? Infinity) > 4 * 3600) instrucoes.push(`conversa fria há horas: saudação curta cabe; ${instrucaoDeSaudacao(agora)}`);
       if (e.estado === "ativa") instrucoes.push("conversa ativa: entra direto no assunto, sem saudação");
       if (e.perguntasAbertas.length) instrucoes.push(`cliente deixou ${e.perguntasAbertas.length} pergunta(s) em aberto: responde uma e, se precisar, diz quando vem o resto`);
       if (e.operadorRespondeuNaMao) instrucoes.push("o operador respondeu na mão há pouco: não repita nem responda por cima");
@@ -841,6 +843,8 @@ server.registerTool(
       return text({
         destino: label,
         modo,
+        agora_brt: horaBrt(agora),
+        saudacao_do_horario: saudacaoDoHorario(agora),
         estado_conversa: e,
         estilo_recente: estilo,
         baseline: { origem: ctx.baseline.origem, n: ctx.baseline.n },
@@ -868,7 +872,7 @@ server.registerTool(
   async ({ grupo, baloes }) => {
     try {
       const { ctx } = await contextoDoChat(grupo);
-      return text(revisar({ ...ctx, baloes: baloes.map((b) => b.trim()).filter(Boolean) }));
+      return text(revisar({ ...ctx, agora: new Date(), baloes: baloes.map((b) => b.trim()).filter(Boolean) }));
     } catch (err) {
       return fail(err instanceof Error ? err.message : "falha ao revisar");
     }
@@ -995,7 +999,7 @@ server.registerTool(
         // índices de `escolhido`/`descartados` e o registro de calibração.
         const vazio = cands.findIndex((c) => !c.length);
         if (vazio >= 0) return fail(`candidato ${vazio} está vazio; mande só candidatos com texto`);
-        const r = escolherCandidato(cands, { ...ctx, ignorarScore });
+        const r = escolherCandidato(cands, { ...ctx, ignorarScore, agora: new Date() });
         if (r.indice < 0) {
           void registrarRevisao(DATA_DIR, {
             ts: new Date().toISOString(),
@@ -1021,7 +1025,7 @@ server.registerTool(
           .filter((d) => d.indice !== r.indice);
       } else {
         const baloesRascunho = lista.length ? lista : [texto];
-        rev = revisar({ ...ctx, baloes: baloesRascunho, ignorarScore });
+        rev = revisar({ ...ctx, baloes: baloesRascunho, ignorarScore, agora: new Date() });
         if (!rev.ok) {
           void registrarRevisao(DATA_DIR, {
             ts: new Date().toISOString(),
@@ -1062,6 +1066,25 @@ server.registerTool(
         },
         { signal: extra.signal },
       );
+      // A entrega sai com latência humana: saudação de período que só sairia no
+      // período seguinte ("bom dia" às 12h40) é cancelada antes do primeiro balão.
+      const avisoSaudacao = r.ticket && aguardar !== true ? saudacaoNaEntrega(texto, r.entregarEm) : null;
+      if (avisoSaudacao && r.ticket) {
+        const c = await dsCancelarEnvio({ ticket: r.ticket }).catch(() => null);
+        void registrarRevisao(DATA_DIR, {
+          ts: new Date().toISOString(),
+          slug,
+          tool: "responder",
+          score: rev.score,
+          hits: [...rev.hits.map((h) => h.regra), "saudacao_na_entrega"],
+          bloqueios: [],
+          enviado: false,
+          ...(candidatos ? { candidatos: candidatos.length, escolhido } : {}),
+        });
+        return fail(
+          `${avisoSaudacao}. ${c?.cancelado ? "Cancelei a entrega; nada desta mensagem saiu" : "Não consegui cancelar: confira com status_envio antes de reenviar"}. Reescreva e chame de novo.`,
+        );
+      }
       void registrarRevisao(DATA_DIR, {
         ts: new Date().toISOString(),
         slug,
@@ -1159,7 +1182,7 @@ server.registerTool(
       const travado = recusaAutonoma(modo, trava, "enviado");
       if (travado) return travado;
       if (caption?.trim()) {
-        const rev = revisar({ ...ctx, baloes: [caption.trim()] });
+        const rev = revisar({ ...ctx, agora: new Date(), baloes: [caption.trim()] });
         if (!rev.ok) return fail(`revisão recusou a legenda (${rev.resumo}); nada foi enviado. Sugestões: ${rev.sugestoes.join("; ")}.`);
       }
       const { jid, label } = await resolveDestino(grupo);
