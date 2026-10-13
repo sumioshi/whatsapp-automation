@@ -1,3 +1,5 @@
+import { diaBrt } from './agenda-semana';
+import type { Role } from './contacts';
 import type { Contrato } from './contratos';
 import type { Feature } from './features';
 import type { EntradaMetrica } from './metricas';
@@ -68,8 +70,12 @@ export function explicarSinal(s: Sinal): string {
   return FRASES[s];
 }
 
-function ymd(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
+/**
+ * Demanda do cliente: mensagem que não é minha nem de alguém do time. Sem papel
+ * informado, o que não é meu conta como cliente (a leitura de antes do papel).
+ */
+export function ehDoCliente(m: { fromMe?: boolean; papel?: Role }): boolean {
+  return !m.fromMe && (m.papel ?? 'client') === 'client';
 }
 
 /** Contrato cuja data de fim já passou (comparação de string YYYY-MM-DD, sem fuso). */
@@ -84,8 +90,9 @@ export function montarDashboard(
   agoraMs: number,
 ): Dashboard {
   const inicio = agoraMs - JANELA_MS;
-  const hoje = ymd(agoraMs);
-  const em30d = ymd(agoraMs + JANELA_MS);
+  // O dia é o de Brasília: às 22 h do último dia o contrato ainda vale, como em Clientes.
+  const hoje = diaBrt(agoraMs);
+  const em30d = diaBrt(agoraMs + JANELA_MS);
   const porSlug = new Map<string, Feature[]>();
   for (const f of features) {
     const lista = porSlug.get(f.slug) ?? [];
@@ -100,7 +107,7 @@ export function montarDashboard(
       const ts = Date.parse(m.timestamp);
       if (Number.isNaN(ts) || ts < inicio || ts > agoraMs) continue;
       msgs30d++;
-      if (!m.fromMe) msgsCliente30d++;
+      if (ehDoCliente(m)) msgsCliente30d++;
     }
     const contrato = contratos[e.slug] ?? CONTRATO_PADRAO_LOCAL;
     const fs = porSlug.get(e.slug) ?? [];
