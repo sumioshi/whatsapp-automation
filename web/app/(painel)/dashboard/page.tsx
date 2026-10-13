@@ -1,6 +1,6 @@
 import { CabecalhoPagina, Card, CorpoPagina, Grade12, Segmentado, Icone } from "@/app/components/ui";
 import { montarDashboardAtual } from "@/lib/dashboard-atual";
-import { listGroups } from "@/lib/data";
+import { conversasDaRequisicao } from "@/lib/caixa-dados";
 import { sinaisDoDia } from "@/lib/hoje";
 import { buildInbox } from "@/lib/inbox";
 import { PERIODOS, periodoDe, rodapesDosIndicadores } from "@/lib/painel";
@@ -32,7 +32,8 @@ export default async function PainelPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const periodo = periodoDe((await searchParams).periodo);
-  const [p, dados, inbox, grupos] = await Promise.all([painelAtual(periodo), montarDashboardAtual(), buildInbox(), listGroups()]);
+  const grupos = await conversasDaRequisicao();
+  const [p, dados, inbox] = await Promise.all([painelAtual(periodo), montarDashboardAtual(), buildInbox({ grupos })]);
   const rodapes = rodapesDosIndicadores(p);
   const sinais = sinaisDoDia(dados.linhas, inbox, Date.now());
   const fotos = Object.fromEntries(grupos.map((g) => [g.slug, g.avatarPath]));

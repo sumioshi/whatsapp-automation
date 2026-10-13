@@ -1,6 +1,7 @@
 import { join } from 'node:path';
+import { conversasDaRequisicao } from './caixa-dados';
 import { buildContacts, numberFromJid, roleOf } from './contacts';
-import { listGroups, readGroupRecords } from './data';
+import { readGroupRecords } from './data';
 import { listarFeatures } from './features';
 import { cachedByStat } from './file-cache';
 import {
@@ -51,14 +52,15 @@ async function transicoesDaFila(): Promise<TransicaoDaFila[]> {
 /**
  * As conversas de trabalho com cada mensagem já classificada (cliente, você no
  * celular, você no painel, equipe, IA). Varre todos os chats, por isso fica
- * 60 s em memória; Hoje e Painel leem daqui. O dono é o `PANEL_USER`: envio do
- * painel carimbado com outro login é da equipe. Saída do coletor sem carimbo só é da IA dentro de uma entrega da fila.
+ * 60 s em memória; Hoje e Painel leem daqui, sobre a lista de conversas da
+ * requisição. O dono é o `PANEL_USER`: envio do painel carimbado com outro login
+ * é da equipe. Saída do coletor sem carimbo só é da IA dentro de uma entrega da fila.
  */
 export async function conversasDoAtendimento(): Promise<ConversaPainel[]> {
   const agora = Date.now();
   if (cache && agora - cache.emMs < CACHE_MS) return cache.valor;
   const [grupos, triagem, contatos, transicoes] = await Promise.all([
-    listGroups(),
+    conversasDaRequisicao(),
     readTriage(),
     buildContacts(),
     transicoesDaFila(),

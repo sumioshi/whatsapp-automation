@@ -2,7 +2,7 @@ import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readStatus } from './config';
 import { montarDashboardAtual } from './dashboard-atual';
-import { listGroups } from './data';
+import { conversasDaRequisicao } from './caixa-dados';
 import { listarFeatures } from './features';
 import {
   type ContratoNoLimite,
@@ -97,9 +97,10 @@ async function transicoesRecentes(): Promise<Array<{ ts: string; ticket: string;
 /** Tudo o que a tela Hoje mostra e mora no disco do painel (agenda e fila vêm do navegador). */
 export async function montarHojeAtual(): Promise<DadosHoje> {
   const agoraMs = Date.now();
-  const [grupos, inbox, status, dashboard, features, triagem, conversas, transicoes] = await Promise.all([
-    listGroups(),
-    buildInbox(),
+  // Uma leitura da lista de conversas por requisição: a casca, a caixa e as contas dividem a mesma.
+  const grupos = await conversasDaRequisicao();
+  const [inbox, status, dashboard, features, triagem, conversas, transicoes] = await Promise.all([
+    buildInbox({ grupos }),
     readStatus(),
     montarDashboardAtual(),
     listarFeatures(),
