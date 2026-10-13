@@ -138,7 +138,7 @@ export function GroupWorkspace({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey || atalhoBloqueado()) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || atalhoBloqueado(e)) return;
       if (e.key === "]") {
         e.preventDefault();
         alternarPainel();

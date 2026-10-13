@@ -4,13 +4,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRotas } from "./RotasPainel";
 import { useRouter } from "next/navigation";
 
-/** Bloqueia os atalhos de uma letra quando o foco está num campo ou há um diálogo aberto. */
-export function atalhoBloqueado(): boolean {
-  const el = document.activeElement as HTMLElement | null;
-  if (el) {
-    const tag = el.tagName.toLowerCase();
-    if (tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable) return true;
-  }
+function ehCampo(el: HTMLElement | null): boolean {
+  if (!el?.tagName) return false;
+  const tag = el.tagName.toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable;
+}
+
+/**
+ * Bloqueia os atalhos de uma letra quando o foco está num campo, há um diálogo
+ * aberto ou a tecla já foi tratada por quem estava embaixo (a paleta ⌘K fecha
+ * no próprio Enter, antes de a tecla chegar aqui).
+ */
+export function atalhoBloqueado(e?: KeyboardEvent): boolean {
+  if (e?.defaultPrevented || ehCampo(e?.target as HTMLElement | null)) return true;
+  if (ehCampo(document.activeElement as HTMLElement | null)) return true;
   return Boolean(document.querySelector('[role="dialog"][aria-modal="true"]'));
 }
 
@@ -60,7 +67,7 @@ export function useListNav(
 
   const mover = useCallback(
     (e: KeyboardEvent, delta: number) => {
-      if (atalhoBloqueado() || itens.length === 0) return;
+      if (atalhoBloqueado(e) || itens.length === 0) return;
       e.preventDefault();
       setNavIndex((i) => {
         const next = i < 0 ? (delta > 0 ? 0 : itens.length - 1) : Math.max(0, Math.min(itens.length - 1, i + delta));
@@ -73,7 +80,7 @@ export function useListNav(
 
   const abrir = useCallback(
     (e: KeyboardEvent) => {
-      if (atalhoBloqueado()) return;
+      if (atalhoBloqueado(e)) return;
       const alvo = itens[navIndex];
       // Enter num botão ou link fora da fila é do próprio elemento; numa linha da fila, vale o cursor.
       const foco = document.activeElement as HTMLElement | null;
@@ -87,7 +94,7 @@ export function useListNav(
 
   const proximaNaoLida = useCallback(
     (e: KeyboardEvent) => {
-      if (atalhoBloqueado() || itens.length === 0) return;
+      if (atalhoBloqueado(e) || itens.length === 0) return;
       e.preventDefault();
       for (let i = 1; i <= itens.length; i++) {
         const idx = (navIndex + i) % itens.length;
