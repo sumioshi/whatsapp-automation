@@ -6,6 +6,7 @@ import {
   diasDoPeriodo,
   entregasPorMes,
   faixasDeResposta,
+  janelasDaFila,
   mediana,
   type MsgAtendimento,
   montarPainel,
@@ -37,17 +38,64 @@ describe('autorDaMensagem', () => {
     const minha = { fromMe: true, papel: 'me' as const };
     expect(autorDaMensagem({ ...minha, origem: 'celular' }, 'dono')).toBe('celular');
     expect(autorDaMensagem({ ...minha, origem: 'web' }, 'dono')).toBe('celular');
-    expect(autorDaMensagem({ ...minha, origem: 'coletor' }, 'dono')).toBe('ia');
+    expect(autorDaMensagem({ ...minha, origem: 'coletor', daFila: true }, 'dono')).toBe('ia');
     expect(autorDaMensagem({ ...minha, origem: 'ia_meta' }, 'dono')).toBe('ia');
     expect(autorDaMensagem({ ...minha, origem: 'coletor', ator: 'painel', usuario: 'dono' }, 'dono')).toBe('painel');
     expect(autorDaMensagem({ ...minha, origem: 'coletor', ator: 'painel', usuario: 'ana' }, 'dono')).toBe('equipe');
     expect(autorDaMensagem(minha, 'dono')).toBe('sem-registro');
+  });
+  it('saída do coletor sem carimbo só é da IA se veio de uma entrega da fila', () => {
+    // Antes do carimbo do painel, a resposta do operador pelo painel também saía assim.
+    expect(autorDaMensagem({ fromMe: true, papel: 'me', origem: 'coletor' }, 'dono')).toBe('sem-registro');
+    expect(autorDaMensagem({ fromMe: true, papel: 'me', origem: 'coletor', daFila: false }, 'dono')).toBe('sem-registro');
   });
   it('mensagem da própria conta sem fromMe (outro aparelho antigo) fica sem registro', () => {
     expect(autorDaMensagem({ papel: 'me' }, 'dono')).toBe('sem-registro');
   });
   it('sem dono configurado, carimbo do painel sem usuário conta como o próprio operador', () => {
     expect(autorDaMensagem({ fromMe: true, papel: 'me', ator: 'painel' }, null)).toBe('painel');
+  });
+});
+
+describe('janelasDaFila', () => {
+  const t = (ticket: string, ts: string, estado: string, extra: Record<string, unknown> = {}) => ({
+    ts,
+    ticket,
+    slug: 'norte',
+    jid: 'norte@g.us',
+    estado,
+    iniciadoEm: null as string | null,
+    duracao_s: 30,
+    ...extra,
+  });
+  const daFila = janelasDaFila([
+    t('a', '2026-10-12T12:00:00.000Z', 'agendado'),
+    t('a', '2026-10-12T12:00:30.200Z', 'entregando', { iniciadoEm: '2026-10-12T12:00:30.000Z' }),
+    t('a', '2026-10-12T12:00:40.000Z', 'entregando', { iniciadoEm: '2026-10-12T12:00:30.000Z' }),
+    t('a', '2026-10-12T12:00:50.000Z', 'entregue', { iniciadoEm: '2026-10-12T12:00:30.000Z' }),
+    t('so-agendado', '2026-10-12T14:00:00.000Z', 'agendado'),
+    t('aberto', '2026-10-12T13:00:00.000Z', 'entregando', { iniciadoEm: '2026-10-12T12:59:50.000Z' }),
+    t('outro', '2026-10-12T15:00:10.000Z', 'entregue', { slug: 'ebano', jid: 'v@g.us', iniciadoEm: '2026-10-12T15:00:00.000Z' }),
+  ]);
+  it('da digitação ao fim da entrega, com folga de segundos pelo arredondamento do WhatsApp', () => {
+    expect(daFila('norte', 'norte@g.us', ms('2026-10-12T12:00:45Z'))).toBe(true);
+    expect(daFila('norte', 'norte@g.us', ms('2026-10-12T12:00:54Z'))).toBe(true);
+    expect(daFila('norte', 'norte@g.us', ms('2026-10-12T12:00:20Z'))).toBe(false);
+    expect(daFila('norte', 'norte@g.us', ms('2026-10-12T12:01:30Z'))).toBe(false);
+  });
+  it('acha a conversa pelo slug ou pelo jid, e só a dela', () => {
+    expect(daFila('norte-renomeado', 'norte@g.us', ms('2026-10-12T12:00:45Z'))).toBe(true);
+    expect(daFila('norte', undefined, ms('2026-10-12T12:00:45Z'))).toBe(true);
+    expect(daFila('ebano', 'v@g.us', ms('2026-10-12T12:00:45Z'))).toBe(false);
+    expect(daFila('ebano', 'v@g.us', ms('2026-10-12T15:00:05Z'))).toBe(true);
+  });
+  it('agendado que não começou não conta; entrega sem fim registrado vale pela duração prevista', () => {
+    expect(daFila('norte', 'norte@g.us', ms('2026-10-12T14:00:30Z'))).toBe(false);
+    expect(daFila('norte', 'norte@g.us', ms('2026-10-12T13:01:00Z'))).toBe(true);
+    expect(daFila('norte', 'norte@g.us', ms('2026-10-12T13:05:00Z'))).toBe(false);
+  });
+  it('sem registro de entregas, nada é da fila', () => {
+    expect(janelasDaFila([])('norte', 'norte@g.us', ms('2026-10-12T12:00:45Z'))).toBe(false);
   });
 });
 

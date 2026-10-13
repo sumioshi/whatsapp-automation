@@ -25,9 +25,11 @@ export function periodoDe(bruto: unknown): Periodo {
 
 /**
  * Quem escreveu uma mensagem. A própria conta se divide pela origem gravada na
- * captura: celular ou WhatsApp Web é o operador na mão; o que o coletor enviou é
- * a IA, salvo quando o painel carimbou quem estava logado (o dono ou alguém da
- * equipe). Mensagem antiga, de antes do registro de origem, fica sem registro.
+ * captura: celular ou WhatsApp Web é o operador na mão; o painel carimba quem
+ * estava logado (o dono ou alguém da equipe). O coletor sem carimbo só é a IA
+ * quando a mensagem saiu numa entrega da fila: antes do carimbo, a resposta do
+ * operador pelo painel saía igual. O resto (e o que é de antes do registro de
+ * origem) fica sem registro.
  */
 export type Autor = 'cliente' | 'celular' | 'painel' | 'equipe' | 'ia' | 'sem-registro';
 export type QuemRespondeu = Exclude<Autor, 'cliente'>;
@@ -39,6 +41,8 @@ export interface MensagemParaClassificar {
   origem?: Origem;
   ator?: 'painel';
   usuario?: string;
+  /** A mensagem saiu numa entrega da fila da IA (ver `janelasDaFila`). */
+  daFila?: boolean;
 }
 
 export function autorDaMensagem(m: MensagemParaClassificar, dono: string | null): Autor {
@@ -48,8 +52,70 @@ export function autorDaMensagem(m: MensagemParaClassificar, dono: string | null)
   }
   if (m.ator === 'painel') return !m.usuario || m.usuario === dono ? 'painel' : 'equipe';
   if (m.origem === 'celular' || m.origem === 'web') return 'celular';
-  if (m.origem === 'coletor' || m.origem === 'ia_meta') return 'ia';
+  if (m.origem === 'ia_meta') return 'ia';
+  if (m.origem === 'coletor') return m.daFila ? 'ia' : 'sem-registro';
   return 'sem-registro';
+}
+
+/** Uma linha do registro de entregas da fila (`.entregas.jsonl`): o ticket numa transição. */
+export interface TransicaoDaFila {
+  ts: string;
+  ticket: string;
+  slug?: string;
+  jid?: string;
+  estado: string;
+  iniciadoEm?: string | null;
+  duracao_s?: number;
+}
+
+/** O horário da mensagem vem do WhatsApp em segundos; o da transição, do relógio do coletor. */
+const FOLGA_FILA_MS = 5_000;
+/** Entrega sem transição final registrada vale pela duração prevista mais esta sobra. */
+const SOBRA_ENTREGA_ABERTA_MS = 120_000;
+const FINAIS = new Set(['entregue', 'cancelado', 'interrompido']);
+
+/**
+ * Janelas em que a fila da IA estava entregando em cada conversa: da digitação
+ * (`iniciadoEm`) à última transição do ticket. Devolve o teste "esta mensagem,
+ * neste chat e neste instante, saiu numa entrega?", pelo slug ou pelo jid.
+ */
+export function janelasDaFila(linhas: TransicaoDaFila[]): (slug: string, jid: string | undefined, ms: number) => boolean {
+  const tickets = new Map<
+    string,
+    { slug?: string; jid?: string; inicio: number | null; ultimo: number; final: boolean; duracaoMs: number }
+  >();
+  for (const l of linhas) {
+    const ts = Date.parse(l.ts);
+    if (Number.isNaN(ts)) continue;
+    const t = tickets.get(l.ticket) ?? { slug: l.slug, jid: l.jid, inicio: null, ultimo: ts, final: false, duracaoMs: 0 };
+    const iniciado = l.iniciadoEm ? Date.parse(l.iniciadoEm) : Number.NaN;
+    const comecou = Number.isNaN(iniciado) ? (l.estado === 'entregando' ? ts : null) : iniciado;
+    if (comecou !== null) t.inicio = t.inicio === null ? comecou : Math.min(t.inicio, comecou);
+    if (ts >= t.ultimo) {
+      t.ultimo = ts;
+      t.final = FINAIS.has(l.estado);
+    }
+    t.duracaoMs = Math.max(t.duracaoMs, (l.duracao_s ?? 0) * 1000);
+    t.slug ??= l.slug;
+    t.jid ??= l.jid;
+    tickets.set(l.ticket, t);
+  }
+  const janelas = new Map<string, Array<[number, number]>>();
+  const guardar = (chave: string, janela: [number, number]) => {
+    const lista = janelas.get(chave);
+    if (lista) lista.push(janela);
+    else janelas.set(chave, [janela]);
+  };
+  for (const t of tickets.values()) {
+    // Agendado que nunca começou a digitar não mandou nada.
+    if (t.inicio === null) continue;
+    const fim = t.final ? t.ultimo : t.ultimo + t.duracaoMs + SOBRA_ENTREGA_ABERTA_MS;
+    const janela: [number, number] = [t.inicio - FOLGA_FILA_MS, fim + FOLGA_FILA_MS];
+    if (t.slug) guardar(`s:${t.slug}`, janela);
+    if (t.jid) guardar(`j:${t.jid}`, janela);
+  }
+  const dentro = (lista: Array<[number, number]> | undefined, ms: number) => !!lista?.some(([a, b]) => ms >= a && ms <= b);
+  return (slug, jid, ms) => dentro(janelas.get(`s:${slug}`), ms) || (jid !== undefined && dentro(janelas.get(`j:${jid}`), ms));
 }
 
 export interface MsgAtendimento {
