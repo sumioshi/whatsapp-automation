@@ -5,6 +5,7 @@ export { Badge } from "./Badge";
 export { BotaoConfirmar } from "./BotaoConfirmar";
 export { Button, type ButtonProps } from "./Button";
 export { CabecalhoPagina, type CabecalhoPaginaProps } from "./CabecalhoPagina";
+export { CampoBusca } from "./CampoBusca";
 export { Card, type CardProps, CardHeader, Grade12, SectionLabel } from "./Card";
 export { cn } from "./cn";
 export { Contador } from "./Contador";
