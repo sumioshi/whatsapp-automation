@@ -83,7 +83,7 @@ export function KanbanBoard({
           <div className="flex gap-3 overflow-x-auto pb-1">
             {aguardando.map((c) => (
               <div key={c.slug} className="w-72 shrink-0">
-                <CartaoCliente c={c} conhecidas={conhecidas} />
+                <CartaoCliente c={c} conhecidas={conhecidas} editarEtiquetas={false} />
                 <p className="mt-1 px-1 text-[11.5px] text-fg-faint">
                   na coluna {nomeColuna.get(colunaDoCartao(kanban, c.slug)) ?? "Entrada"}
                 </p>

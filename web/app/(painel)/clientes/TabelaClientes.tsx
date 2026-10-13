@@ -275,7 +275,7 @@ function Celula({
   const classe = cn(TD, c.direita && "text-right", classeDaColuna(c, escolha));
   switch (c.id) {
     case "tipo":
-      return <td className={cn(classe, "text-fg-dim")}>{l.tipo === "dm" ? "DM" : "Grupo"}</td>;
+      return <td className={classe}>{l.tipo === "dm" ? "DM" : "Grupo"}</td>;
     case "etiquetas":
       return (
         <td className={classe}>
@@ -370,7 +370,7 @@ function EtiquetasDaLinha({ slug, iniciais, conhecidas }: { slug: string; inicia
   const [editando, setEditando] = useState(false);
   return (
     <span className="relative flex items-center gap-1" data-editor>
-      {etiquetas.length === 0 && !editando && <span className="text-fg-mute group-hover:hidden">—</span>}
+      {etiquetas.length === 0 && !editando && <span className="text-fg-mute group-hover:hidden [@media(hover:none)]:hidden">—</span>}
       {etiquetas.map((e) => (
         <Etiqueta key={e} nome={e} tamanho="sm" />
       ))}
@@ -380,7 +380,10 @@ function EtiquetasDaLinha({ slug, iniciais, conhecidas }: { slug: string; inicia
         aria-label={etiquetas.length ? "Editar etiquetas" : "Pôr etiqueta"}
         aria-expanded={editando}
         onClick={() => setEditando((v) => !v)}
-        className={cn("h-6 px-1.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100", editando && "opacity-100")}
+        className={cn(
+          "h-6 px-1.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100",
+          editando && "opacity-100",
+        )}
       >
         <IcMais className="h-3.5 w-3.5" />
       </Button>

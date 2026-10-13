@@ -6,13 +6,22 @@ import { EditorEtiquetas } from "@/app/components/Etiqueta";
 import { useRotas } from "@/app/components/RotasPainel";
 import { AnelEspera, Avatar, Contador, Etiqueta, cn } from "@/app/components/ui";
 import type { ClienteCard } from "@/lib/clientes";
-import { IcMais, IcNota, IcSilencio, IcSincronizar } from "./icones";
+import { IcEtiqueta, IcNota, IcSilencio, IcSincronizar } from "./icones";
 
 /**
  * Cartão do cliente no Quadro: conversa, etiquetas (com o editor), nota e quanto espera.
  * O nome é o link e cobre o cartão inteiro; o editor de etiquetas fica por cima dele.
  */
-export function CartaoCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecidas?: string[] }) {
+export function CartaoCliente({
+  c,
+  conhecidas = [],
+  editarEtiquetas = true,
+}: {
+  c: ClienteCard;
+  conhecidas?: string[];
+  /** Na faixa que rola para o lado o editor seria cortado: lá o cartão só mostra as etiquetas. */
+  editarEtiquetas?: boolean;
+}) {
   const rotas = useRotas();
   const [etiquetas, setEtiquetas] = useState<string[]>(c.etiquetas);
   const [editando, setEditando] = useState(false);
@@ -37,33 +46,13 @@ export function CartaoCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecid
         {c.aguardando && <AnelEspera ms={c.waitingMs} />}
       </div>
 
-      <div className="relative z-10 flex flex-wrap items-center gap-1 self-start">
-        {etiquetas.map((e) => (
-          <Etiqueta key={e} nome={e} tamanho="sm" />
-        ))}
-        <button
-          type="button"
-          aria-label={etiquetas.length ? "Editar etiquetas" : "Pôr etiqueta"}
-          aria-expanded={editando}
-          onClick={() => setEditando((v) => !v)}
-          className={cn(
-            "inline-flex h-5 items-center gap-1 rounded-full border border-dashed border-line-2 px-1.5 text-[11.5px] text-fg-faint transition-opacity hover:border-fg-mute hover:text-fg focus-visible:opacity-100 group-hover:opacity-100",
-            editando ? "opacity-100" : "opacity-0",
-          )}
-        >
-          <IcMais className="h-3 w-3" />
-          {etiquetas.length === 0 && "etiqueta"}
-        </button>
-        {editando && (
-          <EditorEtiquetas
-            slug={c.slug}
-            atuais={etiquetas}
-            conhecidas={conhecidas}
-            onSalvo={setEtiquetas}
-            onFechar={() => setEditando(false)}
-          />
-        )}
-      </div>
+      {etiquetas.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          {etiquetas.map((e) => (
+            <Etiqueta key={e} nome={e} tamanho="sm" />
+          ))}
+        </div>
+      )}
 
       {c.ultimaPreview && (
         <p className="truncate text-[13px] text-fg-dim" title={c.ultimaPreview}>
@@ -88,24 +77,51 @@ export function CartaoCliente({ c, conhecidas = [] }: { c: ClienteCard; conhecid
         </p>
       )}
 
-      <div className="mt-auto flex items-center gap-1.5 pt-0.5 text-[12px] text-fg-faint">
-        <span>
-          <span className="font-mono tabular-nums">{c.mensagens}</span> mensagens
+      <div className="relative mt-auto flex min-h-6 items-center gap-1.5 pt-0.5 text-[12px] text-fg-faint">
+        <span className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
+          <span>
+            <span className="font-mono tabular-nums">{c.mensagens}</span> mensagens
+          </span>
+          {c.atividadeLabel && (
+            <>
+              <span aria-hidden>·</span>
+              <span>{c.atividadeLabel}</span>
+            </>
+          )}
+          {c.silenciado && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="inline-flex items-center gap-1">
+                <IcSilencio className="h-3 w-3" />
+                silenciado
+              </span>
+            </>
+          )}
         </span>
-        {c.atividadeLabel && (
-          <>
-            <span aria-hidden>·</span>
-            <span>{c.atividadeLabel}</span>
-          </>
+        {/* O botão de etiquetas fica no rodapé: sem etiqueta, o cartão não guarda uma linha vazia para ele. */}
+        {editarEtiquetas && (
+          <button
+            type="button"
+            aria-label={etiquetas.length ? "Editar etiquetas" : "Pôr etiqueta"}
+            aria-expanded={editando}
+            onClick={() => setEditando((v) => !v)}
+            className={cn(
+              "relative z-10 ml-auto inline-flex h-6 items-center gap-1 rounded-full border border-dashed border-line-2 px-2 text-[11.5px] text-fg-faint transition-opacity hover:border-fg-mute hover:text-fg focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100",
+              editando ? "opacity-100" : "opacity-0",
+            )}
+          >
+            <IcEtiqueta className="h-3 w-3" />
+            {etiquetas.length ? "Etiquetas" : "Etiqueta"}
+          </button>
         )}
-        {c.silenciado && (
-          <>
-            <span aria-hidden>·</span>
-            <span className="inline-flex items-center gap-1">
-              <IcSilencio className="h-3 w-3" />
-              silenciado
-            </span>
-          </>
+        {editando && (
+          <EditorEtiquetas
+            slug={c.slug}
+            atuais={etiquetas}
+            conhecidas={conhecidas}
+            onSalvo={setEtiquetas}
+            onFechar={() => setEditando(false)}
+          />
         )}
       </div>
     </div>
