@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { caminhoInterno } from "@/lib/equipe/destino-login";
 import { credenciaisDoDono, igualSeguro } from "@/lib/equipe/autenticar";
 import { hashSenha, verificarSenha } from "@/lib/equipe/senha";
-import { assinarSessao, chaveDeSessao, novaSessao, SESSION_COOKIE, VALIDADE_S, type Papel } from "@/lib/equipe/sessao";
+import { chaveDeSessao, novaSessao, type Papel } from "@/lib/equipe/sessao";
 import { alterarUsuarios, acharUsuario } from "@/lib/equipe/usuarios";
+import { comCookieDeSessao } from "./sessao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,13 +77,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "usuário ou senha incorretos" }, { status: 401 });
   }
 
-  const res = NextResponse.json({ ok: true, destino: destino(sessao.p, given?.next) });
-  res.cookies.set(SESSION_COOKIE, assinarSessao(sessao, chave), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: VALIDADE_S[sessao.p],
-  });
-  return res;
+  return comCookieDeSessao(NextResponse.json({ ok: true, destino: destino(sessao.p, given?.next) }), sessao, chave);
 }

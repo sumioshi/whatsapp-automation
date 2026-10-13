@@ -17,10 +17,19 @@ export interface Contrato {
   fim: string | null;
   /** Valor mensal em reais, ou null quando não informado. */
   valorMensal: number | null;
+  /** Mensagens do cliente em 30 dias que o plano comporta; null = sem limite. */
+  limiteMensagens: number | null;
   nota: string;
 }
 
-export const CONTRATO_PADRAO: Contrato = { estado: 'sem', inicio: null, fim: null, valorMensal: null, nota: '' };
+export const CONTRATO_PADRAO: Contrato = {
+  estado: 'sem',
+  inicio: null,
+  fim: null,
+  valorMensal: null,
+  limiteMensagens: null,
+  nota: '',
+};
 
 const ARQUIVO = () => join(DATA_DIR, '.contratos.json');
 const ESTADOS: EstadoContrato[] = ['ativo', 'encerrado', 'pausado', 'sem'];
@@ -54,6 +63,14 @@ export function validarPatch(patch: unknown): Partial<Contrato> {
       out.valorMensal = n;
     }
   }
+  if (p.limiteMensagens !== undefined) {
+    if (p.limiteMensagens === null || p.limiteMensagens === '') out.limiteMensagens = null;
+    else {
+      const n = Number(p.limiteMensagens);
+      if (!Number.isInteger(n) || n < 1) throw new Error('limiteMensagens deve ser um número inteiro maior que zero');
+      out.limiteMensagens = n;
+    }
+  }
   if (p.nota !== undefined) {
     if (typeof p.nota !== 'string') throw new Error('nota deve ser texto');
     out.nota = p.nota.trim();
@@ -70,16 +87,20 @@ function contratoValido(v: unknown): v is Contrato {
     (c.inicio === null || (typeof c.inicio === 'string' && DATA_RE.test(c.inicio))) &&
     (c.fim === null || (typeof c.fim === 'string' && DATA_RE.test(c.fim))) &&
     (c.valorMensal === null || typeof c.valorMensal === 'number') &&
+    (c.limiteMensagens === undefined || c.limiteMensagens === null || typeof c.limiteMensagens === 'number') &&
     typeof c.nota === 'string'
   );
 }
 
-/** Lê todos os contratos; entradas inválidas são ignoradas, arquivo ausente vira {}. */
+/**
+ * Lê todos os contratos; entradas inválidas são ignoradas, arquivo ausente vira {}.
+ * Contrato gravado antes de um campo existir ganha o padrão dele (ex.: sem limite).
+ */
 export async function readContratos(): Promise<Record<string, Contrato>> {
   try {
     const parsed = JSON.parse(await readFile(ARQUIVO(), 'utf8')) as Record<string, unknown>;
     const out: Record<string, Contrato> = {};
-    for (const [slug, c] of Object.entries(parsed)) if (contratoValido(c)) out[slug] = c;
+    for (const [slug, c] of Object.entries(parsed)) if (contratoValido(c)) out[slug] = { ...CONTRATO_PADRAO, ...c };
     return out;
   } catch {
     return {};
