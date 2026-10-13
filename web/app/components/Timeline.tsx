@@ -542,6 +542,7 @@ export function Timeline({
                         autoria={autoria(m, donoLogin)}
                         entrega={blocos.rotulos[m.id]}
                         continua={!novoDia && blocos.continua.has(m.id)}
+                        direta={cabecalho.tipo === "dm"}
                         fresh={!initialIds.current.has(m.id)}
                       />
                     )}

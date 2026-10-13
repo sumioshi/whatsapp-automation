@@ -58,7 +58,8 @@ function MessageActions({ slug, m, mine }: { slug: string; m: MessageView; mine:
     <div
       className={cn(
         "absolute -top-3.5 z-10 flex items-center gap-0.5 rounded-full border border-line bg-surface px-1 py-0.5 opacity-0 [box-shadow:var(--shadow-pop)] transition-opacity group-hover:opacity-100 focus-within:opacity-100",
-        mine ? "right-2" : "left-2",
+        // Do lado oposto ao nome de quem escreveu, para não cobri-lo.
+        mine ? "left-2" : "right-2",
       )}
     >
       {QUICK_REACTIONS.map((e) => (
@@ -273,6 +274,7 @@ export function Bubble({
   autoria,
   entrega,
   continua = false,
+  direta = false,
   fresh = false,
 }: {
   slug: string;
@@ -284,6 +286,8 @@ export function Bubble({
   entrega?: { texto: string; ticket: string };
   /** Mesmo autor da anterior há pouco: sem avatar nem nome, colado nela. */
   continua?: boolean;
+  /** Conversa direta: quem escreve do outro lado é sempre a mesma pessoa, sem avatar nem nome. */
+  direta?: boolean;
   fresh?: boolean;
 }) {
   const mine = m.fromMe === true;
@@ -363,6 +367,14 @@ export function Bubble({
       </div>
     );
   }
+  if (direta) {
+    return (
+      <div className={cn("flex max-w-[76%] flex-col items-start self-start max-[860px]:max-w-[92%]", continua ? "mt-1" : "mt-4", fresh && "msg-in")}>
+        {corpo}
+        {rodape}
+      </div>
+    );
+  }
   return (
     <div className={cn("flex max-w-[76%] items-start gap-2.5 self-start max-[860px]:max-w-[92%]", continua ? "mt-1" : "mt-4", fresh && "msg-in")}>
       {continua ? <span className="w-7 shrink-0" aria-hidden /> : <Avatar nome={m.senderName} tipo="dm" tamanho="sm" className="mt-px" />}
@@ -385,8 +397,20 @@ function Imagem({ src, className }: { src: string; className: string }) {
       </div>
     );
   }
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="" loading="lazy" onError={() => setFalhou(true)} className={className} />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      // O erro pode chegar antes da hidratação, quando o onError ainda não existe.
+      ref={(img) => {
+        if (img?.complete && img.naturalWidth === 0 && img.currentSrc) setFalhou(true);
+      }}
+      onError={() => setFalhou(true)}
+      className={className}
+    />
+  );
 }
 
 function Media({ slug, m }: { slug: string; m: MessageView }) {

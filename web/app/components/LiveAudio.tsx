@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, type MouseEvent, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Icone } from "./caixa/icones";
 import { cn } from "./ui";
 
@@ -33,6 +33,14 @@ export function LiveAudio({ src }: { src: string }) {
   const [falhou, setFalhou] = useState(false);
   const onda = useMemo(() => alturas(src), [src]);
   const fracao = duracao > 0 ? Math.min(1, posicao / duracao) : 0;
+
+  // O <audio> vem do servidor: a duração ou o erro podem chegar antes da hidratação.
+  useEffect(() => {
+    const a = ref.current;
+    if (!a) return;
+    if (a.error) setFalhou(true);
+    else if (a.readyState >= 1 && Number.isFinite(a.duration)) setDuracao(a.duration);
+  }, []);
 
   function alternar() {
     const a = ref.current;
