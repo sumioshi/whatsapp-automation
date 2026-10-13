@@ -941,7 +941,7 @@ export class BaileysGateway implements WhatsAppGateway {
       chatJid: jid,
       isDirect: conv.isDirect,
       conversationSlug: conv.conversationSlug,
-      by: key.participant ?? (isDirectJid(jid) ? jid : null),
+      by: key.participant || (isDirectJid(jid) ? jid : null),
       timestamp: new Date(),
     } satisfies InboundDelete);
   }
@@ -1281,7 +1281,7 @@ export class BaileysGateway implements WhatsAppGateway {
     const key = wa.key;
     const name = wa.pushName?.trim() || undefined;
     // Em grupo: participant(+Alt). Em DM: remoteJid(+Alt).
-    const primary = key.participant ?? (isDirectJid(key.remoteJid ?? '') ? key.remoteJid : null);
+    const primary = key.participant || (isDirectJid(key.remoteJid ?? '') ? key.remoteJid : null);
     const alt = key.participant ? key.participantAlt : key.remoteJidAlt;
     const lid = pickByKind(primary, alt, 'lid');
     const phone = pickByKind(primary, alt, 'phone');

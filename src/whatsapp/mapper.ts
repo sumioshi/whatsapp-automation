@@ -155,13 +155,13 @@ export function mapMessage(
   const quoted = extractQuoted(content, ctype);
   // pushName só nomeia a conversa de DM quando é do OUTRO lado (em fromMe é o meu nome).
   const conv = resolveConversation(key.remoteJid, groupName, fromMe ? null : wa.pushName);
-  // Em DM, `key.participant` costuma ser nulo: o "outro lado" é o `remoteJid`.
+  // Em DM, `key.participant` vem nulo ou vazio: o "outro lado" é o `remoteJid`.
   // Para MINHAS mensagens (fromMe) em DM, o remetente é a PRÓPRIA conta — usar
   // `remoteJid` (= o parceiro) poluiria a noção de "quem sou eu". Bug #23.
   const meId = sock.user?.id;
   const sender = fromMe
     ? (meId ?? key.participant ?? key.remoteJid)
-    : (key.participant ?? key.remoteJid);
+    : key.participant || key.remoteJid;
   return {
     id: key.id,
     groupJid: key.remoteJid,
@@ -169,7 +169,7 @@ export function mapMessage(
     isDirect: conv.isDirect,
     conversationSlug: conv.conversationSlug,
     sender,
-    senderName: fromMe ? 'Você' : (wa.pushName ?? key.participant?.split('@')[0] ?? 'desconhecido'),
+    senderName: fromMe ? 'Você' : (wa.pushName ?? key.participant?.split('@')[0]) || 'desconhecido',
     fromMe,
     timestamp: toDate(wa.messageTimestamp),
     type,
@@ -193,7 +193,7 @@ export function mapReaction(
   const conv = resolveConversation(groupJid, groupName, null);
 
   const reactorKey = item.reaction?.key;
-  const reactor = reactorKey?.participant ?? reactorKey?.remoteJid ?? '';
+  const reactor = reactorKey?.participant || reactorKey?.remoteJid || '';
   const fromMe = reactorKey?.fromMe ?? false;
   const ts = item.reaction?.senderTimestampMs;
   const millis =
@@ -477,8 +477,8 @@ export function mapPoll(
   const conv = resolveConversation(key.remoteJid, groupName, null);
   // Autor da enquete: em grupo é o participant; em DM/própria, o remoteJid/me.
   const creatorJid = key.fromMe
-    ? (key.participant ?? key.remoteJid)
-    : (key.participant ?? key.remoteJid);
+    ? key.participant || key.remoteJid
+    : key.participant || key.remoteJid;
   return {
     poll: {
       pollMsgId: key.id,
@@ -523,5 +523,5 @@ function extractQuoted(
     quoted.imageMessage?.caption ??
     quoted.videoMessage?.caption ??
     '[mídia citada]';
-  return { text, sender: ctx?.participant ?? null };
+  return { text, sender: ctx?.participant || null };
 }
