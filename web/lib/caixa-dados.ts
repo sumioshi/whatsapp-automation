@@ -1,10 +1,18 @@
 import { open, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { cache } from 'react';
-import type { AguardandoOk, ConversaFila, EntregaViva, EsperaFila, EventoEntrega } from './caixa';
+import {
+  type AguardandoOk,
+  type ConversaFila,
+  type DadosFila,
+  type EntregaViva,
+  type EsperaFila,
+  type EventoEntrega,
+  OK_VALIDO_MS,
+} from './caixa';
 import { type GroupSummary, listGroups } from './data';
 import { listarDespachos } from './despacho-store';
-import type { InboxItem } from './inbox';
+import { buildInbox, type InboxItem } from './inbox';
 import { CONTROL_URL, DATA_DIR } from './paths';
 
 /**
@@ -62,10 +70,14 @@ async function entregasVivas(): Promise<EntregaViva[]> {
   }
 }
 
-/** Perguntas da triagem para o cliente que ainda esperam o "ok N" do operador. */
+/** Um dia de folga além da validade da pergunta: a passada vem no fuso do operador, não em UTC. */
+const JANELA_DESPACHO_MS = OK_VALIDO_MS + 24 * 60 * 60_000;
+
+/** Perguntas da triagem para o cliente que ainda esperam o "ok N" do operador (só as recentes). */
 async function perguntasPendentes(): Promise<AguardandoOk[]> {
   const out: AguardandoOk[] = [];
-  for (const arquivo of await listarDespachos()) {
+  const desde = `${new Date(Date.now() - JANELA_DESPACHO_MS).toISOString().slice(0, 10)}T0000`;
+  for (const arquivo of await listarDespachos({ desde })) {
     for (const item of arquivo.itens) {
       if (item.acao !== 'enviar' || item.executadoEm) continue;
       out.push({ slug: item.slug, n: item.n, texto: item.texto ?? item.titulo, desde: arquivo.criadoEm });
@@ -73,6 +85,31 @@ async function perguntasPendentes(): Promise<AguardandoOk[]> {
   }
   // A mais nova primeiro: a fila mostra uma linha por chat.
   return out.sort((a, b) => b.desde.localeCompare(a.desde));
+}
+
+/** Fila do dono: quem espera, as conversas e o que a IA está fazendo. */
+export async function filaDoDono(): Promise<DadosFila> {
+  const [inbox, grupos, ia] = await Promise.all([buildInbox(), conversasDaRequisicao(), iaDaCaixa()]);
+  return {
+    esperando: inbox.map(paraEspera),
+    conversas: grupos.map(paraConversa),
+    entregas: ia.entregas,
+    aguardandoOk: ia.aguardandoOk,
+    geradoEm: Date.now(),
+  };
+}
+
+/**
+ * Fila de quem atende: só os chats liberados. O "silenciado" é organização do
+ * dono e não tira ninguém da fila; a DM partida em telefone × LID é uma conversa só.
+ */
+export async function filaDaEquipe(
+  chats: ReadonlySet<string>,
+  canonicoDe: (slug: string) => string,
+  lista: GroupSummary[],
+): Promise<DadosFila> {
+  const inbox = await buildInbox({ slugs: chats, ignorarSilenciados: true, canonicoDe });
+  return { esperando: inbox.map(paraEspera), conversas: lista.map(paraConversa), entregas: [], aguardandoOk: [], geradoEm: Date.now() };
 }
 
 /** O que a IA está fazendo agora: entregas na fila e perguntas esperando o OK. */

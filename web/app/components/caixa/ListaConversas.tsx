@@ -1,32 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fracaoAnel, nivelEspera } from "@/lib/aparencia";
-import {
-  type AguardandoOk,
-  type ConversaFila,
-  type EntregaViva,
-  type EsperaFila,
-  type SecaoFila,
-  type VistaFila,
-  montarFila,
-} from "@/lib/caixa";
-import { useRotas } from "../RotasPainel";
+import { type AguardandoOk, type DadosFila, type EntregaViva, type SecaoFila, type VistaFila, montarFila } from "@/lib/caixa";
+import { checarSessao, useRotas } from "../RotasPainel";
 import { Button, Segmentado, cn, Icone } from "../ui";
 import { Kbd } from "../ui/Kbd";
 import { useListNav } from "../useListNav";
 import { InboxItem } from "./InboxItem";
 
-export interface DadosCaixa {
-  esperando: EsperaFila[];
-  conversas: ConversaFila[];
-  entregas: EntregaViva[];
-  aguardandoOk: AguardandoOk[];
-  /** Relógio do servidor na montagem: a primeira pintura usa ele, sem diferença na hidratação. */
-  geradoEm: number;
-}
+export type DadosCaixa = DadosFila;
 
 const CHAVE_VISTA = "wac-caixa-vista";
 const CIRCUNFERENCIA = 2 * Math.PI * 6;
@@ -122,11 +107,13 @@ function Vazio({ titulo, children }: { titulo: string; children?: ReactNode }) {
 export function ListaConversas({ dados, aviso, className }: { dados: DadosCaixa; aviso?: ReactNode; className?: string }) {
   const rotas = useRotas();
   const dono = rotas.modo === "dono";
-  const router = useRouter();
   const pathname = usePathname();
   const [vista, setVista] = useState<VistaFila>("esperando");
   const [filtro, setFiltro] = useState("");
   const [arquivadasAbertas, setArquivadasAbertas] = useState(false);
+  // Os dados chegam do servidor na montagem (e quando a página se refaz) e depois pela rota leve da fila.
+  const [atuais, setAtuais] = useState(dados);
+  useEffect(() => setAtuais(dados), [dados]);
   const [ia, setIa] = useState({ entregas: dados.entregas, aguardandoOk: dados.aguardandoOk });
   const [agora, setAgora] = useState(dados.geradoEm);
   const listaRef = useRef<HTMLElement>(null);
@@ -156,13 +143,28 @@ export function ListaConversas({ dados, aviso, className }: { dados: DadosCaixa;
     return () => clearInterval(id);
   }, []);
 
-  // Quem espera e as não lidas vêm do servidor: atualiza com a aba visível.
+  // Quem espera e as não lidas: só os dados da fila, sem refazer a conversa aberta.
   useEffect(() => {
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") router.refresh();
-    }, 20_000);
-    return () => clearInterval(id);
-  }, [router]);
+    let vivo = true;
+    const buscar = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const res = checarSessao(await fetch(rotas.fila, { cache: "no-store" }), rotas);
+        if (!res.ok) return;
+        const d = (await res.json()) as DadosFila;
+        if (!vivo) return;
+        setAtuais(d);
+        if (dono) setIa({ entregas: d.entregas, aguardandoOk: d.aguardandoOk });
+      } catch {
+        /* painel reiniciando: fica o último estado */
+      }
+    };
+    const id = setInterval(buscar, 20_000);
+    return () => {
+      vivo = false;
+      clearInterval(id);
+    };
+  }, [rotas, dono]);
 
   // O que a IA está fazendo muda em segundos (balão a balão): consulta própria.
   useEffect(() => {
@@ -190,10 +192,10 @@ export function ListaConversas({ dados, aviso, className }: { dados: DadosCaixa;
   const fila = useMemo(
     () =>
       montarFila(
-        { esperando: dados.esperando, conversas: dados.conversas, entregas: dono ? ia.entregas : [], aguardandoOk: dono ? ia.aguardandoOk : [] },
+        { esperando: atuais.esperando, conversas: atuais.conversas, entregas: dono ? ia.entregas : [], aguardandoOk: dono ? ia.aguardandoOk : [] },
         { vista, filtro, arquivadasAbertas, agoraMs: agora },
       ),
-    [dados.esperando, dados.conversas, ia, dono, vista, filtro, arquivadasAbertas, agora],
+    [atuais.esperando, atuais.conversas, ia, dono, vista, filtro, arquivadasAbertas, agora],
   );
 
   const atual = useMemo(() => {

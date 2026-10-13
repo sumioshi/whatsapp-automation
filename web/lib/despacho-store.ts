@@ -103,11 +103,15 @@ function parseArquivo(raw: string): ArquivoDespacho | null {
   }
 }
 
-/** Todos os despachos gravados, do mais antigo pro mais novo. */
-export async function listarDespachos(): Promise<ArquivoDespacho[]> {
+/**
+ * Despachos gravados, do mais antigo pro mais novo. Com `desde` (no formato da
+ * passada), lê só os arquivos a partir dela: o nome do arquivo é a passada, então
+ * a ordem do nome é a do tempo e os antigos nem são abertos.
+ */
+export async function listarDespachos(opts: { desde?: string } = {}): Promise<ArquivoDespacho[]> {
   let nomes: string[];
   try {
-    nomes = (await readdir(DIR())).filter((n) => n.endsWith('.json')).sort();
+    nomes = (await readdir(DIR())).filter((n) => n.endsWith('.json') && (!opts.desde || n >= opts.desde)).sort();
   } catch {
     return [];
   }
