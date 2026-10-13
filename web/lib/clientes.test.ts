@@ -147,3 +147,53 @@ describe('negocioDoChat', () => {
     expect(n.equipe).toEqual([]);
   });
 });
+
+// ── esperaDoChat: a mesma régua da Caixa, com o "Resolver" ───────────────────
+import { esperaDoChat } from './clientes';
+
+describe('esperaDoChat', () => {
+  const agora = Date.parse('2026-10-12T18:00:00Z');
+  const veredito = {
+    reason: 'client-waiting' as const,
+    waitingSince: '2026-10-12T15:00:00Z',
+    timestamp: '2026-10-12T16:00:00Z',
+  };
+
+  it('cliente esperando e sem resolução: espera desde a primeira mensagem sem resposta', () => {
+    expect(esperaDoChat(veredito, undefined, agora)?.waitingMs).toBe(3 * 3_600_000);
+  });
+  it('resolvido na Caixa depois do gatilho: não está esperando', () => {
+    expect(esperaDoChat(veredito, '2026-10-12T16:00:00Z', agora)).toBeNull();
+    expect(esperaDoChat(veredito, '2026-10-12T17:00:00Z', agora)).toBeNull();
+  });
+  it('resolvido antes de uma mensagem nova: volta a esperar', () => {
+    expect(esperaDoChat(veredito, '2026-10-12T14:00:00Z', agora)).not.toBeNull();
+  });
+  it('sem veredito ou espera antiga demais: em dia', () => {
+    expect(esperaDoChat(null, undefined, agora)).toBeNull();
+    expect(esperaDoChat({ ...veredito, waitingSince: '2026-08-01T12:00:00Z' }, undefined, agora)).toBeNull();
+  });
+});
+
+describe('negocioDoChat — equipe não é cliente', () => {
+  it('mensagem de alguém do time não entra na atividade nem no uso', () => {
+    const agora = Date.parse('2026-10-12T18:00:00Z');
+    const n = negocioDoChat(
+      {
+        slug: 'g',
+        nome: 'G',
+        mensagens: [
+          { timestamp: '2026-10-12T13:00:00Z', fromMe: false, papel: 'client' },
+          { timestamp: '2026-10-12T13:01:00Z', fromMe: false, papel: 'team' },
+          { timestamp: '2026-10-12T13:02:00Z', fromMe: false, papel: 'team' },
+        ],
+      },
+      {},
+      [],
+      [],
+      agora,
+    );
+    expect(n.atividade30d.reduce((a, b) => a + b, 0)).toBe(1);
+    expect(n.msgsCliente30d).toBe(1);
+  });
+});

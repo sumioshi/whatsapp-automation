@@ -1,12 +1,12 @@
 import { atividadeDiaria } from './clientes-tabela';
-import { buildContacts } from './contacts';
+import { type Role, buildContacts, numberFromJid, roleOf } from './contacts';
 import { CONTRATO_PADRAO, type Contrato, readContratos } from './contratos';
-import { type Sinal, montarDashboard } from './dashboard';
+import { type Sinal, ehDoCliente, montarDashboard } from './dashboard';
 import { type GroupSummary, listGroups, readGroupRecords } from './data';
 import { lerUsuarios } from './equipe/usuarios';
 import { type Feature, listarFeatures } from './features';
-import { evaluateGroup } from './inbox';
-import { type SlaBand, aguardandoValido, buildSlaInfo, relativeLabel } from './sla';
+import { type GroupVerdict, evaluateGroup } from './inbox';
+import { type SlaBand, type SlaInfo, aguardandoValido, buildSlaInfo, relativeLabel } from './sla';
 import { readTriage } from './triage';
 
 /** Card da visão CRM (/clientes): um chat monitorado com seu estado de conversa. */
@@ -118,24 +118,43 @@ export function ordenarCards<T extends Ordenavel>(cards: T[]): T[] {
 }
 
 /**
+ * Espera do cliente com a régua da Caixa: o chat pede atenção (cliente esperando ou
+ * menção), não foi resolvido na Caixa depois da mensagem-gatilho e a espera não é
+ * histórico morto. null = em dia.
+ */
+export function esperaDoChat(
+  verdict: Pick<GroupVerdict, 'reason' | 'waitingSince' | 'timestamp'> | null,
+  resolvidoEm: string | undefined,
+  agoraMs: number,
+): SlaInfo | null {
+  if (!verdict || (verdict.reason !== 'client-waiting' && verdict.reason !== 'mentioned')) return null;
+  if (resolvidoEm && resolvidoEm >= verdict.timestamp) return null;
+  const sla = buildSlaInfo(verdict.waitingSince, agoraMs);
+  return aguardandoValido(sla.waitingMs) ? sla : null;
+}
+
+/**
  * Contrato, entregas, equipe e atividade de um chat. Os sinais e as contas por
  * entrega vêm do mesmo cálculo do painel, para as duas telas dizerem o mesmo.
- * A atividade conta só o que o cliente mandou: é a régua do limite do contrato.
+ * A atividade conta só o que o cliente mandou (sem a equipe): é a régua do limite.
  */
 export function negocioDoChat(
-  chat: { slug: string; nome: string; mensagens: ReadonlyArray<{ timestamp: string; fromMe?: boolean }> },
+  chat: { slug: string; nome: string; mensagens: ReadonlyArray<{ timestamp: string; fromMe?: boolean; papel?: Role }> },
   contratos: Record<string, Contrato>,
   features: Feature[],
   equipe: ReadonlyArray<{ login: string; nome: string; ativo: boolean; chats: string[] }>,
   agoraMs: number,
 ): NegocioDoChat {
-  const atividade30d = atividadeDiaria(
-    chat.mensagens.filter((m) => !m.fromMe),
-    agoraMs,
-  );
+  const atividade30d = atividadeDiaria(chat.mensagens.filter(ehDoCliente), agoraMs);
   const doChat = features.filter((f) => f.slug === chat.slug);
   const [linha] = montarDashboard(
-    [{ slug: chat.slug, nome: chat.nome, mensagens: chat.mensagens.map((m) => ({ timestamp: m.timestamp, fromMe: Boolean(m.fromMe) })) }],
+    [
+      {
+        slug: chat.slug,
+        nome: chat.nome,
+        mensagens: chat.mensagens.map((m) => ({ timestamp: m.timestamp, fromMe: Boolean(m.fromMe), papel: m.papel })),
+      },
+    ],
     contratos,
     doChat,
     agoraMs,
@@ -170,12 +189,14 @@ export async function buildClientes(): Promise<ClienteLinha[]> {
   const cards = await Promise.all(
     groups.map(async (g: GroupSummary): Promise<ClienteLinha> => {
       const messages = await readGroupRecords(g.slug);
-      const verdict = evaluateGroup(messages, contacts);
-      const pedeAtencao = verdict?.reason === 'client-waiting' || verdict?.reason === 'mentioned';
-      let sla = pedeAtencao && verdict ? buildSlaInfo(verdict.waitingSince, now) : null;
-      // Espera antiga demais = histórico morto, não cliente aguardando.
-      if (sla && !aguardandoValido(sla.waitingMs)) sla = null;
+      const sla = esperaDoChat(evaluateGroup(messages, contacts), triage.resolved[g.slug], now);
       const aguardando = sla !== null;
+      // Papel de quem mandou: a equipe conversando no grupo não é demanda do cliente.
+      const comPapel = messages.map((m) => ({
+        timestamp: m.timestamp,
+        fromMe: Boolean(m.fromMe),
+        papel: roleOf(contacts, numberFromJid(m.sender ?? '')),
+      }));
       const ultimaTimestamp = g.lastTimestamp;
 
       return {
@@ -199,7 +220,7 @@ export async function buildClientes(): Promise<ClienteLinha[]> {
         waitingMs: sla?.waitingMs ?? 0,
         band: sla?.band ?? null,
         waitingLabel: sla?.label ?? null,
-        ...negocioDoChat({ slug: g.slug, nome: g.name, mensagens: messages }, contratos, features, equipe, now),
+        ...negocioDoChat({ slug: g.slug, nome: g.name, mensagens: comPapel }, contratos, features, equipe, now),
       };
     }),
   );

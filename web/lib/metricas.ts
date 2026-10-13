@@ -2,6 +2,8 @@
  * Métricas de atividade dos chats pra tela inicial: quem mais manda mensagem,
  * quem está mais e menos ativo, quem adormeceu. Puro — recebe registros e relógio.
  */
+import type { Role } from './contacts';
+
 export type Janela = '24h' | '7d' | '30d';
 
 const H_MS = 60 * 60_000;
@@ -15,7 +17,8 @@ const ADORMECIDO_MS = 14 * D_MS;
 export interface EntradaMetrica {
   slug: string;
   nome: string;
-  mensagens: Array<{ timestamp: string; fromMe: boolean }>;
+  /** `papel` separa o cliente de quem é do time; sem ele, o que não é meu conta como cliente. */
+  mensagens: Array<{ timestamp: string; fromMe: boolean; papel?: Role }>;
 }
 
 export interface MetricaGrupo {

@@ -132,3 +132,47 @@ describe('montarDashboard — custos, totais e ordem', () => {
     }
   });
 });
+
+describe('montarDashboard — só o cliente conta como demanda', () => {
+  it('mensagem de alguém da equipe não sobe o uso, o sinal de limite nem o "ativo"', () => {
+    const msgs: EntradaMetrica['mensagens'] = [];
+    for (let i = 0; i < 3; i++) msgs.push({ timestamp: iso(1), fromMe: false, papel: 'client' });
+    for (let i = 0; i < 9; i++) msgs.push({ timestamp: iso(1), fromMe: false, papel: 'team' });
+    const d = montarDashboard(
+      [{ slug: 'g', nome: 'G', mensagens: msgs }],
+      { g: contrato({ estado: 'ativo', limiteMensagens: 5 }) },
+      [], agora,
+    );
+    const l = d.linhas[0]!;
+    expect(l.msgs30d).toBe(12);
+    expect(l.msgsCliente30d).toBe(3);
+    expect(l.sinais).not.toContain('acima-do-contrato');
+    expect(l.sinais).not.toContain('sem-entrega-30d');
+  });
+  it('sem papel informado, mensagem que não é minha segue contando como do cliente', () => {
+    const d = montarDashboard([chat('a', 4)], {}, [], agora);
+    expect(d.linhas[0]!.msgsCliente30d).toBe(4);
+  });
+});
+
+describe('montarDashboard — o dia é o de Brasília', () => {
+  // 03/10 às 22:30 em Brasília já é 04/10 em UTC.
+  const noite = Date.parse('2026-10-04T01:30:00Z');
+  const ontem = new Date(noite - D).toISOString();
+  const ativoNaNoite: EntradaMetrica = {
+    slug: 'a',
+    nome: 'A',
+    mensagens: Array.from({ length: 6 }, () => ({ timestamp: ontem, fromMe: false })),
+  };
+  it('contrato que vence hoje à noite ainda não está vencido', () => {
+    const d = montarDashboard([ativoNaNoite], { a: contrato({ estado: 'ativo', fim: '2026-10-03' }) }, [], noite);
+    const l = d.linhas[0]!;
+    expect(l.sinais).not.toContain('encerrado-ativo');
+    expect(l.sinais).toContain('renovacao-30d');
+    expect(d.totais.ativos).toBe(1);
+  });
+  it('no dia seguinte em Brasília, vencido', () => {
+    const d = montarDashboard([ativoNaNoite], { a: contrato({ estado: 'ativo', fim: '2026-10-03' }) }, [], noite + 3 * 3_600_000);
+    expect(d.linhas[0]!.sinais).toContain('encerrado-ativo');
+  });
+});

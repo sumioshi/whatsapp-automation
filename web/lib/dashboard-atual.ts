@@ -1,9 +1,10 @@
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readGroupsConfig } from './config';
+import { type Contacts, buildContacts, numberFromJid, roleOf } from './contacts';
 import { CONTRATO_PADRAO, type Contrato, readContratos } from './contratos';
 import { type Dashboard, montarDashboard } from './dashboard';
-import { conversationName, readGroupRecords } from './data';
+import { type MessageRecord, conversationName, readGroupRecords } from './data';
 import { listarFeatures } from './features';
 import type { EntradaMetrica } from './metricas';
 import { DATA_DIR } from './paths';
@@ -22,6 +23,15 @@ async function mtime(path: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+/** Mensagens com o papel de quem mandou: a equipe conversando no grupo não é demanda do cliente. */
+function comPapel(registros: MessageRecord[], contatos: Contacts): EntradaMetrica['mensagens'] {
+  return registros.map((r) => ({
+    timestamp: r.timestamp,
+    fromMe: Boolean(r.fromMe),
+    papel: roleOf(contatos, numberFromJid(r.sender ?? '')),
+  }));
 }
 
 /** Um chat sem contrato nem entrega não tem nada de negócio pra mostrar no dashboard. */
@@ -59,7 +69,7 @@ export async function montarDashboardAtual(): Promise<Dashboard> {
     return cache.valor;
   }
 
-  const config = await readGroupsConfig().catch(() => []);
+  const [config, contatos] = await Promise.all([readGroupsConfig().catch(() => []), buildContacts()]);
   const entradas: EntradaMetrica[] = [];
   const vistos = new Set<string>();
   for (const g of config) {
@@ -67,7 +77,7 @@ export async function montarDashboardAtual(): Promise<Dashboard> {
     const slug = g.slug ?? slugify(g.name);
     const registros = await readGroupRecords(slug);
     vistos.add(slug);
-    entradas.push({ slug, nome: g.name, mensagens: registros.map((r) => ({ timestamp: r.timestamp, fromMe: Boolean(r.fromMe) })) });
+    entradas.push({ slug, nome: g.name, mensagens: comPapel(registros, contatos) });
   }
 
   const [contratos, features] = await Promise.all([readContratos(), listarFeatures()]);
@@ -87,7 +97,7 @@ export async function montarDashboardAtual(): Promise<Dashboard> {
     entradas.push({
       slug,
       nome: conversationName(slug, slug, registros),
-      mensagens: registros.map((r) => ({ timestamp: r.timestamp, fromMe: Boolean(r.fromMe) })),
+      mensagens: comPapel(registros, contatos),
     });
   }
 
