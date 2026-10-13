@@ -132,6 +132,23 @@ describe('pessoas do time', () => {
     ]);
   });
 
+  it('id que conta como você sai da linha, e a pessoa segue listada pelos outros ids', () => {
+    // Outra conta do operador: o telefone mandou mensagens como você, o LID escreve como participante.
+    const c = contacts({
+      names: new Map([
+        ['200000000000002', 'Outra conta'],
+        ['5511900000007', 'Outra conta'],
+      ]),
+      ownIds: new Set(['5511900000007']),
+      phones: new Map([
+        ['200000000000002', '5511900000007'],
+        ['5511900000007', '5511900000007'],
+      ]),
+      teamIds: new Set(['200000000000002']),
+    });
+    expect(pessoasDoTime(c)).toEqual([{ id: '5511900000007', ids: ['200000000000002'], name: 'Outra conta', role: 'team' }]);
+  });
+
   it('a linha leva todos os ids da pessoa, para a conversa reconhecer o time por qualquer um', () => {
     const ana = pessoasDoTime(base()).find((l) => l.id === '5511900000001');
     expect(ana?.ids.sort()).toEqual(['100000000000001', '5511900000001']);

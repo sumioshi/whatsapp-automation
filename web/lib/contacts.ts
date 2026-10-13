@@ -179,8 +179,10 @@ export function pessoasDoTime(c: Contacts): PessoaDoTime[] {
     else grupos.set(chave, [id]);
   }
   const linhas: PessoaDoTime[] = [];
-  for (const [chave, ids] of grupos) {
-    if (ids.some((id) => c.ownIds.has(id))) continue;
+  for (const [chave, todos] of grupos) {
+    // Só o id que conta como você sai; a pessoa segue pelos outros.
+    const ids = todos.filter((id) => !c.ownIds.has(id));
+    if (ids.length === 0) continue;
     const noTime = c.teamIds.has(chave) || ids.some((id) => c.teamIds.has(id));
     linhas.push({ id: chave, ids, name: nomeDaPessoa(c, ids), role: noTime ? "team" : "client" });
   }
