@@ -3,12 +3,6 @@ import { cn } from "@/app/components/ui";
 
 /** Traços dos ícones do Balcão (24×24, traço 1,75), os mesmos do protótipo. */
 const TRACOS = {
-  sol: (
-    <>
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </>
-  ),
   caixa: (
     <>
       <path d="M22 12h-6l-2 3h-4l-2-3H2" />

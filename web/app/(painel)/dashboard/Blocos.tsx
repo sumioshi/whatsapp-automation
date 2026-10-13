@@ -6,6 +6,7 @@ import { arcosDaRosca, nivelDoCalor } from "@/lib/graficos";
 import { type Painel, partesDoTempo, type QuemRespondeu, type Rodape } from "@/lib/painel";
 import { rotasPainel } from "@/lib/rotas-painel";
 import { Icone, type NomeIcone } from "../_hoje/icones";
+import { FOCO } from "../_hoje/pecas";
 
 const rotas = rotasPainel("dono");
 const numero = new Intl.NumberFormat("pt-BR");
@@ -139,7 +140,7 @@ export function QuemRespondeuRosca({ quem }: { quem: Painel["quem"] }) {
   );
   const contorno = 2 * Math.PI * R;
   return (
-    <div className="grid h-full grid-cols-[auto_minmax(0,1fr)] items-center gap-6 max-[400px]:grid-cols-1 max-[400px]:justify-items-center">
+    <div className="grid h-full grid-cols-[auto_minmax(0,1fr)] items-center gap-6 max-[480px]:grid-cols-1 max-[480px]:justify-items-center">
       <svg
         width="160"
         height="160"
@@ -173,7 +174,7 @@ export function QuemRespondeuRosca({ quem }: { quem: Painel["quem"] }) {
           {total === 1 ? "resposta" : "respostas"}
         </text>
       </svg>
-      <div className="flex min-w-0 flex-col gap-1 self-stretch justify-center max-[400px]:w-full">
+      <div className="flex min-w-0 flex-col justify-center gap-1 self-stretch max-[480px]:w-full">
         {quem.map((q) => {
           const e = ESTILO_QUEM[q.id];
           return (
@@ -210,7 +211,7 @@ export function MaisAtivos({ itens }: { itens: Painel["maisAtivos"] }) {
           <Link
             href={rotas.chat(c.slug)}
             style={{ "--hue": corDoMatiz(matizDoNome(c.nome)) } as CSSProperties}
-            className="group relative isolate mb-1.5 flex h-10 items-center gap-2.5 rounded-[8px] pl-2 pr-3 text-[13px]"
+            className={cn("group relative isolate mb-1.5 flex h-10 items-center gap-2.5 rounded-[8px] pl-2 pr-3 text-[13px]", FOCO)}
           >
             <span
               aria-hidden

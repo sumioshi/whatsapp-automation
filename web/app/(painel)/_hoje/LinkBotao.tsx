@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "@/app/components/ui";
+import { FOCO } from "./pecas";
 
 /** Mesmas variantes do `Button` (tinta para a ação principal, borda para a comum), para navegação. */
 const VARIANTES = {
@@ -45,7 +46,7 @@ export function LinkBotao({
 /** Link do rodapé do card ("Ver na caixa"): acento, à direita. */
 export function LinkRodape({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <Link href={href} className="ml-auto shrink-0 font-medium text-accent hover:underline">
+    <Link href={href} className={cn("ml-auto shrink-0 rounded-[4px] font-medium text-accent hover:underline", FOCO)}>
       {children}
     </Link>
   );

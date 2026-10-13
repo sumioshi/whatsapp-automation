@@ -35,7 +35,7 @@ function Celula({ indice, rotulo, children }: { indice: number; rotulo: ReactNod
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col gap-2.5 border-line px-5 py-4",
+        "flex min-w-0 flex-col gap-2.5 border-line px-5 py-4 max-[860px]:px-4",
         indice > 0 && "border-l",
         // Abaixo de 1020 px: duas colunas, a última ocupa a linha inteira.
         "max-[1020px]:border-l-0",

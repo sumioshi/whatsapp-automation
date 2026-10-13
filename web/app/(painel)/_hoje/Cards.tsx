@@ -6,7 +6,7 @@ import type { TomSinal } from "@/lib/hoje";
 import { rotasPainel } from "@/lib/rotas-painel";
 import { Icone } from "./icones";
 import { LinkRodape } from "./LinkBotao";
-import { Linha, Texto, Vazio } from "./pecas";
+import { FOCO, Linha, Texto, Vazio } from "./pecas";
 
 const rotas = rotasPainel("dono");
 const foto = (avatarPath: string | null) => (avatarPath ? rotas.midia(avatarPath) : null);
@@ -119,7 +119,7 @@ export function CardLimites({ limites }: { limites: DadosHoje["limites"] }) {
       ) : (
         <div className="space-y-4 pt-0.5">
           {limites.itens.map((l) => (
-            <Link key={l.slug} href={rotas.chat(l.slug)} className="group block rounded-[6px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            <Link key={l.slug} href={rotas.chat(l.slug)} className={`group block rounded-[6px] ${FOCO}`}>
               <MedidorUso
                 rotulo={<span className="group-hover:text-accent">{l.nome}</span>}
                 avatar={<Avatar nome={l.nome} tipo={tipoPeloSlug(l.slug)} fotoUrl={foto(l.avatarPath)} tamanho="xs" />}

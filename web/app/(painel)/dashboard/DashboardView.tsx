@@ -9,6 +9,7 @@ import { dataCurta, instanteCurto, instanteLongo } from "@/lib/formatar-data";
 import type { SinalDoDia, TomSinal } from "@/lib/hoje";
 import { rotasPainel } from "@/lib/rotas-painel";
 import { Icone } from "../_hoje/icones";
+import { FOCO } from "../_hoje/pecas";
 
 type Coluna =
   | "nome"
@@ -140,7 +141,7 @@ export function DashboardView({
                   type="button"
                   aria-expanded={todosSinais}
                   onClick={() => setTodosSinais((t) => !t)}
-                  className="ml-auto shrink-0 font-medium text-accent hover:underline"
+                  className={cn("ml-auto shrink-0 rounded-[4px] font-medium text-accent hover:underline", FOCO)}
                 >
                   {todosSinais ? "Mostrar menos" : `Ver todos os ${sinais.length}`}
                 </button>
@@ -158,16 +159,18 @@ export function DashboardView({
                 <li key={s.chave}>
                   <Link
                     href={rotas.chat(s.slug)}
-                    className="group flex min-h-[52px] items-center gap-3 border-b border-line py-2 text-fg last:border-b-0"
+                    className={cn("group flex min-h-[52px] items-center gap-3 border-b border-line py-2 text-fg last:border-b-0", FOCO)}
                   >
                     <Avatar nome={s.nome} tipo={tipoPeloSlug(s.slug)} fotoUrl={foto(s.slug)} tamanho="sm" />
                     <span className="min-w-0 flex-1">
-                      <b className="block truncate font-medium group-hover:text-accent">{s.nome}</b>
-                      <small className="mt-px block text-[12.5px] text-fg-faint">{s.explicacao}</small>
+                      <span className="flex items-center gap-2">
+                        <b className="min-w-0 truncate font-medium group-hover:text-accent">{s.nome}</b>
+                        <Badge variant={VARIANTE_TOM[s.tom]} className="ml-auto shrink-0">
+                          {s.texto}
+                        </Badge>
+                      </span>
+                      <small className="mt-0.5 block text-[12.5px] text-fg-faint">{s.explicacao}</small>
                     </span>
-                    <Badge variant={VARIANTE_TOM[s.tom]} className="shrink-0">
-                      {s.texto}
-                    </Badge>
                   </Link>
                 </li>
               ))}
@@ -240,7 +243,7 @@ export function DashboardView({
                 linhas.map((l) => (
                   <tr key={l.slug} className="group/linha hover:[&>td]:bg-surface-2">
                     <td className="h-12 border-b border-line px-3.5 pl-5 group-last/linha:border-b-0">
-                      <Link href={rotas.chat(l.slug)} className="flex items-center gap-2.5 font-medium text-fg hover:text-accent">
+                      <Link href={rotas.chat(l.slug)} className={cn("flex items-center gap-2.5 rounded-[4px] font-medium text-fg hover:text-accent", FOCO)}>
                         <Avatar nome={l.nome} tipo={tipoPeloSlug(l.slug)} fotoUrl={foto(l.slug)} tamanho="sm" />
                         <span className="max-w-[260px] truncate">{l.nome}</span>
                       </Link>

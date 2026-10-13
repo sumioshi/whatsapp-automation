@@ -6,6 +6,8 @@ import { useTamanho } from "./useTamanho";
 
 const numero = new Intl.NumberFormat("pt-BR");
 const TEXTO = "fill-fg-faint font-mono text-[11px]";
+/** Frase dentro do gráfico vazio: um halo da cor do card a separa das linhas da grade. */
+const AVISO = "fill-fg-faint stroke-surface font-sans text-[12.5px] [paint-order:stroke] [stroke-width:6px]";
 
 /** Volume por dia: o período em linha cheia sobre área, o período anterior tracejado; passar o mouse mostra o dia. */
 export function GraficoLinha({
@@ -97,7 +99,7 @@ export function GraficoLinha({
             </>
           )}
           {vazio && (
-            <text x={(L + W - R) / 2} y={(Tp + H - B) / 2} textAnchor="middle" className="fill-fg-faint font-sans text-[12.5px]">
+            <text x={(L + W - R) / 2} y={(Tp + H - B) / 2} textAnchor="middle" className={AVISO}>
               Nenhuma mensagem de cliente no período.
             </text>
           )}
@@ -189,7 +191,7 @@ export function GraficoColunas({ meses, media }: { meses: Array<{ mes: string; r
           <line x1="0" x2={W} y1={y(media)} y2={y(media)} stroke="var(--color-fg-mute)" strokeDasharray="3 3" />
         )}
         {total === 0 && (
-          <text x={W / 2} y={(Tp + H - B) / 2} textAnchor="middle" className="fill-fg-faint font-sans text-[12.5px]">
+          <text x={W / 2} y={(Tp + H - B) / 2} textAnchor="middle" className={AVISO}>
             Nenhuma entrega registrada ainda.
           </text>
         )}

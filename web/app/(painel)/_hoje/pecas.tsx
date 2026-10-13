@@ -2,11 +2,14 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "@/app/components/ui";
 
+/** Contorno de foco do Balcão para links que não são botões. */
+export const FOCO = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
 /** Linha de lista dos cards (52 px, borda entre as linhas); com href, a linha é um link. */
 export function Linha({ href, className, children }: { href?: string; className?: string; children: ReactNode }) {
   const cls = cn("flex min-h-[52px] items-center gap-3 border-b border-line text-fg last:border-b-0", className);
   return href ? (
-    <Link href={href} className={cn("group", cls)}>
+    <Link href={href} className={cn("group", FOCO, cls)}>
       {children}
     </Link>
   ) : (
