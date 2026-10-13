@@ -64,6 +64,19 @@ function CabecalhoSecao({
 }) {
   const desde = secao.linhas.map((l) => (l.esperaDesde ? Date.parse(l.esperaDesde) : Number.NaN)).filter(Number.isFinite);
   const maiorEspera = desde.length ? Math.max(0, agoraMs - Math.min(...desde)) : 0;
+  // A régua da espera por extenso, no title da seção: quantos em cada faixa.
+  const faixas = { urgente: 0, atencao: 0, neutro: 0 };
+  for (const d of desde) faixas[nivelEspera(agoraMs - d)] += 1;
+  const regua =
+    secao.id === "esperando" && desde.length > 0
+      ? [
+          faixas.urgente && `${faixas.urgente} há mais de 4 h`,
+          faixas.atencao && `${faixas.atencao} entre 30 min e 4 h`,
+          faixas.neutro && `${faixas.neutro} há menos de 30 min`,
+        ]
+          .filter(Boolean)
+          .join(", ")
+      : undefined;
   const conteudo = (
     <>
       {secao.id === "esperando" ? (
@@ -85,7 +98,10 @@ function CabecalhoSecao({
       {conteudo}
     </button>
   ) : (
-    <div className={cls}>{conteudo}</div>
+    <div className={cls} title={regua}>
+      {conteudo}
+      {regua && <span className="sr-only">: {regua}</span>}
+    </div>
   );
 }
 
