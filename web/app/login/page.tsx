@@ -47,7 +47,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </div>
         </div>
 
-        <footer className="mt-auto text-[12.5px] text-fg-faint">
+        <footer className="mt-auto flex items-center gap-4 text-[12.5px] text-fg-faint">
+          <Link href="/landing" className="rounded-[4px] transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            Conhecer o Balcão
+          </Link>
+          <span aria-hidden="true">·</span>
           <Link href="/privacidade" className="rounded-[4px] transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
             Política de privacidade
           </Link>
