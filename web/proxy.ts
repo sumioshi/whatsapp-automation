@@ -53,6 +53,6 @@ export const config = {
   // cookies; sem ele o "Instalar app" não aparece) e a política de privacidade
   // (a tela de consentimento do Google exige link público).
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/control(?:/|$)|api/v1(?:/|$)|api/login(?:/|$)|api/logout$|login$|privacidade$|landing(?:/|$)|landing-assets(?:/|$)|manifest.webmanifest|icon-192.png|icon-512.png|apple-touch-icon.png).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/control(?:/|$)|api/v1(?:/|$)|api/login(?:/|$)|api/checkout(?:/|$)|api/logout$|login$|privacidade$|landing(?:/|$)|landing-assets(?:/|$)|manifest.webmanifest|icon-192.png|icon-512.png|apple-touch-icon.png).*)",
   ],
 };
