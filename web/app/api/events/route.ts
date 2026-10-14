@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { conversasDaRequisicao } from '@/lib/caixa-dados';
 import { buildContacts, numberFromJid, roleOf } from '@/lib/contacts';
 import { DATA_DIR, safeDataPath } from '@/lib/paths';
 import { parseFiltro, parseSlugs } from '@/lib/sse-filtro';
@@ -10,32 +11,59 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/events?slug=a,b[&alertar=1][&fromMe=0|1][&ocultar=coletor][&papel=client]
+ * GET /api/events?slug=a,b[&alertar=1][&todos=1][&fromMe=0|1][&ocultar=coletor][&papel=client]
  * Stream SSE das mensagens NOVAS das conversas (linha do messages.jsonl + `slug`),
  * a partir do momento da conexão. Cada evento leva `id:` (cursor por conversa);
  * reenviar em `Last-Event-ID` retoma do buraco. `alertar=1` inclui todas as
- * conversas com `alertar` ligado na triagem. É o canal de "plantão" do Monitor
- * no modo remoto: o Mac abre a conexão (atravessa NAT) e o servidor empurra na
- * hora que chega. Também emite `event: entrega` (transição de uma entrega
+ * conversas com `alertar` ligado na triagem; `todos=1` inclui todas as conversas
+ * ativas (não silenciadas). É o canal de "plantão" do Monitor e do sino de
+ * notificações do painel. Também emite `event: entrega` (transição de uma entrega
  * humanizada dessas conversas: interrompida, entregue…). Atrás do mesmo Basic
  * Auth do painel (proxy.ts cobre /api).
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
+  const modoAlertar = url.searchParams.get('alertar') === '1';
+  const modoTodos = url.searchParams.get('todos') === '1';
   let slugs = parseSlugs(url.searchParams);
-  if (url.searchParams.get('alertar') === '1') {
-    const t = await readTriage();
-    slugs = [...new Set([...slugs, ...Object.keys(t.alertar).filter((s) => t.alertar[s])])];
-  }
-  if (!slugs.length) {
-    return NextResponse.json({ error: 'slug (ou alertar=1) obrigatório' }, { status: 400 });
-  }
+
   for (const s of slugs) {
     try {
       safeDataPath(s, 'messages.jsonl');
     } catch {
       return NextResponse.json({ error: `slug inválido: ${s}` }, { status: 400 });
     }
+  }
+
+  if (modoAlertar || modoTodos) {
+    const t = await readTriage();
+    if (modoAlertar) {
+      for (const s of Object.keys(t.alertar).filter((k) => t.alertar[k])) {
+        try {
+          safeDataPath(s, 'messages.jsonl');
+          slugs.push(s);
+        } catch {
+          return NextResponse.json({ error: `slug inválido: ${s}` }, { status: 400 });
+        }
+      }
+    }
+    if (modoTodos) {
+      const grupos = await conversasDaRequisicao();
+      for (const g of grupos) {
+        if (t.muted[g.slug]) continue;
+        try {
+          safeDataPath(g.slug, 'messages.jsonl');
+          slugs.push(g.slug);
+        } catch {
+          // Ignora silenciosamente qualquer slug inválido quando vier de todos=1
+        }
+      }
+    }
+    slugs = [...new Set(slugs)];
+  }
+
+  if (!slugs.length && !modoAlertar && !modoTodos) {
+    return NextResponse.json({ error: 'slug (ou alertar=1 / todos=1) obrigatório' }, { status: 400 });
   }
 
   const filtro = parseFiltro(url.searchParams);

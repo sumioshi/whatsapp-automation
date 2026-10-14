@@ -7,6 +7,7 @@ import { iniciais, tipoPeloSlug } from "@/lib/aparencia";
 import type { GroupSummary } from "@/lib/data";
 import { PontoDeConexao, useStatusColetor } from "./ConnectionDot";
 import { MenuConta } from "./MenuConta";
+import { Notificacoes } from "./Notificacoes";
 import { useRotas } from "./RotasPainel";
 import { Avatar } from "./ui/Avatar";
 
@@ -190,6 +191,8 @@ export function Trilho({ groups, usuario }: { groups: GroupSummary[]; usuario: s
         )}
         Buscar
       </button>
+
+      <Notificacoes groups={groups} />
 
       <div className="relative max-[860px]:hidden">
         <button
