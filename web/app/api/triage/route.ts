@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readTriage, setAlert, setAutonomo, setCopilot, setLastSeen, setMuted, setNote, setResolved, setTypos, setEtiquetas, setAgente, setExecutor, setLatenciaMaxima } from "@/lib/triage";
+import { readTriage, setAlert, setAutonomo, setCopilot, setLastSeen, setMuted, setNote, setResolved, setTypos, setEtiquetas, setAgente, setExecutor, setLatenciaMaxima, setSinalIgnorado } from "@/lib/triage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export async function GET() {
 }
 
 interface TriagePost {
-  action?: "resolved" | "muted" | "note" | "lastSeen" | "copilot" | "alertar" | "autonomo" | "typos" | "etiquetas" | "agente" | "executor" | "latenciaMaxima";
+  action?: "resolved" | "muted" | "note" | "lastSeen" | "copilot" | "alertar" | "autonomo" | "typos" | "etiquetas" | "agente" | "executor" | "latenciaMaxima" | "ignorarSinal";
   slug?: string;
   value?: string | boolean | number | null;
 }
@@ -99,6 +99,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'value deve ser "claude" ou "copilot"' }, { status: 400 });
       }
       await setExecutor(slug, value);
+      break;
+    case "ignorarSinal":
+      if (typeof value !== "boolean") {
+        return NextResponse.json({ error: "value deve ser boolean" }, { status: 400 });
+      }
+      await setSinalIgnorado(slug, value);
       break;
     default:
       return NextResponse.json({ error: "action inválida" }, { status: 400 });

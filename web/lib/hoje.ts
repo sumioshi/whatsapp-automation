@@ -120,27 +120,63 @@ function textoDoSinal(sinal: Sinal, contrato: Contrato, hoje: string): { texto: 
   }
 }
 
+export interface OpcoesSinaisDoDia {
+  sinaisIgnorados?: Record<string, string>;
+  muted?: Record<string, boolean>;
+}
+
+function extrairOpcoesSinais(
+  opcoes?: OpcoesSinaisDoDia | Record<string, string>,
+): OpcoesSinaisDoDia {
+  if (!opcoes) return {};
+  if (
+    ('sinaisIgnorados' in opcoes && typeof opcoes.sinaisIgnorados === 'object') ||
+    ('muted' in opcoes && typeof opcoes.muted === 'object')
+  ) {
+    return opcoes as OpcoesSinaisDoDia;
+  }
+  return { sinaisIgnorados: opcoes as Record<string, string> };
+}
+
+function explicacaoEspera(e: { groupName: string; who?: string; preview?: string }): string {
+  const previa = e.preview?.trim();
+  if (!previa) {
+    return 'cliente esperando resposta há mais de 24 h: responder ou marcar como resolvido na caixa';
+  }
+  const quem = e.who?.trim();
+  const texto = quem && quem !== e.groupName ? `${quem}: ${previa}` : previa;
+  return texto.length > 140 ? `${texto.slice(0, 137)}…` : texto;
+}
+
 /**
  * Sinais do dia: quem está sem resposta há mais de 24 h (da caixa de entrada) e
  * os sinais de contrato do dashboard, num texto curto. O mais grave primeiro.
  */
 export function sinaisDoDia(
   linhas: Array<Pick<LinhaDashboard, 'slug' | 'nome' | 'contrato' | 'sinais'>>,
-  esperando: Array<{ slug: string; groupName: string; waitingMs: number }>,
+  esperando: Array<{ slug: string; groupName: string; waitingMs: number; who?: string; preview?: string }>,
   agoraMs: number,
+  opcoes?: OpcoesSinaisDoDia | Record<string, string>,
 ): SinalDoDia[] {
+  const { sinaisIgnorados, muted } = extrairOpcoesSinais(opcoes);
   const hoje = diaBrt(agoraMs);
   const out: SinalDoDia[] = [];
   for (const e of esperando) {
-    if (e.waitingMs <= DIA_MS) continue;
+    if (e.waitingMs <= DIA_MS || e.waitingMs > ESPERA_PARADA_MS) continue;
+    if (muted?.[e.slug] === true) continue;
+    const chave = `${e.slug}|espera`;
+    if (Boolean(sinaisIgnorados?.[chave])) continue;
     const horas = Math.floor(e.waitingMs / H_MS);
     const texto = horas < 48 ? `sem resposta há ${horas} h` : `sem resposta há ${Math.floor(e.waitingMs / DIA_MS)} dias`;
-    const explicacao = 'cliente esperando resposta há mais de 24 h: responder ou marcar como resolvido na caixa';
-    out.push({ chave: `${e.slug}|espera`, slug: e.slug, nome: e.groupName, texto, explicacao, tom: 'perigo' });
+    const explicacao = explicacaoEspera(e);
+    out.push({ chave, slug: e.slug, nome: e.groupName, texto, explicacao, tom: 'perigo' });
   }
   for (const l of linhas) {
+    if (muted?.[l.slug] === true) continue;
     for (const s of l.sinais) {
-      out.push({ chave: `${l.slug}|${s}`, slug: l.slug, nome: l.nome, explicacao: explicarSinal(s), ...textoDoSinal(s, l.contrato, hoje) });
+      const chave = `${l.slug}|${s}`;
+      if (Boolean(sinaisIgnorados?.[chave])) continue;
+      out.push({ chave, slug: l.slug, nome: l.nome, explicacao: explicarSinal(s), ...textoDoSinal(s, l.contrato, hoje) });
     }
   }
   return out.map((s, i) => ({ s, i })).sort((a, b) => ORDEM_TOM[a.s.tom] - ORDEM_TOM[b.s.tom] || a.i - b.i).map(({ s }) => s);

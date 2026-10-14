@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import { AnelEspera, Avatar, Badge, Card, Contador, Etiqueta, MedidorUso, Icone } from "@/app/components/ui";
+import { useEffect, useState } from "react";
+import { AnelEspera, Avatar, Badge, Card, cn, Contador, Etiqueta, IconButton, MedidorUso, Icone } from "@/app/components/ui";
 import { tipoPeloSlug } from "@/lib/aparencia";
 import type { DadosHoje } from "@/lib/hoje-atual";
 import type { TomSinal } from "@/lib/hoje";
@@ -65,15 +68,57 @@ export function CardEsperando({ esperando }: { esperando: DadosHoje["esperando"]
 
 const VARIANTE_TOM: Record<TomSinal, "danger" | "warn" | "neutral"> = { perigo: "danger", atencao: "warn", neutro: "neutral" };
 
+async function postarTriagem(action: "resolved" | "muted" | "ignorarSinal", slug: string, value: string | boolean) {
+  await fetch("/api/triage", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, slug, value }),
+  });
+}
+
 /** Contrato, prazo e silêncio: o que pede uma decisão hoje. */
 export function CardSinais({ sinais }: { sinais: DadosHoje["sinais"] }) {
+  const [itens, setItens] = useState(sinais.itens);
+  const [removidos, setRemovidos] = useState(0);
+
+  useEffect(() => {
+    setItens(sinais.itens);
+    setRemovidos(0);
+  }, [sinais.itens]);
+
+  async function ignorarSinal(s: DadosHoje["sinais"]["itens"][number]) {
+    setItens((prev) => prev.filter((item) => item.chave !== s.chave));
+    setRemovidos((n) => n + 1);
+    try {
+      if (s.chave.endsWith("|espera")) {
+        await postarTriagem("resolved", s.slug, new Date().toISOString());
+      }
+      await postarTriagem("ignorarSinal", s.chave, true);
+    } catch {
+      // falha silenciosa na UI otimista
+    }
+  }
+
+  async function silenciarConversa(slug: string) {
+    const qtd = itens.filter((item) => item.slug === slug).length;
+    setItens((prev) => prev.filter((item) => item.slug !== slug));
+    if (qtd > 0) setRemovidos((n) => n + qtd);
+    try {
+      await postarTriagem("muted", slug, true);
+    } catch {
+      // falha silenciosa na UI otimista
+    }
+  }
+
+  const totalExibido = itens.length === 0 ? 0 : Math.max(itens.length, sinais.total - removidos);
+
   return (
     <Card
       largura="p"
       altura="padrao"
       icone={<Icone nome="flag" />}
       titulo="Sinais"
-      meta={<span className="font-mono tabular-nums">{sinais.total}</span>}
+      meta={<span className="font-mono tabular-nums">{totalExibido}</span>}
       rodape={
         <>
           <span>contrato, prazo e silêncio</span>
@@ -81,14 +126,36 @@ export function CardSinais({ sinais }: { sinais: DadosHoje["sinais"] }) {
         </>
       }
     >
-      {sinais.itens.length === 0 ? (
+      {itens.length === 0 ? (
         <Vazio titulo="Nada pedindo decisão">Contratos em dia e ninguém sem resposta há mais de 24 h.</Vazio>
       ) : (
-        sinais.itens.map((s) => (
-          <Linha key={s.chave} href={rotas.chat(s.slug)}>
-            <Avatar nome={s.nome} tipo={tipoPeloSlug(s.slug)} fotoUrl={foto(s.avatarPath)} tamanho="sm" />
-            <Texto titulo={<span className="truncate">{s.nome}</span>} />
-            <Badge variant={VARIANTE_TOM[s.tom]}>{s.texto}</Badge>
+        itens.map((s) => (
+          <Linha key={s.chave} className="gap-2">
+            <Link href={rotas.chat(s.slug)} className={cn("group flex min-w-0 flex-1 items-center gap-3 py-1", FOCO)}>
+              <Avatar nome={s.nome} tipo={tipoPeloSlug(s.slug)} fotoUrl={foto(s.avatarPath)} tamanho="sm" />
+              <Texto titulo={<span className="truncate">{s.nome}</span>} apoio={s.explicacao} />
+              <Badge variant={VARIANTE_TOM[s.tom]}>{s.texto}</Badge>
+            </Link>
+            <span className="flex shrink-0 items-center gap-0.5">
+              <IconButton
+                size="sm"
+                title="Ignorar este sinal"
+                aria-label={`Ignorar sinal de ${s.nome}`}
+                onClick={() => void ignorarSinal(s)}
+                className="h-7 w-7 text-fg-faint hover:text-fg"
+              >
+                <Icone nome="x" tamanho={14} />
+              </IconButton>
+              <IconButton
+                size="sm"
+                title="Silenciar conversa (ocultar de Sinais e da Caixa)"
+                aria-label={`Silenciar conversa ${s.nome}`}
+                onClick={() => void silenciarConversa(s.slug)}
+                className="h-7 w-7 text-fg-faint hover:text-fg"
+              >
+                <Icone nome="mute" tamanho={14} />
+              </IconButton>
+            </span>
           </Linha>
         ))
       )}

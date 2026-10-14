@@ -115,7 +115,10 @@ export async function montarHojeAtual(): Promise<DadosHoje> {
   const porSlug = new Map(grupos.map((g) => [g.slug, g]));
   const chat = (slug: string, nome?: string): ChatHoje => chats[slug] ?? { nome: nome ?? slug, avatarPath: null };
 
-  const sinais = sinaisDoDia(dashboard.linhas, inbox, agoraMs);
+  const sinais = sinaisDoDia(dashboard.linhas, inbox, agoraMs, {
+    sinaisIgnorados: triagem.sinaisIgnorados,
+    muted: triagem.muted,
+  });
   const limites = contratosNoLimite(dashboard.linhas, agoraMs);
   const hoje = resumoDeHoje(conversas, agoraMs);
   const entregas = entregasPorMes(features, agoraMs);

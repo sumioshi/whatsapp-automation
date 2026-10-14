@@ -26,10 +26,11 @@ export interface TriageState {
   agente: Record<string, AgenteModo>; // slug -> modo do agente de triagem (ausente = off)
   executor: Record<string, AgenteExecutor>; // slug -> executor da issue (ausente = claude)
   latenciaMaxima: Record<string, number>; // slug -> teto (s) da latência humana da entrega (ausente = padrão)
+  sinaisIgnorados: Record<string, string>; // chave "${slug}|${tipo}" -> ISO timestamp de quando foi ignorado
 }
 
 function emptyState(): TriageState {
-  return { resolved: {}, muted: {}, notes: {}, lastSeen: {}, copilot: {}, alertar: {}, autonomo: {}, typos: {}, memorySources: {}, etiquetas: {}, agente: {}, executor: {}, latenciaMaxima: {} };
+  return { resolved: {}, muted: {}, notes: {}, lastSeen: {}, copilot: {}, alertar: {}, autonomo: {}, typos: {}, memorySources: {}, etiquetas: {}, agente: {}, executor: {}, latenciaMaxima: {}, sinaisIgnorados: {} };
 }
 
 /** Normaliza um objeto cru em Record<string, T>, descartando entradas do tipo errado. */
@@ -81,6 +82,7 @@ export async function readTriage(): Promise<TriageState> {
       agente: pick(parsed.agente, isAgenteModo),
       executor: pick(parsed.executor, isExecutor),
       latenciaMaxima: pick(parsed.latenciaMaxima, isPositivo),
+      sinaisIgnorados: pick(parsed.sinaisIgnorados, isString),
     };
   } catch {
     return emptyState();
@@ -206,5 +208,13 @@ export async function setExecutor(slug: string, executor: AgenteExecutor): Promi
   const state = await readTriage();
   if (executor === 'claude') delete state.executor[key];
   else state.executor[key] = executor;
+  await writeJsonAtomic(TRIAGE_FILE, state);
+}
+
+/** Ignora/designora um sinal do dia (chave `${slug}|${tipo}`). */
+export async function setSinalIgnorado(chave: string, ignorado: boolean): Promise<void> {
+  const state = await readTriage();
+  if (ignorado) state.sinaisIgnorados[chave] = new Date().toISOString();
+  else delete state.sinaisIgnorados[chave];
   await writeJsonAtomic(TRIAGE_FILE, state);
 }

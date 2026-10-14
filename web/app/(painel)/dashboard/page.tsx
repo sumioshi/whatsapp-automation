@@ -5,6 +5,7 @@ import { sinaisDoDia } from "@/lib/hoje";
 import { buildInbox } from "@/lib/inbox";
 import { PERIODOS, periodoDe, rodapesDosIndicadores } from "@/lib/painel";
 import { painelAtual } from "@/lib/painel-atual";
+import { readTriage } from "@/lib/triage";
 import {
   Barrinhas,
   EscalaCalor,
@@ -33,9 +34,17 @@ export default async function PainelPage({
 }) {
   const periodo = periodoDe((await searchParams).periodo);
   const grupos = await conversasDaRequisicao();
-  const [p, dados, inbox] = await Promise.all([painelAtual(periodo), montarDashboardAtual(), buildInbox({ grupos })]);
+  const [p, dados, inbox, triagem] = await Promise.all([
+    painelAtual(periodo),
+    montarDashboardAtual(),
+    buildInbox({ grupos }),
+    readTriage(),
+  ]);
   const rodapes = rodapesDosIndicadores(p);
-  const sinais = sinaisDoDia(dados.linhas, inbox, Date.now());
+  const sinais = sinaisDoDia(dados.linhas, inbox, Date.now(), {
+    sinaisIgnorados: triagem.sinaisIgnorados,
+    muted: triagem.muted,
+  });
   const fotos = Object.fromEntries(grupos.map((g) => [g.slug, g.avatarPath]));
   const dias = `${periodo} dias`;
 

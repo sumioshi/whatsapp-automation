@@ -2,13 +2,21 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Avatar, Badge, Card, cn, Pares, Icone } from "@/app/components/ui";
+import { Avatar, Badge, Card, cn, IconButton, Pares, Icone } from "@/app/components/ui";
 import { tipoPeloSlug } from "@/lib/aparencia";
 import type { Dashboard, LinhaDashboard } from "@/lib/dashboard";
 import { dataCurta, instanteCurto, instanteLongo } from "@/lib/formatar-data";
 import type { SinalDoDia, TomSinal } from "@/lib/hoje";
 import { rotasPainel } from "@/lib/rotas-painel";
 import { FOCO } from "../_hoje/pecas";
+
+async function postarTriagem(action: "resolved" | "muted" | "ignorarSinal", slug: string, value: string | boolean) {
+  await fetch("/api/triage", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, slug, value }),
+  });
+}
 
 type Coluna =
   | "nome"
@@ -94,11 +102,37 @@ export function DashboardView({
   const [coluna, setColuna] = useState<Coluna | null>(null);
   const [ordem, setOrdem] = useState<Ordem>("asc");
   const [todosSinais, setTodosSinais] = useState(false);
+  const [listaSinais, setListaSinais] = useState<SinalDoDia[]>(sinais);
+
+  useEffect(() => {
+    setListaSinais(sinais);
+  }, [sinais]);
 
   // Quem chega pelo "Ver no painel" do Hoje quer a lista inteira.
   useEffect(() => {
     if (window.location.hash === "#sinais") setTodosSinais(true);
   }, []);
+
+  async function ignorarSinal(s: SinalDoDia) {
+    setListaSinais((prev) => prev.filter((item) => item.chave !== s.chave));
+    try {
+      if (s.chave.endsWith("|espera")) {
+        await postarTriagem("resolved", s.slug, new Date().toISOString());
+      }
+      await postarTriagem("ignorarSinal", s.chave, true);
+    } catch {
+      // falha silenciosa na UI otimista
+    }
+  }
+
+  async function silenciarConversa(slug: string) {
+    setListaSinais((prev) => prev.filter((item) => item.slug !== slug));
+    try {
+      await postarTriagem("muted", slug, true);
+    } catch {
+      // falha silenciosa na UI otimista
+    }
+  }
 
   function ordenarPor(col: Coluna) {
     if (col === coluna) {
@@ -131,34 +165,37 @@ export function DashboardView({
           className="h-full"
           icone={<Icone nome="flag" />}
           titulo="Sinais"
-          meta={<span className="font-mono tabular-nums">{sinais.length}</span>}
+          meta={<span className="font-mono tabular-nums">{listaSinais.length}</span>}
           rodape={
             <>
               <span>contrato, prazo e silêncio, o mais grave primeiro</span>
-              {sinais.length > SINAIS_INICIAIS && (
+              {listaSinais.length > SINAIS_INICIAIS && (
                 <button
                   type="button"
                   aria-expanded={todosSinais}
                   onClick={() => setTodosSinais((t) => !t)}
                   className={cn("ml-auto shrink-0 rounded-[4px] font-medium text-accent hover:underline", FOCO)}
                 >
-                  {todosSinais ? "Mostrar menos" : `Ver todos os ${sinais.length}`}
+                  {todosSinais ? "Mostrar menos" : `Ver todos os ${listaSinais.length}`}
                 </button>
               )}
             </>
           }
         >
-          {sinais.length === 0 ? (
+          {listaSinais.length === 0 ? (
             <p className="py-6 text-center text-[12.5px] text-fg-faint">
               Nenhum sinal: contratos em dia e ninguém sem resposta há mais de 24 h.
             </p>
           ) : (
             <ul>
-              {(todosSinais ? sinais : sinais.slice(0, SINAIS_INICIAIS)).map((s) => (
-                <li key={s.chave}>
+              {(todosSinais ? listaSinais : listaSinais.slice(0, SINAIS_INICIAIS)).map((s) => (
+                <li
+                  key={s.chave}
+                  className="flex min-h-[52px] items-center gap-2 border-b border-line py-2 text-fg last:border-b-0"
+                >
                   <Link
                     href={rotas.chat(s.slug)}
-                    className={cn("group flex min-h-[52px] items-center gap-3 border-b border-line py-2 text-fg last:border-b-0", FOCO)}
+                    className={cn("group flex min-w-0 flex-1 items-center gap-3", FOCO)}
                   >
                     <Avatar nome={s.nome} tipo={tipoPeloSlug(s.slug)} fotoUrl={foto(s.slug)} tamanho="sm" />
                     <span className="min-w-0 flex-1">
@@ -171,6 +208,26 @@ export function DashboardView({
                       <small className="mt-0.5 block text-[12.5px] text-fg-faint">{s.explicacao}</small>
                     </span>
                   </Link>
+                  <span className="flex shrink-0 items-center gap-0.5">
+                    <IconButton
+                      size="sm"
+                      title="Ignorar este sinal"
+                      aria-label={`Ignorar sinal de ${s.nome}`}
+                      onClick={() => void ignorarSinal(s)}
+                      className="h-7 w-7 text-fg-faint hover:text-fg"
+                    >
+                      <Icone nome="x" tamanho={14} />
+                    </IconButton>
+                    <IconButton
+                      size="sm"
+                      title="Silenciar conversa (ocultar de Sinais e da Caixa)"
+                      aria-label={`Silenciar conversa ${s.nome}`}
+                      onClick={() => void silenciarConversa(s.slug)}
+                      className="h-7 w-7 text-fg-faint hover:text-fg"
+                    >
+                      <Icone nome="mute" tamanho={14} />
+                    </IconButton>
+                  </span>
                 </li>
               ))}
             </ul>

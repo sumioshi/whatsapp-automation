@@ -145,6 +145,47 @@ describe('sinaisDoDia', () => {
       'cliente ativo e pagando, sem nenhuma entrega registrada em 30 dias',
     );
   });
+  it('inclui remetente e prévia da mensagem no sinal de espera quando disponível', () => {
+    const comPrevia = sinaisDoDia(
+      [],
+      [
+        { slug: 'acme', groupName: 'Acme Corp', waitingMs: 30 * H, who: 'Marina', preview: 'Consegue revisar o relatório?' },
+        { slug: 'dm-1', groupName: 'Carlos', waitingMs: 28 * H, who: 'Carlos', preview: 'Bom dia, tudo certo?' },
+      ],
+      AGORA,
+    );
+    expect(comPrevia.find((x) => x.slug === 'acme')?.explicacao).toBe('Marina: Consegue revisar o relatório?');
+    expect(comPrevia.find((x) => x.slug === 'dm-1')?.explicacao).toBe('Bom dia, tudo certo?');
+  });
+  it('corta esperas paradas acima de 7 dias (ESPERA_PARADA_MS)', () => {
+    const res = sinaisDoDia(
+      [],
+      [
+        { slug: 'no-limite', groupName: 'Banco X', waitingMs: 7 * 24 * H },
+        { slug: 'parada', groupName: 'Portaria', waitingMs: 7 * 24 * H + 1 },
+      ],
+      AGORA,
+    );
+    expect(res.map((x) => x.slug)).toEqual(['no-limite']);
+  });
+  it('filtra sinais ignorados e conversas silenciadas (muted)', () => {
+    const filtrados = sinaisDoDia(linhas, esperando, AGORA, {
+      sinaisIgnorados: {
+        'norte|espera': '2026-10-12T10:00:00Z',
+        'rota|sem-entrega-30d': '2026-10-12T10:00:00Z',
+      },
+      muted: {
+        bonito: true,
+        casa: true,
+      },
+    });
+    const chaves = filtrados.map((x) => x.chave);
+    expect(chaves).not.toContain('norte|espera');
+    expect(chaves).not.toContain('rota|sem-entrega-30d');
+    expect(filtrados.some((x) => x.slug === 'bonito')).toBe(false);
+    expect(filtrados.some((x) => x.slug === 'casa')).toBe(false);
+    expect(chaves).toContain('pires|encerrado-ativo');
+  });
 });
 
 describe('contratosNoLimite', () => {

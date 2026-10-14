@@ -140,3 +140,14 @@ describe('setLatenciaMaxima', () => {
     expect((await mod.readTriage()).latenciaMaxima).toEqual({ c: 30 });
   });
 });
+
+describe('setSinalIgnorado', () => {
+  it('grava timestamp ISO ao ignorar e remove a chave ao desfazer', async () => {
+    await mod.setSinalIgnorado('acme|espera', true);
+    const t1 = await mod.readTriage();
+    expect(typeof t1.sinaisIgnorados['acme|espera']).toBe('string');
+    await mod.setSinalIgnorado('acme|espera', false);
+    const t2 = await mod.readTriage();
+    expect(t2.sinaisIgnorados['acme|espera']).toBeUndefined();
+  });
+});
