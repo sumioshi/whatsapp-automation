@@ -54,10 +54,29 @@ const MAX_PEDIDOS_POR_TICK = 5;
 const DEFAULT_INTERVALO_MIN = 15;
 /** Quantos bytes do fim do jsonl bastam pra detecção (≈ dezenas de msgs). */
 const TAIL_BYTES = 64 * 1024;
+/**
+ * Teto de cada chamada externa do ciclo (WhatsApp ou download). Sem ele, uma
+ * promessa que nunca resolve deixava `rodando` preso para sempre: e o ciclo para
+ * de fundir DMs LID×telefone.
+ */
+const TETO_CHAMADA_MS = 90_000;
+/** Ciclo que passou disso é dado como travado e não bloqueia o próximo. */
+const CICLO_TRAVADO_MS = 15 * 60_000;
+
+/** Rejeita se `p` não resolver em `ms` — a promessa original segue solta. */
+export function comTeto<T>(p: Promise<T>, ms: number, rotulo: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const teto = new Promise<never>((_, rejeitar) => {
+    timer = setTimeout(() => rejeitar(new Error(`${rotulo}: sem resposta em ${ms} ms`)), ms);
+    timer.unref?.();
+  });
+  return Promise.race([p, teto]).finally(() => clearTimeout(timer));
+}
 
 export class Reconciler {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private rodando = false;
+  private rodandoDesde = 0;
   private ancorasTentadas: Record<string, string> = {};
 
   constructor(private readonly deps: ReconcilerDeps) {}
@@ -107,6 +126,13 @@ export class Reconciler {
 
   /** Executa um ciclo agora (auto ou manual) e reagenda o próximo. */
   async tickNow(motivo: 'auto' | 'manual'): Promise<ReconcilerResumo> {
+    if (this.rodando && Date.now() - this.rodandoDesde > CICLO_TRAVADO_MS) {
+      logger.warn(
+        { desde: new Date(this.rodandoDesde).toISOString() },
+        'Reconciliador: ciclo anterior travado, seguindo com um novo.',
+      );
+      this.rodando = false;
+    }
     if (this.rodando) {
       return {
         executadoEm: new Date().toISOString(),
@@ -119,6 +145,7 @@ export class Reconciler {
       };
     }
     this.rodando = true;
+    this.rodandoDesde = Date.now();
     const resumo: ReconcilerResumo = {
       executadoEm: new Date().toISOString(),
       conectado: this.deps.connected(),
@@ -129,13 +156,17 @@ export class Reconciler {
       avataresAtualizados: 0,
     };
     try {
+      // 1) DMs duplicadas (LID×telefone) — fusão local, independe da conexão.
+      // Vem primeiro: não fica refém de chamada de rede dos passos seguintes.
+      await this.fundirDuplicatasDm(resumo);
+
       if (resumo.conectado) {
-        // 1) Nomes/renames — barato e idempotente (slug estável não fragmenta).
-        await this.deps.refreshGroups().catch((err) =>
+        // 2) Nomes/renames — barato e idempotente (slug estável não fragmenta).
+        await comTeto(this.deps.refreshGroups(), TETO_CHAMADA_MS, 'refreshGroups').catch((err) =>
           logger.warn({ err }, 'Reconciliador: refreshGroups falhou.'),
         );
 
-        // 2) Buracos de histórico nos grupos monitorados.
+        // 3) Buracos de histórico nos grupos monitorados.
         for (const { id: jid, slug } of this.deps.watchedEntries()) {
           if (!slug) continue;
           resumo.chatsVerificados++;
@@ -150,9 +181,6 @@ export class Reconciler {
           if (resumo.pedidosBackfill >= MAX_PEDIDOS_POR_TICK) break;
         }
       }
-      // 3) DMs duplicadas (LID×telefone) — fusão local, independe da conexão.
-      await this.fundirDuplicatasDm(resumo);
-
       // 4) Fotos de perfil de contatos ativos (grupos já têm fluxo próprio).
       if (resumo.conectado) await this.atualizarAvataresDm(resumo);
       logger.info({ motivo, ...resumo }, '🔄 Reconciliador executado.');
@@ -172,7 +200,11 @@ export class Reconciler {
     // Mesma âncora de antes = o celular não tinha mais nada; não insiste.
     if (this.ancorasTentadas[slug] === buraco.ancora.id) return;
     try {
-      const ok = await this.deps.fetchHistoryBefore(jid, buraco.ancora);
+      const ok = await comTeto(
+        this.deps.fetchHistoryBefore(jid, buraco.ancora),
+        TETO_CHAMADA_MS,
+        'fetchHistoryBefore',
+      );
       if (ok) {
         this.ancorasTentadas[slug] = buraco.ancora.id;
         resumo.pedidosBackfill++;
@@ -251,8 +283,12 @@ export class Reconciler {
       const fone = this.deps.phoneOf(id) ?? (/^\d{10,15}$/.test(id) ? id : null);
       if (!fone) continue; // LID sem telefone conhecido — sem jid discável
       try {
-        const url = await this.deps.avatarUrl(`${fone}@s.whatsapp.net`);
-        const ok = await this.deps.saveAvatarDm(dir, url);
+        const url = await comTeto(
+          this.deps.avatarUrl(`${fone}@s.whatsapp.net`),
+          TETO_CHAMADA_MS,
+          'avatarUrl',
+        );
+        const ok = await comTeto(this.deps.saveAvatarDm(dir, url), TETO_CHAMADA_MS, 'saveAvatarDm');
         if (ok) {
           resumo.avataresAtualizados++;
           logger.info({ slug: dir }, '🖼️  Foto do contato atualizada.');

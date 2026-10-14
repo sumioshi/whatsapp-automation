@@ -259,7 +259,8 @@ export class Collector {
   async saveAvatarDm(slug: string, url: string | null): Promise<boolean> {
     if (!url) return false;
     try {
-      const res = await fetch(url);
+      // Teto de 30 s: download pendurado prendia o ciclo do reconciliador.
+      const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
       if (!res.ok || !res.body) return false;
       const stream = Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]);
       await this.store.saveAvatar(slug, stream);
