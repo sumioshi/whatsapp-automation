@@ -66,6 +66,7 @@ export const CLASSIFICACAO: Record<string, 'dono' | 'atendimento' | 'publico'> =
   'api/media/[...path]/route.ts': 'dono',
   'api/messages/route.ts': 'dono',
   'api/metricas/route.ts': 'dono',
+  'api/notificacoes/route.ts': 'dono',
   'api/presence/route.ts': 'dono',
   'api/profile/route.ts': 'dono',
   'api/radar/route.ts': 'dono',
