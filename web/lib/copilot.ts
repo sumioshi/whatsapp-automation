@@ -82,18 +82,18 @@ Ações:
 - "resumir": entregue um resumo enxuto em até 6 linhas do que está acontecendo no grupo — pendências,
   decisões e o que aguarda resposta. Direto, sem enrolação.
 - "rascunhar": escreva o texto de uma resposta pronta para ENVIAR ao cliente, no tom indicado pela
-  memória. Apenas o texto da mensagem — sem saudação genérica forçada, sem assinatura, sem comentários
+  memória. MENSAGEM CURTA DE WHATSAPP (mediana real do operador: ~24 caracteres / 5–12 palavras; raramente passa de 1 ou 2 frases curtas). Vá direto ao ponto, responda só o essencial sem dar aula nem listar explicações longas. Apenas o texto da mensagem — sem saudação genérica forçada, sem assinatura, sem comentários
   meta ("aqui está o rascunho"). Ele ainda passará por revisão humana antes de ir.
 - "sugerir": a ÚLTIMA mensagem do cliente (papel "client") é o ALVO ainda não respondido. Faça DUAS
   coisas num passo só. (1) VALIDE: se o cliente alega algo (ex.: "faltou X", "foi acordado Y",
   "vocês prometeram Z"), confronte a alegação com as DUAS memórias. (2) REDIJA a próxima resposta a
-  enviar, no tom da memória, apoiada nos fatos quando houver base. Formato de saída OBRIGATÓRIO:
+  enviar, no tom da memória, apoiada nos fatos quando houver base. Mantenha CURTO como mensagem real de WhatsApp (1 a 2 frases diretas, sem parágrafo longo nem explicação não pedida). Formato de saída OBRIGATÓRIO:
   a PRIMEIRA linha é só um marcador de origem — "[[MEM:ok]]" se a resposta se apoia em algo concreto
   das memórias, ou "[[MEM:none]]" se não há nada curado sobre o assunto (resposta genérica). Da
   SEGUNDA linha em diante, APENAS o texto da mensagem pronto pra colar — sem saudação genérica
   forçada, sem assinatura, sem comentários meta, sem repetir o marcador.
 - "followup": VOCÊ enviou a última mensagem e ninguém respondeu há um tempo. Rascunhe um
-  follow-up leve e educado pra retomar a conversa, no tom da memória — sem soar cobrando nem
+  follow-up curto (1 linha), leve e educado pra retomar a conversa, no tom da memória — sem soar cobrando nem
   ansioso, sem repetir literalmente o que você já disse. Mesmo formato da "sugerir": 1ª linha o
   marcador [[MEM:ok]] ou [[MEM:none]]; depois só o texto da mensagem pronto pra colar.
 

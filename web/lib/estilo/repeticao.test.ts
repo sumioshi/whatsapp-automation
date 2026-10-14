@@ -101,3 +101,35 @@ describe("calibração no corpus real (2026-09-14)", () => {
     expect(regras(r)).not.toContain("dois_pontos_intro");
   });
 });
+
+describe("tamanho (balao_longo e janela_longa vs mediana do operador)", () => {
+  it("marca balao_longo (peso 2) quando balão passa de 180 chars ou total passa de 260 chars", () => {
+    const longo190 = "fiz a conferência completa do módulo de exportação do relatório mensal e já subi o ajuste na fila de processamento para você testar assim que puder hoje à tarde com calma na sua conta principal";
+    expect(longo190.length).toBeGreaterThan(180);
+    const r = scoreRepeticao({ ...base, baloes: [longo190], ultimasMinhas: [] });
+    expect(regras(r)).toContain("balao_longo");
+    expect(r.hits.find((h) => h.regra === "balao_longo")?.peso).toBe(2);
+  });
+
+  it("marca balao_longo grave (peso 3) quando balão é paredão (> 350 chars, > 240 chars com 3+ frases, ou 2+ balões > 300 chars)", () => {
+    const paredao =
+      "Fiz a conferência completa do módulo de exportação do relatório mensal. Também revisei todas as permissões de acesso do painel administrativo para garantir que nenhum dado ficasse de fora na listagem geral. Já deixei tudo pronto no ambiente de homologação para você validar hoje à tarde";
+    expect(paredao.length).toBeGreaterThan(240);
+    const r = scoreRepeticao({ ...base, baloes: [paredao], ultimasMinhas: [] });
+    expect(regras(r)).toContain("balao_longo");
+    expect(r.hits.find((h) => h.regra === "balao_longo")?.peso).toBe(3);
+  });
+
+  it("marca janela_longa (peso 2) quando 3 mensagens seguidas têm ≥ 110 chars", () => {
+    const msg120 = "verifiquei o cálculo da listagem de ontem e já deixei separado o lote que precisava ser reprocessado hoje cedo no servidor";
+    expect(msg120.length).toBeGreaterThanOrEqual(110);
+    const r = scoreRepeticao({
+      ...base,
+      baloes: ["conferi também a segunda parte do arquivo que faltava validar e deixei pronto para rodarmos na janela da tarde sem impacto"],
+      ultimasMinhas: ["ok", msg120, "atualizei a regra de filtragem do relatório para considerar apenas os registros confirmados na semana passada pelo financeiro"],
+    });
+    expect(regras(r)).toContain("janela_longa");
+    expect(r.hits.find((h) => h.regra === "janela_longa")?.peso).toBe(2);
+  });
+});
+

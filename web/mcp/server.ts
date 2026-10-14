@@ -825,7 +825,12 @@ server.registerTool(
       const estilo = resumirEstilo(ctx.ultimasMinhas, ctx.baseline);
       const e = ctx.estado;
       const agora = new Date();
-      const instrucoes = [INSTRUCAO_PRIMEIRA_PESSOA, ...estilo.instrucoes];
+      const mediana = ctx.baseline.tamanhoMediana || 24;
+      const instrucoes = [
+        INSTRUCAO_PRIMEIRA_PESSOA,
+        `tamanho: mediana do operador é ${mediana} chars (~5 palavras por balão, p75 = 51); escreva curto, só o essencial, sem explicar o que não perguntaram`,
+        ...estilo.instrucoes,
+      ];
       if (e.estado === "fria" && (ctx.intervaloDesdeMinhaUltima_s ?? Infinity) > 4 * 3600) instrucoes.push(`conversa fria há horas: saudação curta cabe; ${instrucaoDeSaudacao(agora)}`);
       if (e.estado === "ativa") instrucoes.push("conversa ativa: entra direto no assunto, sem saudação");
       if (e.perguntasAbertas.length) instrucoes.push(`cliente deixou ${e.perguntasAbertas.length} pergunta(s) em aberto: responde uma e, se precisar, diz quando vem o resto`);

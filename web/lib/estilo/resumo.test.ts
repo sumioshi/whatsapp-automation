@@ -26,4 +26,16 @@ describe("resumirEstilo", () => {
     expect(r.ultimas).toBe(0);
     expect(r.instrucoes).toEqual([]);
   });
+  it("avisa quando a média de tamanho das mensagens recentes estoura a mediana do operador", () => {
+    const r = resumirEstilo(
+      [
+        "fiz o levantamento completo dos dados que faltavam na aba de exportação e já ajustei a consulta principal",
+        "também conferi o filtro de período que estava trazendo os registros duplicados do mês anterior no relatório",
+      ],
+      BASELINE_PADRAO,
+    );
+    expect(r.instrucoes.join(" ")).toMatch(/mensagens recentes longas/);
+    expect(r.instrucoes.join(" ")).toMatch(/mediana do operador 24/);
+  });
 });
+

@@ -57,6 +57,11 @@ export function resumirEstilo(ultimasMinhas: string[], baseline: Baseline): Resu
       const media = palavras.reduce((a, b) => a + b, 0) / n;
       if (media > 0 && palavras.every((p) => Math.abs(p - media) <= 0.3 * media)) instrucoes.push("tamanhos parecidos; uma curta e uma de duas frases");
     }
+    const mediana = baseline.tamanhoMediana || 24;
+    const mediaChars = tamanhos.reduce((a, b) => a + b, 0) / n;
+    if (n >= 2 && mediaChars >= Math.max(85, mediana * 3.5)) {
+      instrucoes.push(`mensagens recentes longas (média ${Math.round(mediaChars)} chars vs mediana do operador ${mediana}); encurta pra 1 frase direta`);
+    }
   }
   return { ultimas: n, aberturas, verbos_de_abertura: verbos, pontuacao, tamanhos, instrucoes };
 }

@@ -41,6 +41,14 @@ export const AJUSTES = {
   excessoMinK: 3,
   /** o operador usa exclamação MAIS que a automação; excesso aqui não é sinal de IA */
   excessoSemExclamacao: true,
+  /** balão acima deste tamanho (chars) ou rascunho acima de rascunhoLongoChars soma peso 2 (mediana do operador = 24, p75 = 51) */
+  balaoLongoChars: 180,
+  rascunhoLongoChars: 260,
+  /** paredão de texto (> 350 chars num balão, > 420 no total, ou > 240 chars com 3+ frases) vira hit grave (peso 3, recusa direto sem ignorarScore) */
+  balaoGraveChars: 350,
+  rascunhoGraveChars: 420,
+  /** 3+ mensagens seguidas na janela com pelo menos este tamanho indicam inflação de texto (peso 2) */
+  janelaLongaChars: 110,
 };
 
 /** Features em que o sinal é excesso (o operador usa pouco). Pergunta/emoji/maiúscula são déficit, não hit. */
@@ -139,6 +147,42 @@ export function scoreRepeticao(e: EntradaRepeticao): { score: number; hits: Hit[
   const semPergunta = !e.baloes.some((b) => b.trim().endsWith("?"));
   if (e.baloes.length && longos && semPergunta && temTell("validacao_abertura", e.baloes[0] ?? "")) {
     hits.push({ regra: "resposta_redonda", peso: 1, motivo: "tudo longo, sem pergunta e abrindo com validação", sugestao: "responde uma parte e devolve uma pergunta" });
+  }
+
+  // 9. tamanho do balão / rascunho vs mediana do operador (24 chars, p75 = 51, p95 = 270)
+  const mediana = e.baseline.tamanhoMediana || 24;
+  const maxBalao = e.baloes.reduce((m, b) => Math.max(m, b.trim().length), 0);
+  const totalChars = e.baloes.reduce((s, b) => s + b.trim().length, 0);
+  const numFrases = frases(rascunho).length;
+  const paredao =
+    maxBalao > AJUSTES.balaoGraveChars ||
+    totalChars > AJUSTES.rascunhoGraveChars ||
+    (maxBalao > 240 && numFrases >= 3) ||
+    (e.baloes.length >= 2 && totalChars > 300);
+  if (paredao) {
+    hits.push({
+      regra: "balao_longo",
+      peso: 3,
+      motivo: `texto longo demais (${maxBalao} chars no maior balão, ${totalChars} no total; mediana do operador é ${mediana} chars)`,
+      sugestao: `enxuga pra 1–2 frases curtas (mediana do operador é ${mediana} chars); responde só o essencial e deixa o resto pro próximo turno`,
+    });
+  } else if (maxBalao > AJUSTES.balaoLongoChars || totalChars > AJUSTES.rascunhoLongoChars) {
+    hits.push({
+      regra: "balao_longo",
+      peso: 2,
+      motivo: `mensagem longa (${maxBalao} chars no maior balão, ${totalChars} no total; mediana do operador é ${mediana} chars)`,
+      sugestao: `corta pela metade ou quebra em balões curtos (mediana do operador: ${mediana} chars)`,
+    });
+  }
+
+  // 10. janela de mensagens longas seguidas (inflação de texto)
+  if (ult2.length === 2 && totalChars >= AJUSTES.janelaLongaChars && ult2.every((m) => m.trim().length >= AJUSTES.janelaLongaChars)) {
+    hits.push({
+      regra: "janela_longa",
+      peso: 2,
+      motivo: `3 mensagens longas seguidas (≥ ${AJUSTES.janelaLongaChars} chars cada; mediana do operador é ${mediana} chars)`,
+      sugestao: "últimas mensagens todas longas; manda uma curta de 1 linha",
+    });
   }
 
   return { score: hits.reduce((a, h) => a + h.peso, 0), hits };

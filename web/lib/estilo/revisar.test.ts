@@ -91,6 +91,15 @@ describe("revisar — score", () => {
     const r = revisar({ ...ctx, baloes: ["Assim: fica."] });
     expect(r.resumo).toMatch(/score/);
   });
+  it("recusa paredão de texto (balao_longo grave) mesmo sem nenhum outro tell", () => {
+    const paredao =
+      "fiz a conferência completa do módulo de exportação do relatório mensal e também revisei todas as permissões de acesso do painel administrativo para garantir que nenhum dado ficasse de fora na listagem geral que você pediu ontem à tarde durante a nossa conversa sobre o fechamento do mês e já deixei o lote separado no servidor para rodarmos assim que você confirmar";
+    expect(paredao.length).toBeGreaterThan(350);
+    const r = revisar({ ...ctx, baloes: [paredao] });
+    expect(r.ok).toBe(false);
+    expect(r.hits.map((h) => h.regra)).toContain("balao_longo");
+    expect(r.sugestoes.join(" ")).toMatch(/mediana do operador é 24 chars/);
+  });
 });
 
 describe("propriedade: janelas humanas variadas passam", () => {
