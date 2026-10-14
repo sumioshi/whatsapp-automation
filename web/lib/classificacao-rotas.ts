@@ -99,6 +99,7 @@ export const CLASSIFICACAO: Record<string, 'dono' | 'atendimento' | 'publico'> =
   'api/v1/radar/route.ts': 'publico',
   'atendimento/g/[slug]/page.tsx': 'atendimento',
   'atendimento/page.tsx': 'atendimento',
+  'landing/route.ts': 'publico',
   'login/page.tsx': 'publico',
   'privacidade/page.tsx': 'publico',
 };
