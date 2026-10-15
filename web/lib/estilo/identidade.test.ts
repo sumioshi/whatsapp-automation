@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { Contacts } from "../contacts";
 import type { MessageView } from "../data";
-import { INSTRUCAO_PRIMEIRA_PESSOA, nomeDoOperador, pedeAval, perguntaSeEhIa, revelaAutomacao, travaAutonoma } from "./identidade";
+import {
+  INSTRUCAO_PRIMEIRA_PESSOA,
+  nomeDoOperador,
+  pedeAval,
+  perguntaSeEhIa,
+  revelaAutomacao,
+  travaQueBloqueia,
+  travaAutonoma,
+} from "./identidade";
 
 const contatos: Contacts = {
   names: new Map([["5511000000001", "Fulano Silva"]]),
@@ -177,6 +185,22 @@ describe("travaAutonoma", () => {
       msg({ de: "cliente", text: "blz", ts: T(20) }),
     ];
     expect(travaAutonoma(msgs, contatos, agora)).toBeNull();
+  });
+});
+
+describe("travaQueBloqueia", () => {
+  const assumiu = { regra: "operador_assumiu" as const, motivo: "respondeu na mão" };
+  const ia = { regra: "perguntou_ia" as const, motivo: "perguntou se é IA" };
+
+  it("no autônomo, a trava bloqueia; no confirmar e sem trava, não", () => {
+    expect(travaQueBloqueia("autonomo", assumiu, false)).toBe(assumiu);
+    expect(travaQueBloqueia("confirmar", assumiu, false)).toBeNull();
+    expect(travaQueBloqueia("autonomo", null, false)).toBeNull();
+  });
+
+  it("pedido do operador libera só o operador_assumiu, nunca o perguntou_ia", () => {
+    expect(travaQueBloqueia("autonomo", assumiu, true)).toBeNull();
+    expect(travaQueBloqueia("autonomo", ia, true)).toBe(ia);
   });
 });
 

@@ -45,7 +45,7 @@ import { selectNew } from "../lib/novidades";
 import { baselineDoChat, carregarBaselinePadrao, contextoDeEscrita, type ContextoEscrita } from "../lib/estilo/contexto";
 import { resumirEstilo } from "../lib/estilo/resumo";
 import { revisar, type Revisao } from "../lib/estilo/revisar";
-import { INSTRUCAO_PRIMEIRA_PESSOA, travaAutonoma, type Trava } from "../lib/estilo/identidade";
+import { INSTRUCAO_PRIMEIRA_PESSOA, travaAutonoma, travaQueBloqueia, type Trava } from "../lib/estilo/identidade";
 import { horaBrt, instrucaoDeSaudacao, saudacaoDoHorario, saudacaoNaEntrega } from "../lib/estilo/saudacao";
 import { escolherCandidato } from "../lib/estilo/escolher";
 import { registrarRevisao } from "../lib/estilo/registro";
@@ -169,10 +169,27 @@ async function contextoDoChat(
  * No modo autônomo, o agente sai de cena quando o operador assume na mão ou
  * quando o contato pergunta se é IA. No `confirmar` o operador vê o texto antes.
  */
-function recusaAutonoma(modo: "confirmar" | "autonomo", trava: Trava | null, acao: string) {
-  if (modo !== "autonomo" || !trava) return null;
-  return fail(`modo autônomo travado (${trava.regra}); nada foi ${acao}. ${trava.motivo}.`);
+function recusaAutonoma(
+  modo: "confirmar" | "autonomo",
+  trava: Trava | null,
+  acao: string,
+  operadorPediu = false,
+) {
+  const t = travaQueBloqueia(modo, trava, operadorPediu);
+  if (!t) return null;
+  const saida =
+    t.regra === "operador_assumiu" ? " Se o operador pediu este envio agora, chame de novo com `operador_pediu: true`." : "";
+  return fail(`modo autônomo travado (${t.regra}); nada foi ${acao}. ${t.motivo}.${saida}`);
 }
+
+const OPERADOR_PEDIU = z
+  .boolean()
+  .optional()
+  .describe(
+    "true SÓ quando o operador pediu, nesta conversa, este envio pra este chat. Libera a trava do autônomo " +
+      "de quando ele respondeu pelo celular (`operador_assumiu`); nunca a de 'é IA?' (`perguntou_ia`). " +
+      "Nunca use por conta própria pra contornar a trava.",
+  );
 
 /**
  * Quando o agente leu cada chat pela última vez (preparar_resposta/ler_mensagens).
@@ -968,6 +985,7 @@ server.registerTool(
           "'agora' = cliente esperando um ok (só a janela de 5 s); 'normal' (default) = latência humana pelo " +
             "estado da conversa; 'calma' = update sem pressa (força o regime frio: minutos a horas).",
         ),
+      operador_pediu: OPERADOR_PEDIU,
       tempo_humano_s: z
         .number()
         .min(0)
@@ -994,7 +1012,19 @@ server.registerTool(
     },
   },
   async (
-    { grupo, texto: textoArg, baloes, um_balao, candidatos, revisao, urgencia, tempo_humano_s, citar, aguardar },
+    {
+      grupo,
+      texto: textoArg,
+      baloes,
+      um_balao,
+      candidatos,
+      revisao,
+      urgencia,
+      tempo_humano_s,
+      citar,
+      aguardar,
+      operador_pediu,
+    },
     extra,
   ) => {
     try {
@@ -1005,7 +1035,7 @@ server.registerTool(
 
       const { slug, label, jid, ctx, modo, typos, latenciaMaxima_s, trava } = await contextoDoChat(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
-      const travado = recusaAutonoma(modo, trava, "enviado");
+      const travado = recusaAutonoma(modo, trava, "enviado", operador_pediu === true);
       if (travado) return travado;
       const ignorarScore = revisao === "ignorar";
 
@@ -1197,12 +1227,13 @@ server.registerTool(
       caption: z.string().optional().describe("legenda (ignorada em audio); escreva na voz do operador, é revisada como o responder"),
       fileName: z.string().optional().describe("obrigatório para document — nome exibido"),
       mimetype: z.string().optional().describe("opcional (document); inferido pela extensão se ausente"),
+      operador_pediu: OPERADOR_PEDIU,
     },
   },
-  async ({ grupo, kind, path, caption, fileName, mimetype }, extra) => {
+  async ({ grupo, kind, path, caption, fileName, mimetype, operador_pediu }, extra) => {
     try {
       const { ctx, modo, trava } = await contextoDoChat(grupo);
-      const travado = recusaAutonoma(modo, trava, "enviado");
+      const travado = recusaAutonoma(modo, trava, "enviado", operador_pediu === true);
       if (travado) return travado;
       if (caption?.trim()) {
         const rev = revisar({ ...ctx, agora: new Date(), baloes: [caption.trim()] });
@@ -1301,12 +1332,13 @@ server.registerTool(
       grupo: z.string().describe("slug do grupo/DM, nome exato, OU jid"),
       msgId: z.string().describe("id da mensagem a editar (de ler_mensagens)"),
       texto: z.string().describe("texto NOVO completo (substitui o anterior)"),
+      operador_pediu: OPERADOR_PEDIU,
     },
   },
-  async ({ grupo, msgId, texto }) => {
+  async ({ grupo, msgId, texto, operador_pediu }) => {
     try {
       const { ctx, modo, trava } = await contextoDoChat(grupo);
-      const travado = recusaAutonoma(modo, trava, "editado");
+      const travado = recusaAutonoma(modo, trava, "editado", operador_pediu === true);
       if (travado) return travado;
       const rev = revisar({ ...ctx, baloes: [texto.trim()] });
       if (!rev.ok) return fail(`revisão recusou (${rev.resumo}); nada foi editado. Sugestões: ${rev.sugestoes.join("; ")}.`);

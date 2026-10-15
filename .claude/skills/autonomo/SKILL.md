@@ -72,6 +72,7 @@ restrita ganha:
 | Fala do operador em terceira pessoa, como se outra pessoa estivesse com o celular ("o <nome> tá aí?", "que horas ele volta?", "quero falar com ele") | é dúvida sobre quem atende: nada no chat, nem recebido; push na hora. O chat passa a ser do operador (linha abaixo). Responder "sou eu" aí é afirmar ser ele diante da dúvida, o mesmo limite do "é robô?" |
 | `Você (celular)`, `Você (web)` ou `Painel (...)` | o operador assumiu. Você sai do chat até ele devolver ("pode voltar" ou `/autonomo <chat>`): nem recebido, nem reação, nem reenvio de entrega interrompida. Pedido novo ali vira push, e o texto que você mandaria fica na sessão |
 | Operador devolveu ("pode voltar") | `ler_mensagens` desde que ele assumiu; não mande recebido atrasado do que chegou enquanto o chat era dele. Pergunta de IA ainda sem resposta dele: avise já que a trava só sai quando ele responder na mão (e responder na mão o faz assumir de novo). Recusa por trava depois disso: diga o porquê (`operador_assumiu` sai 15 min depois da última mensagem dele na mão) |
+| Operador pediu um envio específico enquanto o chat é dele ("manda X lá") | chame com `operador_pediu: true`: libera só o `operador_assumiu` e só para aquele envio. Nunca por conta própria, e nunca para a trava de "é IA?" (`perguntou_ia`), que segue até ele responder na mão |
 | `Entrega interrompida`, em chat que ainda é seu | `ler_mensagens` e responda de novo só o que ainda faltar |
 | Monitor expirou | rearme e chame `ler_mensagens({grupo, desde})` com `desde` no último disparo: o rearme abre um buraco |
 

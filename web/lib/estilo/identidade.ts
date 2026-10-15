@@ -194,3 +194,18 @@ export function travaAutonoma(msgs: MessageView[], contatos: Contacts, agora: Da
   }
   return null;
 }
+
+/**
+ * A trava que impede o envio agora, ou null. Só vale no autônomo (no confirmar o
+ * operador vê o texto antes). Quando o próprio operador pede o envio, o
+ * `operador_assumiu` sai do caminho; o `perguntou_ia` nunca.
+ */
+export function travaQueBloqueia(
+  modo: "confirmar" | "autonomo",
+  trava: Trava | null,
+  operadorPediu: boolean,
+): Trava | null {
+  if (modo !== "autonomo" || !trava) return null;
+  if (operadorPediu && trava.regra === "operador_assumiu") return null;
+  return trava;
+}
