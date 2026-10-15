@@ -148,7 +148,13 @@ digitação anda na velocidade medida do operador. Se o cliente escrever antes d
 ticket é interrompido e o plantão imprime `Entrega interrompida (mensagem nova, 0/3 saiu)` —
 releia o chat e responda de novo. Se o operador responder na mão (celular/web), idem. Novo
 `responder` no mesmo chat substitui o ticket anterior. `urgencia: 'agora'` = só a janela de 5 s
-(cliente esperando um ok); `'calma'` = update sem pressa. `status_envio(grupo|ticket)` consulta;
+(cliente esperando um ok); `'calma'` = update sem pressa. **Tempo de pessoa:** o coletor grava
+`duracao_s` (vídeo/áudio) e `paginas` (documento), e o que o cliente mandou desde a última resposta
+vira piso da espera (assistir/ler, sorteado a cada vez, até 4 min, descontando o tempo desde a
+mensagem; vale até no `agora`). `tempo_humano_s` no `responder` é a estimativa do agente de quanto
+uma pessoa levaria para chegar àquela resposta (corrigir bug ≈ 20 min): só uma fração vira espera
+(20 min → ~2 min, teto 4 min) e o tempo que o agente já gastou desconta. Atrasa a entrega, nunca o
+trabalho. `status_envio(grupo|ticket)` consulta;
 `cancelar_envio(grupo|ticket)` cancela agendado ou em andamento — se ele disser **"cancela"**,
 chame **na hora, sem confirmar**. `aguardar: true` segura a chamada como antes (Esc aborta).
 Saudação de período que só sairia em outro período (latência longa ou `segurarEnvios`) faz o

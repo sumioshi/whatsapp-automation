@@ -88,6 +88,10 @@ export interface InboundMessage {
   /** JID de quem escreveu a mensagem citada (reply), se houver. */
   quotedSender: string | null;
   media: MediaDescriptor | null;
+  /** Duração em segundos (vídeo/áudio), quando o WhatsApp informa. */
+  duracao_s?: number;
+  /** Páginas do documento, quando o WhatsApp informa. */
+  paginas?: number;
   /** Só em mensagem da própria conta (ou de bot). Ver `Origem`. */
   origem?: Origem;
   /** Envio feito por uma pessoa no painel (ver `Ator`). */
@@ -251,6 +255,8 @@ export interface MessageRecord {
   quotedSender: string | null;
   /** Caminho relativo do arquivo de mídia (a partir de DATA_DIR), ou null. */
   mediaPath: string | null;
+  duracao_s?: number;
+  paginas?: number;
   /** Só em mensagem da própria conta (ou de bot). Ver `Origem`. */
   origem?: Origem;
   /** Envio feito por uma pessoa no painel (ver `Ator`). */

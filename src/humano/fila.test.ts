@@ -389,4 +389,40 @@ describe('FilaEnvio', () => {
     expect(ticket.lerEm).toBeLessThanOrEqual(ticket.entregarEm);
     await f.parar();
   });
+
+  it('vídeo longo do cliente e tempo humano do agente atrasam a entrega (com teto)', async () => {
+    await mkdir(join(dataDir, 'chat'), { recursive: true });
+    const t = Date.now();
+    const msg = (o: Record<string, unknown>) =>
+      JSON.stringify({
+        fromMe: false,
+        sender: JID,
+        timestamp: new Date(t - 10_000).toISOString(),
+        ...o,
+      });
+    await writeFile(
+      join(dataDir, 'chat', 'messages.jsonl'),
+      `${msg({ id: 'V1', type: 'video', text: '', duracao_s: 300 })}\n`,
+    );
+    const { gw } = gatewayFalso();
+    const f = await fila(gw);
+    const video = await f.enfileirar({ jid: JID, slug: 'chat', baloes: ['vi'], origem: 'mcp' });
+    expect(video.ticket.previsao_s).toBe(240);
+    expect(video.ticket.lerEm).toBeLessThan(video.ticket.entregarEm - 200_000);
+
+    await writeFile(
+      join(dataDir, 'chat', 'messages.jsonl'),
+      `${msg({ id: 'T1', type: 'text', text: 'tem um bug no login' })}\n`,
+    );
+    const bug = await f.enfileirar({
+      jid: JID,
+      slug: 'chat',
+      baloes: ['corrigido'],
+      origem: 'mcp',
+      tempoHumano_s: 1200,
+    });
+    expect(bug.ticket.previsao_s).toBeGreaterThanOrEqual(120);
+    expect(bug.ticket.previsao_s).toBeLessThanOrEqual(150);
+    await f.parar();
+  });
 });

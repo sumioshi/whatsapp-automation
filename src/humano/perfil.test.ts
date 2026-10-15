@@ -9,6 +9,7 @@ import {
   lerHistorico,
   loadPerfilEnvio,
   type MsgHistorico,
+  pendentesDoCliente,
   ultimaDoCliente,
 } from './perfil';
 
@@ -99,6 +100,23 @@ describe('ultimaDoCliente', () => {
     const u = ultimaDoCliente(msgs, new Set(['5511000000009']));
     expect(u).toEqual({ ts: t0 + 30_000, chars: 17, id: 'c' });
     expect(ultimaDoCliente([minha(0, 'x')])).toBeNull();
+  });
+});
+
+describe('pendentesDoCliente', () => {
+  it('o que o cliente mandou desde a última resposta da conta, sem a equipe', () => {
+    const msgs: MsgHistorico[] = [
+      dele(0, 'antiga'),
+      minha(10, 'resp'),
+      { ...dele(20, ''), type: 'video', duracao_s: 300 },
+      { ...dele(25, 'da equipe'), sender: '5511000000009@s.whatsapp.net' },
+      { ...dele(30, 'olha isso'), type: 'document', paginas: 4 },
+    ];
+    expect(pendentesDoCliente(msgs, new Set(['5511000000009']))).toEqual([
+      { type: 'video', text: '', duracao_s: 300 },
+      { type: 'document', text: 'olha isso', paginas: 4 },
+    ]);
+    expect(pendentesDoCliente([...msgs, minha(40, 'ok')])).toEqual([]);
   });
 });
 

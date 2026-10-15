@@ -49,6 +49,7 @@ interface SendBody {
   aguardar?: boolean;
   decorrido_s?: number;
   latenciaMaxima_s?: number;
+  tempoHumano_s?: number;
 }
 
 interface EditBody {
@@ -394,6 +395,9 @@ export function startControlServer(
               ...(typeof body.decorrido_s === 'number' ? { decorrido_s: body.decorrido_s } : {}),
               ...(typeof body.latenciaMaxima_s === 'number'
                 ? { latenciaMaxima_s: body.latenciaMaxima_s }
+                : {}),
+              ...(typeof body.tempoHumano_s === 'number' && body.tempoHumano_s >= 0
+                ? { tempoHumano_s: body.tempoHumano_s }
                 : {}),
             });
             if (body.aguardar === true) {

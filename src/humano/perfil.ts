@@ -8,6 +8,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PerfilEnvio } from './baloes.js';
 import { PERFIL_DEFAULT } from './baloes.js';
+import type { MsgConsumo } from './latencia.js';
 
 export interface MsgHistorico {
   id?: string;
@@ -18,6 +19,8 @@ export interface MsgHistorico {
   origem?: string;
   sender?: string;
   groupJid?: string;
+  duracao_s?: number;
+  paginas?: number;
 }
 
 const MIN_MSGS = 30;
@@ -119,6 +122,27 @@ export function ultimaDoCliente(
     return { ts: t, chars: (m.text ?? '').length, ...(m.id ? { id: m.id } : {}) };
   }
   return null;
+}
+
+/** Mensagens do cliente desde a última resposta da conta: o que ainda falta assistir/ler. */
+export function pendentesDoCliente(
+  msgs: MsgHistorico[],
+  equipe: Set<string> = new Set(),
+): MsgConsumo[] {
+  const out: MsgConsumo[] = [];
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i] as MsgHistorico;
+    if (m.fromMe) break;
+    const user = (m.sender ?? '').split('@')[0]?.split(':')[0] ?? '';
+    if (equipe.has(user)) continue;
+    out.unshift({
+      ...(m.type ? { type: m.type } : {}),
+      text: m.text ?? '',
+      ...(typeof m.duracao_s === 'number' ? { duracao_s: m.duracao_s } : {}),
+      ...(typeof m.paginas === 'number' ? { paginas: m.paginas } : {}),
+    });
+  }
+  return out;
 }
 
 export async function lerHistorico(dataDir: string, slug: string): Promise<MsgHistorico[]> {

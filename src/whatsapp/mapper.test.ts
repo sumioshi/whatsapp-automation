@@ -94,3 +94,31 @@ describe('remetente em DM com participant vazio', () => {
     expect(p?.creatorJid).toBe(DM);
   });
 });
+
+describe('duração e páginas da mídia', () => {
+  it('vídeo e áudio guardam os segundos; documento guarda as páginas', () => {
+    const video = mapMessage(
+      recebidaNaDm({ message: { videoMessage: { seconds: 312, mimetype: 'video/mp4' } } }),
+      sock,
+      'Fulano',
+    );
+    expect(video?.duracao_s).toBe(312);
+    const audio = mapMessage(
+      recebidaNaDm({ message: { audioMessage: { seconds: 48, mimetype: 'audio/ogg' } } }),
+      sock,
+      'Fulano',
+    );
+    expect(audio?.duracao_s).toBe(48);
+    const doc = mapMessage(
+      recebidaNaDm({
+        message: {
+          documentMessage: { pageCount: 7, fileName: 'proposta.pdf', mimetype: 'application/pdf' },
+        },
+      }),
+      sock,
+      'Fulano',
+    );
+    expect(doc?.paginas).toBe(7);
+    expect(mapMessage(recebidaNaDm(), sock, 'Fulano')).not.toHaveProperty('duracao_s');
+  });
+});

@@ -153,6 +153,8 @@ O `responder` recebe `urgencia`:
 - **`normal`** (padrão): o código decide pelo estado da conversa. Ativa → segundos; fria → minutos a horas. É o certo para quase tudo.
 - **`calma`**: update de fim de tarde, aviso sem pressa, resposta a algo que já esfriou. Força o regime lento.
 
+**`tempo_humano_s`**: quanto uma pessoa levaria entre ler e mandar esta resposta. "blz" é questão de segundos; pensar antes de responder, 1 a 3 min; corrigir um bug e subir, 15 a 30 min. Pese o clima: cliente insistente ou grosso, estime menos (responde logo para encerrar). O código aplica só uma fração (teto de 4 min), desconta o tempo que você já gastou trabalhando e soma sozinho o tempo de assistir ou ler a mídia que o cliente mandou. Não segura o seu trabalho: faça o que foi pedido, chame o `responder` e a mensagem chega no tempo de uma pessoa. Sem ele, um "corrigido" 40 s depois do bug denuncia.
+
 Resposta parcial vale mais que resposta completa e lenta: "pera, deixa eu olhar" com `agora` e o conteúdo depois com `normal` é o padrão de quem está no meio de outra coisa. Cliente travado com sistema fora do ar: rápido e curto, nunca rápido e completo.
 
 `citar: <id>` responde uma mensagem específica dentro de uma rajada. Use quando o cliente mandou várias e você responde uma.

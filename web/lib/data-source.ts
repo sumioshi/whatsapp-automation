@@ -142,6 +142,8 @@ export interface SendOpts {
   /** Segundos que o agente já gastou desde que leu o chat (desconta da latência). */
   decorrido_s?: number;
   latenciaMaxima_s?: number;
+  /** Quanto uma pessoa levaria para chegar a esta resposta (só uma fração vira espera). */
+  tempoHumano_s?: number;
 }
 
 /**

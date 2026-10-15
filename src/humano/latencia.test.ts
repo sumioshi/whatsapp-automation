@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { calcularLatencia, type EntradaLatencia, fatorHora, LATENCIA, lognormal } from './latencia';
+import {
+  calcularLatencia,
+  type EntradaLatencia,
+  estimarConsumo,
+  fatorHora,
+  LATENCIA,
+  lognormal,
+} from './latencia';
 
 function seeded(seed: number): () => number {
   let s = seed;
@@ -126,5 +133,113 @@ describe('calcularLatencia — modificadores', () => {
 describe('lognormal', () => {
   it('rng 0,5 devolve a mediana', () => {
     expect(lognormal(30, 0.9, () => 0.5)).toBeCloseTo(30, 6);
+  });
+});
+
+describe('estimarConsumo — tempo de assistir/ouvir/ler o que o cliente mandou', () => {
+  const amostras = (p: Parameters<typeof estimarConsumo>[0], n = 500) => {
+    const rng = seeded(13);
+    return Array.from({ length: n }, () => estimarConsumo(p, rng)).sort((a, b) => a - b);
+  };
+
+  it('vídeo de 5 min: entre 0,6× e 1,3× a duração, nunca o mesmo valor', () => {
+    const xs = amostras([{ type: 'video', duracao_s: 300 }]);
+    expect(xs[0]).toBeGreaterThanOrEqual(180);
+    expect(xs[xs.length - 1]).toBeLessThanOrEqual(390);
+    expect(new Set(xs).size).toBeGreaterThan(400);
+  });
+
+  it('áudio: entre 0,5× e 1,1× (acelerado às vezes)', () => {
+    const xs = amostras([{ type: 'audio', duracao_s: 60 }]);
+    expect(xs[0]).toBeGreaterThanOrEqual(30);
+    expect(xs[xs.length - 1]).toBeLessThanOrEqual(66);
+  });
+
+  it('documento: cresce com as páginas, com teto por documento', () => {
+    const curto = amostras([{ type: 'document', paginas: 1 }]);
+    const longo = amostras([{ type: 'document', paginas: 10 }]);
+    expect(longo[250]!).toBeGreaterThan(curto[250]! * 3);
+    const enorme = amostras([{ type: 'document', paginas: 500 }]);
+    expect(enorme[enorme.length - 1]).toBeLessThanOrEqual(LATENCIA.consumoDocTeto_s);
+  });
+
+  it('mídia sem duração gravada usa um padrão, texto conta pelo tamanho, soma tudo', () => {
+    expect(amostras([{ type: 'video' }])[0]).toBeGreaterThan(0);
+    const texto = estimarConsumo([{ type: 'text', text: 'x'.repeat(170) }], () => 0.5);
+    expect(texto).toBeCloseTo(10, 0);
+    const soma = estimarConsumo(
+      [
+        { type: 'text', text: 'x'.repeat(170) },
+        { type: 'text', text: 'x'.repeat(170) },
+      ],
+      () => 0.5,
+    );
+    expect(soma).toBeCloseTo(20, 0);
+    expect(estimarConsumo([], () => 0.5)).toBe(0);
+  });
+});
+
+describe('calcularLatencia — piso de consumo e tempo humano', () => {
+  const amostrar = (e: EntradaLatencia, n = 1000, seed = 21) => {
+    const rng = seeded(seed);
+    return Array.from({ length: n }, () => calcularLatencia(e, rng).esperaAteDigitar_s).sort(
+      (a, b) => a - b,
+    );
+  };
+
+  it('vídeo longo vira piso da espera, limitado ao teto de 4 min', () => {
+    const xs = amostrar({ ...base, gapDesdeCliente_s: 20, consumo_s: 300 });
+    expect(xs[0]).toBeGreaterThanOrEqual(LATENCIA.pisoTeto_s - 1);
+    expect(xs[xs.length - 1]).toBeLessThanOrEqual(LATENCIA.ativaMax_s);
+  });
+
+  it('consumo já coberto pelo tempo desde a mensagem não atrasa nada', () => {
+    const rng = () => 0.5;
+    const sem = calcularLatencia({ ...base, gapDesdeCliente_s: 400 }, rng).esperaAteDigitar_s;
+    const com = calcularLatencia({ ...base, gapDesdeCliente_s: 400, consumo_s: 300 }, rng);
+    expect(com.esperaAteDigitar_s).toBe(sem);
+  });
+
+  it('tempo humano de ~20 min (corrigir bug): espera de 1,5 a 4 min, variando', () => {
+    const xs = amostrar({ ...base, tempoHumano_s: 1200 });
+    const med = xs[500]!;
+    expect(med).toBeGreaterThanOrEqual(110);
+    expect(med).toBeLessThanOrEqual(180);
+    expect(xs[xs.length - 1]).toBeLessThanOrEqual(LATENCIA.pisoTeto_s);
+    expect(new Set(xs).size).toBeGreaterThan(500);
+  });
+
+  it('tempo que o agente gastou trabalhando desconta do tempo humano', () => {
+    const rng = () => 0.5;
+    const semTrabalho = calcularLatencia({ ...base, tempoHumano_s: 1200 }, rng).esperaAteDigitar_s;
+    const trabalhou = calcularLatencia(
+      { ...base, tempoHumano_s: 1200, decorrido_s: 600 },
+      rng,
+    ).esperaAteDigitar_s;
+    expect(trabalhou).toBeLessThan(semTrabalho);
+    expect(trabalhou).toBe(calcularLatencia({ ...base, decorrido_s: 600 }, rng).esperaAteDigitar_s);
+  });
+
+  it('resposta curta (tempo humano de segundos) fica como hoje', () => {
+    const hoje = amostrar(base);
+    const curta = amostrar({ ...base, tempoHumano_s: 5 });
+    expect(curta[500]!).toBeLessThanOrEqual(hoje[500]! + 3);
+  });
+
+  it("'agora' continua 5 s, mas não pula o tempo de assistir um vídeo longo", () => {
+    const rng = seeded(4);
+    const ok = calcularLatencia({ ...base, urgencia: 'agora', tempoHumano_s: 1200 }, rng);
+    expect(ok.esperaAteDigitar_s).toBe(LATENCIA.janelaCancelamento_s);
+    const video = calcularLatencia({ ...base, urgencia: 'agora', consumo_s: 300 }, rng);
+    expect(video.regime).toBe('agora');
+    expect(video.esperaAteDigitar_s).toBe(LATENCIA.pisoTeto_s);
+    expect(video.esperaAteLer_s).toBe(0);
+  });
+
+  it('o visto sai antes do tempo de consumo, e a latência máxima do chat ainda manda', () => {
+    const s = calcularLatencia({ ...base, consumo_s: 200 }, () => 0.5);
+    expect(s.esperaAteDigitar_s - s.esperaAteLer_s).toBeGreaterThanOrEqual(175);
+    const teto = calcularLatencia({ ...base, consumo_s: 300, latenciaMaxima_s: 60 }, () => 0.5);
+    expect(teto.esperaAteDigitar_s).toBeLessThanOrEqual(60);
   });
 });

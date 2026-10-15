@@ -281,6 +281,8 @@ const INSTRUCTIONS = [
   "'cancela', chame NA HORA, sem confirmar. Se o plantão avisar 'Entrega interrompida',",
   "releia o chat e responda de novo. `urgencia: 'agora'` só quando o cliente espera um",
   "ok. Depois de cancelar ou interromper, ler_mensagens antes de reenviar.",
+  "Passe `tempo_humano_s` (quanto uma pessoa levaria pra chegar a essa resposta): o",
+  "código atrasa só a entrega, uma fração disso, e já soma o tempo de assistir a mídia.",
 ].join("\n");
 
 /**
@@ -966,6 +968,18 @@ server.registerTool(
           "'agora' = cliente esperando um ok (só a janela de 5 s); 'normal' (default) = latência humana pelo " +
             "estado da conversa; 'calma' = update sem pressa (força o regime frio: minutos a horas).",
         ),
+      tempo_humano_s: z
+        .number()
+        .min(0)
+        .max(86_400)
+        .optional()
+        .describe(
+          "quanto uma PESSOA levaria entre ler a mensagem e mandar ESTA resposta: 'blz' = segundos; " +
+            "responder depois de pensar = 1-3 min; corrigir um bug e subir = 15-30 min. Pese o clima: " +
+            "cliente insistente ou grosso, estime menos. O código aplica só uma fração (teto de 4 min) e " +
+            "desconta o tempo que você já gastou trabalhando; assistir/ler a mídia do cliente já entra sozinho. " +
+            "Não atrasa o seu trabalho, só a entrega.",
+        ),
       citar: z
         .string()
         .optional()
@@ -979,7 +993,10 @@ server.registerTool(
         ),
     },
   },
-  async ({ grupo, texto: textoArg, baloes, um_balao, candidatos, revisao, urgencia, citar, aguardar }, extra) => {
+  async (
+    { grupo, texto: textoArg, baloes, um_balao, candidatos, revisao, urgencia, tempo_humano_s, citar, aguardar },
+    extra,
+  ) => {
     try {
       const listaBase = (baloes ?? []).map((b) => b.trim()).filter(Boolean);
       const textoBase = listaBase.length ? listaBase.join("\n\n") : (textoArg ?? "").trim();
@@ -1068,6 +1085,7 @@ server.registerTool(
           ...(aguardar === true ? { aguardar: true } : {}),
           ...(decorrido_s !== undefined ? { decorrido_s } : {}),
           ...(latenciaMaxima_s !== undefined ? { latenciaMaxima_s } : {}),
+          ...(tempo_humano_s !== undefined ? { tempoHumano_s: tempo_humano_s } : {}),
         },
         { signal: extra.signal },
       );

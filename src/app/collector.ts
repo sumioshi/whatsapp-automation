@@ -71,6 +71,8 @@ export class Collector {
       quotedText: msg.quotedText,
       quotedSender: msg.quotedSender,
       mediaPath,
+      ...(msg.duracao_s ? { duracao_s: msg.duracao_s } : {}),
+      ...(msg.paginas ? { paginas: msg.paginas } : {}),
       ...(msg.origem ? { origem: msg.origem } : {}),
       ...(msg.ator ? { ator: msg.ator } : {}),
       ...(msg.usuario ? { usuario: msg.usuario } : {}),

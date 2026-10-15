@@ -81,6 +81,9 @@ export function mapMessage(
   let type: MessageType = 'text';
   let text = '';
   let media: MediaDescriptor | null = null;
+  // Duração (vídeo/áudio) e páginas (documento) dão o tempo de assistir/ler na latência.
+  let duracao: number | null | undefined;
+  let paginas: number | null | undefined;
 
   switch (ctype) {
     case 'conversation':
@@ -99,16 +102,19 @@ export function mapMessage(
       const isGif = content.videoMessage?.gifPlayback === true;
       type = isGif ? 'gif' : 'video';
       text = content.videoMessage?.caption ?? '';
+      duracao = content.videoMessage?.seconds;
       media = buildMediaDescriptor(type, content.videoMessage?.mimetype, null, wa, sock);
       break;
     }
     case 'audioMessage':
       type = 'audio';
+      duracao = content.audioMessage?.seconds;
       media = buildMediaDescriptor('audio', content.audioMessage?.mimetype, null, wa, sock);
       break;
     case 'documentMessage':
       type = 'document';
       text = content.documentMessage?.caption ?? '';
+      paginas = content.documentMessage?.pageCount;
       media = buildMediaDescriptor(
         'document',
         content.documentMessage?.mimetype,
@@ -177,6 +183,8 @@ export function mapMessage(
     quotedText: quoted.text,
     quotedSender: quoted.sender,
     media,
+    ...(duracao && duracao > 0 ? { duracao_s: duracao } : {}),
+    ...(paginas && paginas > 0 ? { paginas } : {}),
     origem: origemDe(wa),
   };
 }

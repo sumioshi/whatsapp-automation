@@ -44,8 +44,8 @@ import {
   ticketVivo,
   type Urgencia,
 } from './fila-core.js';
-import { calcularLatencia, LATENCIA } from './latencia.js';
-import { lerHistorico, loadPerfilEnvio, ultimaDoCliente } from './perfil.js';
+import { calcularLatencia, estimarConsumo, LATENCIA } from './latencia.js';
+import { lerHistorico, loadPerfilEnvio, pendentesDoCliente, ultimaDoCliente } from './perfil.js';
 import { planoDeEntrega } from './plano.js';
 import { Presenca } from './presenca.js';
 import { aoPresenca, aoReceberMensagem, type MsgVigia, type PresencaVigia } from './vigia.js';
@@ -62,6 +62,8 @@ export interface PedidoEnvio {
   origem: OrigemTicket;
   decorrido_s?: number;
   latenciaMaxima_s?: number;
+  /** Estimativa do agente de quanto uma pessoa levaria para chegar a esta resposta. */
+  tempoHumano_s?: number;
 }
 
 export interface DepsFila {
@@ -193,7 +195,8 @@ export class FilaEnvio extends EventEmitter {
         `nada novo a enviar: ${descartados.length} balão(ões) repetem mensagem já enviada neste chat nos últimos 30 min`,
       );
     }
-    const ultima = ultimaDoCliente(historico, await this.lerEquipe());
+    const equipe = await this.lerEquipe();
+    const ultima = ultimaDoCliente(historico, equipe);
     const cfg = await lerExpediente(this.deps.dataDir);
     const agoraDate = new Date(agora);
     const fora = cfg?.ativo === true && foraDaFaixa(agoraDate, cfg);
@@ -212,6 +215,8 @@ export class FilaEnvio extends EventEmitter {
         urgencia: p.urgencia ?? 'normal',
         decorrido_s: p.decorrido_s ?? 0,
         latenciaMaxima_s: p.latenciaMaxima_s ?? LATENCIA.latenciaMaximaPadrao_s,
+        consumo_s: estimarConsumo(pendentesDoCliente(historico, equipe), this.rng),
+        ...(p.tempoHumano_s !== undefined ? { tempoHumano_s: p.tempoHumano_s } : {}),
       },
       this.rng,
     );

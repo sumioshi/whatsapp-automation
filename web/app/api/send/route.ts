@@ -21,6 +21,7 @@ interface Body {
   aguardar?: boolean;
   decorrido_s?: number;
   latenciaMaxima_s?: number;
+  tempoHumano_s?: number;
 }
 
 export async function POST(req: Request) {
@@ -68,6 +69,7 @@ export async function POST(req: Request) {
         ...(body.aguardar === true ? { aguardar: true } : {}),
         ...(typeof body.decorrido_s === "number" ? { decorrido_s: body.decorrido_s } : {}),
         ...(typeof body.latenciaMaxima_s === "number" ? { latenciaMaxima_s: body.latenciaMaxima_s } : {}),
+        ...(typeof body.tempoHumano_s === "number" ? { tempoHumano_s: body.tempoHumano_s } : {}),
         ...(meta ?? {}),
       }),
       // Cliente que desconecta (Esc no agente) derruba esta chamada, e o control
