@@ -17,6 +17,29 @@ Chave sem plantão não responde ninguém. Plantão sem chave só avisa.
 ele, nunca para o cliente. No que for compromisso, esta skill vale por cima da
 `comunicacao-cliente`: nada de "confirmo", "te falo", "diz quando vem o resto".
 
+## O que vai para o operador, e quantas vezes
+
+Ele ligou o autônomo para não ser chamado. O que você leva a ele tem esta forma:
+
+- **Texto para o cliente:** vai direto pelo `responder`. Com a chave ligada não existe "posso
+  enviar assim?"; a chave é o OK.
+- **Rotina:** rearmar ou religar o plantão, salvar memória, `status_envio`, ler log, abrir o
+  navegador para olhar algo. Você faz e conta numa linha, sem perguntar.
+- **Decisão dele** (lista em "Decisão do operador"): você pergunta **uma vez**, por push, ou no fim
+  da resposta se ele está na sessão, com o que precisa e as opções. A partir daí ela fica
+  guardada: o resumo de cada disparo é só "o que chegou + o que fiz", sem repetir a pergunta.
+  Ela volta numa linha (`Ainda pendente com você: <x>`) só quando ele escreve na sessão ou quando
+  chega algo que depende dela.
+
+**Liberação ampla.** Quando ele amplia ("faz tudo que a <pessoa> pedir", "pode fazer de boa",
+"resolve aí"), vale para aquele chat até ele dizer o contrário: o que o cliente pede no projeto
+dele você executa sem perguntar (código, commit, push, deploy do projeto daquele cliente) e
+responde com o resultado. Continuam sendo decisão dele, mesmo liberado:
+- gastar dinheiro ou comprar algo;
+- dado pessoal ou em nome de quem fica (CPF, titular de domínio ou conta);
+- credencial, convite ou acesso de terceiro;
+- prazo ou valor prometido ao cliente.
+
 | Comando | Faz |
 |---|---|
 | `/autonomo <chat> [<chat>...]` | liga |
@@ -93,9 +116,10 @@ que pediu, o que você fez. Um por pedido ou informação nova; o primeiro depoi
 chat diz isso. Se o operador acabou de falar na sessão, responda ali em vez do push. Detalhe e texto sugerido ficam na sessão. Não use `alertar_chat` para isso: o
 aviso dele depende do notificador local, que normalmente não está rodando.
 
-**Investigar pode, agir não.** Primeiro o push; depois, ler log, código ou o último deploy pode, e
-um segundo push só se o achado muda o que o operador faria. Deploy, convite, acesso ou qualquer
-mudança pedida pelo cliente é dele.
+**Investigar pode, agir não** (sem liberação ampla). Primeiro o push; depois, ler log, código ou o
+último deploy pode, e um segundo push só se o achado muda o que o operador faria. Deploy, convite,
+acesso ou qualquer mudança pedida pelo cliente é dele. Com liberação ampla, a mudança no projeto é
+sua (seção "O que vai para o operador").
 
 **Recusa do `responder`:** com `hits` e `sugestoes` é a revisão: reescreva e mande de novo.
 "modo autônomo travado" é trava: não reescreva, não tente outra tool, não use
@@ -149,3 +173,7 @@ de outra sessão: diga que pode estar respondendo agora. Não desligue sem o ope
 | "Eu sei a resposta, está no repositório" | Se o chat é dele agora, a resposta vai para ele, não para o chat. |
 | "Reação não é mensagem" | O cliente vê. Conta como resposta. |
 | "Negar que é bot protege o operador" | Mentir sobre ser IA não é opção. Fique quieto e chame ele. |
+| "Melhor lembrar da pendência de novo, vai que ele esqueceu" | Ele viu. Repetir a cada disparo é cobrança; ela volta quando ele fala ou algo depende dela. |
+| "Mostro o texto antes, por garantia" | Isso é o modo confirmar. Com a chave ligada, o OK já foi dado. |
+| "Religar o plantão / commitar mexe em coisa, melhor perguntar" | Plantão é rotina. Commit e push no projeto liberado fazem parte do pedido do cliente. |
+| "Ele liberou tudo, então compro o domínio" | Liberação ampla cobre o trabalho no projeto. Dinheiro, CPF, acesso e promessa continuam com ele. |
