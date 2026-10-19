@@ -46,6 +46,15 @@ describe("léxico", () => {
     expect(ids("qualquer coisa me chama")).toContain("fechamento_reflexo");
     expect(ids("fico à disposição")).toContain("fechamento_reflexo");
   });
+  it("recibo de leitura abrindo a resposta", () => {
+    expect(ids("Boa tarde Paulo! Vi sua mensagem do webinário\nJá comecei a montar")).toContain("recibo_abertura");
+    expect(ids("vi sua mensagem sobre o contrato, já ajustei")).toContain("recibo_abertura");
+    expect(ids("Recebi seu áudio\njá tô olhando")).toContain("recibo_abertura");
+    expect(ids("Vi a msg agr")).not.toContain("recibo_abertura");
+    expect(ids("vi sua msg mas tava em uma reunião")).not.toContain("recibo_abertura");
+    expect(ids("Vi aqui")).not.toContain("recibo_abertura");
+    expect(ids("já comecei a montar a página")).not.toContain("recibo_abertura");
+  });
   it("vocabulário de IA e gerúndio de profundidade", () => {
     expect(ids("é crucial otimizar a jornada")).toContain("vocabulario_ia");
     expect(ids("subi o fix, garantindo que o total bata")).toContain("gerundio_profundidade");

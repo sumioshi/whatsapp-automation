@@ -48,6 +48,7 @@ import { revisar, type Revisao } from "../lib/estilo/revisar";
 import { INSTRUCAO_PRIMEIRA_PESSOA, travaAutonoma, travaQueBloqueia, type Trava } from "../lib/estilo/identidade";
 import { horaBrt, instrucaoDeSaudacao, saudacaoDoHorario, saudacaoNaEntrega } from "../lib/estilo/saudacao";
 import { escolherCandidato } from "../lib/estilo/escolher";
+import { avaliarPostura, historicoDaConversa, type LinhaHistorico } from "../lib/estilo/postura";
 import { registrarRevisao } from "../lib/estilo/registro";
 import {
   dsGroupMessages,
@@ -138,17 +139,20 @@ async function contextoDoChat(
   typos: boolean;
   latenciaMaxima_s: number | undefined;
   trava: Trava | null;
+  historico: LinhaHistorico[];
 }> {
   const destino = await resolveDestino(grupo);
   const slug = destino.slug ?? slugify(grupo);
   const padrao = await carregarBaselinePadrao(DATA_DIR);
   let ctx: ContextoEscrita;
   let trava: Trava | null = null;
+  let historico: LinhaHistorico[] = [];
   try {
     const { msgs } = await mensagensDaConversa(slug);
     const c = await contacts();
     ctx = contextoDeEscrita(msgs, c, new Date(), baselineDoChat(slug, msgs, padrao));
     trava = travaAutonoma(msgs, c, new Date());
+    historico = historicoDaConversa(msgs, c);
   } catch {
     ctx = contextoDeEscrita([], { names: new Map(), ownIds: new Set(), teamIds: new Set(), phones: new Map(), lids: new Set(), hasSidecar: false } as never, new Date(), padrao);
   }
@@ -162,7 +166,14 @@ async function contextoDoChat(
   const modo = t.autonomo?.[slug] === true ? "autonomo" : "confirmar";
   const typos = t.typos?.[slug] === true;
   const latenciaMaxima_s = t.latenciaMaxima?.[slug];
-  return { slug, label: destino.label, jid: destino.jid, ctx, modo, typos, latenciaMaxima_s, trava };
+  return { slug, label: destino.label, jid: destino.jid, ctx, modo, typos, latenciaMaxima_s, trava, historico };
+}
+
+/** Postura do rascunho (entendimento, concordância, conserto); falha da chamada não segura o envio. */
+async function posturaDoRascunho(historico: LinhaHistorico[], baloes: string[]) {
+  const p = await avaliarPostura({ historico, baloes });
+  if (p.erro) process.stderr.write(`[whatsapp-mcp] ${p.erro}\n`);
+  return p;
 }
 
 /**
@@ -840,8 +851,9 @@ server.registerTool(
   },
   async ({ grupo }) => {
     try {
-      const { slug, label, jid, ctx, modo } = await contextoDoChat(grupo);
+      const { slug, label, jid, ctx, modo, historico } = await contextoDoChat(grupo);
       const estilo = resumirEstilo(ctx.ultimasMinhas, ctx.baseline);
+      const postura = await avaliarPostura({ historico });
       const e = ctx.estado;
       const agora = new Date();
       const mediana = ctx.baseline.tamanhoMediana || 24;
@@ -855,6 +867,7 @@ server.registerTool(
       if (e.perguntasAbertas.length) instrucoes.push(`cliente deixou ${e.perguntasAbertas.length} pergunta(s) em aberto: responde uma e, se precisar, diz quando vem o resto`);
       if (e.operadorRespondeuNaMao) instrucoes.push("o operador respondeu na mão há pouco: não repita nem responda por cima");
       if (e.rajadaDoClienteEmAndamento) instrucoes.push("o cliente ainda está mandando: espera a rajada terminar antes de responder");
+      for (const a of postura.alertas) instrucoes.push(`postura, ${a}`);
       const pendente = jid ? await dsStatusEntrega({ jid }).catch(() => null) : null;
       const entrega_pendente =
         pendente && (pendente.estado === "agendado" || pendente.estado === "entregando") ? pendente : null;
@@ -873,6 +886,7 @@ server.registerTool(
         estilo_recente: estilo,
         baseline: { origem: ctx.baseline.origem, n: ctx.baseline.n },
         entrega_pendente,
+        ...(postura.alertas.length ? { postura: postura.alertas } : {}),
         instrucoes,
       });
     } catch (err) {
@@ -895,8 +909,18 @@ server.registerTool(
   },
   async ({ grupo, baloes }) => {
     try {
-      const { ctx } = await contextoDoChat(grupo);
-      return text(revisar({ ...ctx, agora: new Date(), baloes: baloes.map((b) => b.trim()).filter(Boolean) }));
+      const { ctx, historico } = await contextoDoChat(grupo);
+      const lista = baloes.map((b) => b.trim()).filter(Boolean);
+      const rev = revisar({ ...ctx, agora: new Date(), baloes: lista });
+      const postura = await posturaDoRascunho(historico, lista);
+      if (!postura.hits.length) return text(rev);
+      return text({
+        ...rev,
+        ok: false,
+        hits: [...rev.hits, ...postura.hits],
+        sugestoes: [...new Set([...postura.hits.map((h) => h.sugestao), ...rev.sugestoes])],
+        resumo: `${rev.resumo}; postura: ${postura.hits.map((h) => h.regra).join(", ")}`,
+      });
     } catch (err) {
       return fail(err instanceof Error ? err.message : "falha ao revisar");
     }
@@ -1033,7 +1057,7 @@ server.registerTool(
       if (!candidatos && !textoBase) return fail("passe `texto`, `baloes` ou `candidatos`");
       if (candidatos && textoBase) return fail("`candidatos` é exclusivo com `texto`/`baloes`");
 
-      const { slug, label, jid, ctx, modo, typos, latenciaMaxima_s, trava } = await contextoDoChat(grupo);
+      const { slug, label, jid, ctx, modo, typos, latenciaMaxima_s, trava, historico } = await contextoDoChat(grupo);
       if (!jid) return fail(`destino não encontrado: ${grupo}`);
       const travado = recusaAutonoma(modo, trava, "enviado", operador_pediu === true);
       if (travado) return travado;
@@ -1097,6 +1121,26 @@ server.registerTool(
       }
 
       if (!rev) return fail("revisão não produzida");
+
+      // Texto aprovado pelo operador (revisao: 'ignorar') não passa pela postura.
+      if (!ignorarScore) {
+        const postura = await posturaDoRascunho(historico, lista.length ? lista : [texto]);
+        if (postura.hits.length) {
+          void registrarRevisao(DATA_DIR, {
+            ts: new Date().toISOString(),
+            slug,
+            tool: "responder",
+            score: rev.score,
+            hits: postura.hits.map((h) => h.regra),
+            bloqueios: [],
+            enviado: false,
+          });
+          return fail(
+            `postura recusou; nada foi enviado. ${postura.hits.map((h) => `${h.regra}: ${h.motivo}`).join(" | ")}. ` +
+              `Sugestões: ${postura.hits.map((h) => h.sugestao).join("; ")}. Reescreva e chame de novo.`,
+          );
+        }
+      }
 
       // extra.signal aborta quando o cliente cancela a tool (Esc do operador):
       // viaja até o coletor, que segura o próximo balão.

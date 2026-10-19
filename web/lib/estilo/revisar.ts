@@ -43,7 +43,7 @@ export const LIMIAR = 4;
 /** Limiar efetivo; a calibração (scripts/estilo-baseline.ts) pode ajustar em tempo de execução. */
 export const CONFIG_REVISAO = { limiar: LIMIAR };
 
-const PESO_TELL: Partial<Record<TellId, number>> = { dois_pontos_intro: 2, travessao: 2, nao_so_mas: 2, markdown: 2, bullets: 2 };
+const PESO_TELL: Partial<Record<TellId, number>> = { dois_pontos_intro: 2, travessao: 2, nao_so_mas: 2, markdown: 2, bullets: 2, recibo_abertura: 3 };
 const TETO_MINIMIZADOR = 3;
 
 /**

@@ -127,7 +127,17 @@ recusadas (orçamento de 6%).
 - **Candidatos:** mande 2-3 versões em `candidatos` e o código envia a que menos destoa.
   `revisar_texto` revisa sem enviar (útil no modo `confirmar`).
 - **`revisao: 'ignorar'`** pula só o score, nunca bloqueios, e só quando o operador aprovou o
-  texto exatamente assim.
+  texto exatamente assim. Também pula a postura.
+- **Postura (`web/lib/estilo/postura.ts`):** além das regras fixas, um modelo barato (Gemini Flash
+  pela OpenRouter, troca com `WAC_POSTURA_MODEL`) lê as últimas 60 mensagens e o rascunho e recusa
+  três coisas que dependem do histórico: `entendimento` (o cliente foi ambíguo ou cobrou
+  "entendeu?" e o rascunho age ou diz "entendi" sem dizer o quê), `concordancia` (só concede a uma
+  ideia nova, sem custo, prazo ou pergunta) e `conserto` (anuncia como resolvido um problema que
+  já foi dado como resolvido antes e voltou, sem prova). Sem rascunho, o `preparar_resposta`
+  devolve o risco em `postura`. Só roda quando há fala do cliente sem resposta ou o rascunho
+  concede/anuncia conserto; leva 5-12 s; falha da chamada nunca segura o envio.
+- **Recibo na abertura** ("Vi sua mensagem do X", "Recebi seu áudio" antes do conteúdo) é hit
+  grave (`recibo_abertura`). "Vi aqui" sozinho, como recebido curto, passa.
 - Baseline: `npm run estilo-baseline` recalcula de `.private/voz/` para `data/.estilo-baseline.json`;
   chat com ≥ 100 mensagens do próprio operador usa baseline próprio. Registro em
   `data/.revisoes.jsonl` (score, hits, enviado) para recalibrar.
