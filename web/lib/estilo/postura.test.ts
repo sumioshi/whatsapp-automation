@@ -13,6 +13,10 @@ describe("precisaAvaliar", () => {
   it("pula follow-up meu sem concessão nem conserto", () => {
     expect(precisaAvaliar([l("cliente", "ok"), l("eu", "fechado")], ["te mando a prévia amanhã cedo"])).toBe(false);
   });
+  it("avalia rascunho que concede ou se desculpa mesmo sem fala nova do cliente", () => {
+    expect(precisaAvaliar([l("cliente", "nada funciona"), l("eu", "vi aqui")], ["verdade, desculpa"])).toBe(true);
+    expect(precisaAvaliar([l("cliente", "te passei ontem"), l("eu", "vi aqui")], ["passou sim, já faço"])).toBe(true);
+  });
   it("avalia rascunho que anuncia conserto mesmo sem fala nova do cliente", () => {
     expect(precisaAvaliar([l("cliente", "erro na legenda"), l("eu", "vi aqui")], ["legenda arrumada, já tá no ar"])).toBe(true);
   });
@@ -32,6 +36,10 @@ describe("lerVeredito", () => {
     const r = lerVeredito({ conserto: { risco: true, trecho: "legenda, 4ª vez", sugestao: "mostra o vídeo refeito" } }, false);
     expect(r.hits).toEqual([]);
     expect(r.alertas[0]).toContain("conserto: mostra o vídeo refeito");
+  });
+  it("cobrança vira hit com a frase de posição", () => {
+    const r = lerVeredito({ cobranca: { falhou: true, trecho: "te passei o timbrado ontem", sugestao: "o timbrado não chegou não" } }, true);
+    expect(r.hits[0]).toMatchObject({ regra: "cobranca", peso: 4, sugestao: "o timbrado não chegou não" });
   });
   it("sugestão vazia cai no texto padrão e lixo não quebra", () => {
     expect(lerVeredito({ concordancia: { falhou: true, sugestao: "" } }, true).hits[0]?.sugestao).toMatch(/custo ou o impacto/);

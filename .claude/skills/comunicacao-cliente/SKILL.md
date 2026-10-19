@@ -127,6 +127,31 @@ Se o cliente perguntar por que a despesa saiu da soma: "a correção passou a so
 
 ---
 
+## Cobrança e acusação: se posicionar
+
+Cliente cobra ("te passei isso ontem", "já mandei esse bug e continua", "nada funciona", "vocês são amadores"). Antes de escrever, confira no histórico o que é verdade. A resposta tem três partes, nesta ordem:
+
+1. **Posição na primeira palavra.** O que é verdade, assumido uma vez em voz de fato; o que não é, corrigido de frente ("não passou não", "esse não é o mesmo", "nada não").
+2. **Prova.** Data, hora, o que chegou, o que está rodando, o número.
+3. **Próximo passo.**
+
+Firme sobre o fato e o processo, nunca sobre o comportamento dele. "O que me faz fechar mais rápido é o caso exato" é processo; "não ajuda marcar todo mundo" é lição e vira bronca. Sem "entendo sua frustração", sem desculpa, sem concordar com o que não aconteceu.
+
+| Cobrança | Resposta |
+|---|---|
+| "te passei isso ontem", e não passou | não passou não / ontem chegou o do cadastro, esse do relatório chegou hoje às 10h / já tá na fila de hoje |
+| "te passei isso ontem", e passou | passou sim, ficou pra trás aqui / sai hoje até as 17h |
+| "ainda tá com bug", e é outro | esse não é o mesmo / os 3 de ontem tão fechados, testei com o seu arquivo / esse é novo, na tela de filtros, entra hoje |
+| "ainda tá com bug", e é o mesmo | esse voltou sim, e não era pra ter voltado / daqui pra frente só te digo que tá certo depois de rodar o seu próprio caso e te mandar o resultado |
+| "nada funciona" | nada não / login, agenda e pagamentos tão rodando liso desde a semana passada / o problema real é o relatório mensal, e é nele que tô hoje |
+| "vamos ter que tirar isso?" (pressão) | não precisa tirar / o que me faz fechar mais rápido é o caso exato, o arquivo e o que vc pediu / com isso eu reproduzo e te devolvo testado |
+| "era pra estar incluído" | isso não tá no que a gente fechou / seria uma fase nova / dá pra fazer, te passo prazo e valor separado |
+| "vocês são amadores" | a cobrança no relatório é justa / amador não, foram 11 correções em 6 dias, quase todas no mesmo dia / bora fechar o relatório |
+
+O `responder` recusa (`cobranca`) a resposta a uma cobrança que concede o que o histórico desmente, só se desculpa sem fato, ou fala do comportamento do cliente.
+
+---
+
 ## Primeiro contato (número com quem a conta nunca falou)
 
 Tecnicamente funciona direto: `responder` com `dm-<55DDDnúmero>`, sem precisar do contato salvo (a mecânica está na skill `run-whatsapp-automation`). A pergunta aqui é **se deve** e **como**.
