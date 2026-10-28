@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { avaliarPostura, type LinhaHistorico, lerVeredito, precisaAvaliar } from "./postura";
 
-const l = (quem: LinhaHistorico["quem"], texto: string): LinhaHistorico => ({ quem, nome: quem === "cliente" ? "Paulo" : quem, hora: "15/10 15:00", texto });
+const l = (quem: LinhaHistorico["quem"], texto: string): LinhaHistorico => ({ quem, nome: quem === "cliente" ? "Fulano" : quem, hora: "15/10 15:00", texto });
 
 const respostaOpenRouter = (conteudo: unknown) =>
   (async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(conteudo) } }] }), { status: 200 })) as unknown as typeof fetch;
 
 describe("precisaAvaliar", () => {
   it("avalia quando o cliente falou depois da minha última", () => {
-    expect(precisaAvaliar([l("eu", "subiu"), l("cliente", "ENTENDEU sobre as trilhas ?")])).toBe(true);
+    expect(precisaAvaliar([l("eu", "subiu"), l("cliente", "ENTENDEU sobre os planos ?")])).toBe(true);
   });
   it("pula follow-up meu sem concessão nem conserto", () => {
     expect(precisaAvaliar([l("cliente", "ok"), l("eu", "fechado")], ["te mando a prévia amanhã cedo"])).toBe(false);
@@ -18,28 +18,28 @@ describe("precisaAvaliar", () => {
     expect(precisaAvaliar([l("cliente", "te passei ontem"), l("eu", "vi aqui")], ["passou sim, já faço"])).toBe(true);
   });
   it("avalia rascunho que anuncia conserto mesmo sem fala nova do cliente", () => {
-    expect(precisaAvaliar([l("cliente", "erro na legenda"), l("eu", "vi aqui")], ["legenda arrumada, já tá no ar"])).toBe(true);
+    expect(precisaAvaliar([l("cliente", "erro no relatório"), l("eu", "vi aqui")], ["relatório arrumado, já tá no ar"])).toBe(true);
   });
 });
 
 describe("lerVeredito", () => {
   it("com rascunho, falha vira hit grave com a sugestão do modelo", () => {
     const r = lerVeredito(
-      { entendimento: { falhou: true, trecho: "Essas são NOSSAS exclusivas", sugestao: "exclusivas só no seu número, certo?" }, concordancia: { falhou: false }, conserto: { falhou: false } },
+      { entendimento: { falhou: true, trecho: "Esses são os NOSSOS planos", sugestao: "planos só da sua equipe, certo?" }, concordancia: { falhou: false }, conserto: { falhou: false } },
       true,
     );
     expect(r.hits).toHaveLength(1);
-    expect(r.hits[0]).toMatchObject({ regra: "entendimento", peso: 4, sugestao: "exclusivas só no seu número, certo?" });
+    expect(r.hits[0]).toMatchObject({ regra: "entendimento", peso: 4, sugestao: "planos só da sua equipe, certo?" });
     expect(r.alertas).toEqual([]);
   });
   it("sem rascunho, risco vira alerta e nunca hit", () => {
-    const r = lerVeredito({ conserto: { risco: true, trecho: "legenda, 4ª vez", sugestao: "mostra o vídeo refeito" } }, false);
+    const r = lerVeredito({ conserto: { risco: true, trecho: "relatório, 4ª vez", sugestao: "mostra o relatório refeito" } }, false);
     expect(r.hits).toEqual([]);
-    expect(r.alertas[0]).toContain("conserto: mostra o vídeo refeito");
+    expect(r.alertas[0]).toContain("conserto: mostra o relatório refeito");
   });
   it("cobrança vira hit com a frase de posição", () => {
-    const r = lerVeredito({ cobranca: { falhou: true, trecho: "te passei o timbrado ontem", sugestao: "o timbrado não chegou não" } }, true);
-    expect(r.hits[0]).toMatchObject({ regra: "cobranca", peso: 4, sugestao: "o timbrado não chegou não" });
+    const r = lerVeredito({ cobranca: { falhou: true, trecho: "te passei o arquivo ontem", sugestao: "o arquivo não chegou não" } }, true);
+    expect(r.hits[0]).toMatchObject({ regra: "cobranca", peso: 4, sugestao: "o arquivo não chegou não" });
   });
   it("sugestão vazia cai no texto padrão e lixo não quebra", () => {
     expect(lerVeredito({ concordancia: { falhou: true, sugestao: "" } }, true).hits[0]?.sugestao).toMatch(/custo ou o impacto/);
@@ -48,7 +48,7 @@ describe("lerVeredito", () => {
 });
 
 describe("avaliarPostura", () => {
-  const historico = [l("eu", "subi as 5 no editor"), l("cliente", "ENTENDEU sobre as trilhas ?")];
+  const historico = [l("eu", "subi os 3 no painel"), l("cliente", "ENTENDEU sobre os planos ?")];
 
   it("devolve os hits do modelo", async () => {
     const r = await avaliarPostura({
