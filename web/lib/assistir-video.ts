@@ -13,7 +13,7 @@ import { promisify } from 'node:util';
 const pexec = promisify(execFile);
 
 const ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
-const MODELO_PADRAO = 'gemini-3.8-flash';
+const MODELO_PADRAO = 'gemini-4-argon';
 /** Corpo da requisição precisa caber; acima disso o vídeo é comprimido. */
 export const LIMITE_BYTES = 18_000_000;
 /** Vídeo mais longo que isso é recusado antes de gastar crédito. */

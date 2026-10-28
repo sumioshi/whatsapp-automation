@@ -12,7 +12,7 @@ import { binPath } from "./paths";
 const MLX_BIN = process.env.WAC_MLX_WHISPER ?? "mlx_whisper";
 const SERVICE_URL = `http://127.0.0.1:${process.env.WAC_TRANSCRIBE_PORT ?? "4320"}`;
 const OPENROUTER_STT_URL = "https://openrouter.ai/api/v1/audio/transcriptions";
-const OR_MODEL = process.env.TRANSCRIBE_OPENROUTER_MODEL ?? "openai/whisper-large-v3";
+const OR_MODEL = process.env.TRANSCRIBE_OPENROUTER_MODEL ?? "elevenlabs/scribe-v2";
 
 type Backend = "mlx" | "openrouter";
 

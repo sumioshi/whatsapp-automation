@@ -203,11 +203,11 @@ tool de mídia normalmente, ela busca da nuvem. Só num setup 100% local (sem `W
 
 ## Vídeo: `assistir_video` (MCP) e a skill `watch`
 
-**`assistir_video`** (MCP, `web/lib/assistir-video.ts`): o Gemini (`google/gemini-3.8-flash` pela
+**`assistir_video`** (MCP, `web/lib/assistir-video.ts`): o Gemini (`google/gemini-4-argon` pela
 OpenRouter, troca com `WAC_VIDEO_MODEL`) assiste imagem e áudio juntos e devolve o que aparece e o que
 é falado, com tempos. Serve pro vídeo **anexado** no chat (`grupo` + `id`/`mediaPath`, ou o último do
-grupo) e pra **link** (`url`: YouTube direto; Instagram/TikTok baixados com `yt-dlp`). ~US$ 0,003–0,01
-por vídeo, teto de 20 min, comprimido até ~18 MB: chame sob demanda, nunca em lote. `ver_video`
+grupo) e pra **link** (`url`: YouTube direto; Instagram/TikTok baixados com `yt-dlp`). ~US$ 0,03–0,05
+por vídeo de 1 min, teto de 20 min, comprimido até ~18 MB: chame sob demanda, nunca em lote. `ver_video`
 (quadros, grátis) continua pra GIF/meme; `transcrever` pra só a fala.
 
 A skill **`watch`** faz o mesmo fora do MCP (no Claude Code), empacotada no repo em
@@ -225,11 +225,12 @@ fica desligado neste projeto em `.claude/settings.json` para não duplicar).
   - **Gemini via OpenRouter:** `WATCH_GEMINI_VIA=openrouter` faz o motor gemini chamar
     `google/<WATCH_GEMINI_MODEL>` pela OpenRouter (`gemini.ask_openrouter`, `watch.run_gemini_openrouter`):
     YouTube vai por link; o resto é baixado, comprimido até ~18 MB e vai em base64 no corpo. Cobra do
-    saldo da OpenRouter, contornando o pré-pagamento do Google. ~US$ 0,003 por vídeo curto.
-  - **Transcrição:** backend `openrouter` (`openai/whisper-large-v3`, troca com `WATCH_OPENROUTER_MODEL`)
+    saldo da OpenRouter, contornando o pré-pagamento do Google. ~US$ 0,03 por vídeo curto.
+  - **Transcrição:** backend `openrouter` (`elevenlabs/scribe-v2`, troca com `WATCH_OPENROUTER_MODEL`)
     para o motor local.
   - Config atual em `~/.config/watch/.env`: `WATCH_ENGINE=gemini`, `WATCH_GEMINI_VIA=openrouter`,
-    `WATCH_GEMINI_MODEL=gemini-3.8-flash`, `WATCH_WHISPER_BACKEND=openrouter`.
+    `WATCH_GEMINI_MODEL=gemini-4-argon`, `WATCH_WHISPER_BACKEND=openrouter`,
+    `WATCH_OPENROUTER_MODEL=elevenlabs/scribe-v2`.
 - **Atualizar:** copie `skills/watch/` da versão nova do repositório de origem por cima da pasta,
   sem `__pycache__` nem `build-skill.sh`, reaplique os patches da OpenRouter acima e rode
   `setup.py --json` para conferir.

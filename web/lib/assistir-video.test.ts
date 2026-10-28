@@ -29,7 +29,7 @@ describe('ehYoutube', () => {
 
 describe('modeloDoVideo', () => {
   it('usa o padrão e põe o prefixo google/ quando falta', () => {
-    expect(modeloDoVideo()).toBe('google/gemini-3.8-flash');
+    expect(modeloDoVideo()).toBe('google/gemini-4-argon');
     expect(modeloDoVideo('gemini-3.7-flash')).toBe('google/gemini-3.7-flash');
     expect(modeloDoVideo('google/gemini-3.6-flash')).toBe('google/gemini-3.6-flash');
   });
@@ -43,8 +43,8 @@ describe('montarPrompt e montarPedido', () => {
     expect(montarPrompt('o cliente mostrou qual erro?')).toMatch(/^o cliente mostrou qual erro\?/);
   });
   it('monta o pedido com o texto e o vídeo', () => {
-    const pedido = montarPedido('https://youtu.be/x', 'o que aparece?', 'google/gemini-3.8-flash');
-    expect(pedido.model).toBe('google/gemini-3.8-flash');
+    const pedido = montarPedido('https://youtu.be/x', 'o que aparece?', 'google/gemini-4-argon');
+    expect(pedido.model).toBe('google/gemini-4-argon');
     const conteudo = pedido.messages[0].content;
     expect(conteudo[0]).toMatchObject({ type: 'text' });
     expect(conteudo[1]).toEqual({ type: 'video_url', video_url: { url: 'https://youtu.be/x' } });
@@ -94,7 +94,7 @@ describe('assistirVideo', () => {
     const corpo = JSON.parse(fetchFn.mock.calls[0][1].body);
     expect(corpo.messages[0].content[1].video_url.url).toBe('https://youtu.be/jNQXAC9IVRw');
     expect(fetchFn.mock.calls[0][1].headers.Authorization).toBe('Bearer k');
-    expect(r).toMatchObject({ texto: '00:01 elefantes', fonte: 'youtube', modelo: 'google/gemini-3.8-flash' });
+    expect(r).toMatchObject({ texto: '00:01 elefantes', fonte: 'youtube', modelo: 'google/gemini-4-argon' });
   });
 
   it('arquivo vai em base64 no corpo', async () => {

@@ -709,7 +709,7 @@ server.registerTool(
     description:
       "Assiste um vídeo com o Gemini (imagem e áudio juntos) e devolve o que aparece e o que é falado, com tempos MM:SS. " +
       "Use quando o conteúdo do vídeo importa: cliente mostrando erro na tela, explicando algo em vídeo, ou mandando LINK " +
-      "de vídeo (YouTube, Instagram, TikTok). Custa ~US$ 0,003–0,01 por vídeo (OpenRouter): chame sob demanda, nunca em " +
+      "de vídeo (YouTube, Instagram, TikTok). Custa ~US$ 0,03–0,05 por minuto de vídeo (OpenRouter): chame sob demanda, nunca em " +
       "lote. GIF/meme ou só uma olhada rápida: prefira 'ver_video' (grátis). " +
       "Vídeo do chat: `grupo` + `id` (campo 'id' de ler_mensagens) ou `mediaPath`; sem os dois, o ÚLTIMO vídeo do grupo. " +
       "Link: `url` (grupo opcional). `pergunta` foca a resposta. Teto: 20 min de vídeo.",
