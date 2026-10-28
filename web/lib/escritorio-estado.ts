@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
-import { type CaixaEntrada, caixaDeEntrada, type FaixaEspera } from './caixa-de-entrada';
+import { type CaixaEntrada, caixaDeEntrada } from './caixa-de-entrada';
 import { type ClienteLinha, ordenarCards, primeiraLinha, rotuloTempo, tipoDoSlug } from './clientes';
 import { cloudEnabled, cloudJson } from './cloud';
 import { CONTRATO_PADRAO } from './contratos';
@@ -12,6 +12,7 @@ import { writeJsonAtomic } from './json-store';
 import { type LinksMap, readLinks } from './links';
 import { safeDataPath } from './paths';
 import type { PresenceView } from './presence';
+import type { SlaBand } from './sla';
 import { readTriage, type TriageState } from './triage';
 
 let envLoaded = false;
@@ -76,7 +77,7 @@ export interface ContatoProjetoEscritorio {
   aguardando: boolean;
   waitingMs: number;
   waitingLabel: string | null;
-  band: FaixaEspera | null;
+  band: SlaBand | null;
   ultimaPreview: string | null;
   ultimaTimestamp: string | null;
   atividadeLabel: string | null;
@@ -445,7 +446,7 @@ function resolverContatosDoProjeto(
     let aguardando = false;
     let waitingMs = 0;
     let waitingLabel: string | null = null;
-    let band: FaixaEspera | null = null;
+    let band: SlaBand | null = null;
 
     for (const ds of dmSlugs) {
       const cx = caixaBySlug.get(ds);
@@ -605,15 +606,6 @@ function montarCardsEscritorio(
     );
     const dmsAguardando = contatosVinculados.filter((ct) => ct.aguardando && ct.dmSlug !== slug).length;
 
-    const sinaisBase = [...(dashLinha?.sinais ?? [])];
-    for (const ct of contatosVinculados) {
-      if (ct.aguardando && ct.dmSlug && ct.dmSlug !== slug) {
-        sinaisBase.unshift(
-          `💬 DM fora do grupo aguardando: ${ct.nome} (${ct.waitingLabel ?? 'pendente'})`,
-        );
-      }
-    }
-
     cards.push({
       slug,
       nome: nomeExibicao,
@@ -640,7 +632,7 @@ function montarCardsEscritorio(
       entregasTotal: dashLinha?.featuresTotal ?? 0,
       msgsPorEntrega: dashLinha?.msgsPorFeature30d ?? null,
       valorPorEntrega: dashLinha?.valorPorFeature ?? null,
-      sinais: sinaisBase,
+      sinais: dashLinha?.sinais ?? [],
       equipe: [],
       emDesenvolvimento,
       projetoNome,
