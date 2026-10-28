@@ -8,6 +8,7 @@ import { ensureLocalMedia, isMediaLocal } from "./cloud-media";
 import { readSettings } from "./config";
 import { transcriptPathFor } from "./data";
 import { binPath } from "./paths";
+import { anotarSaude } from "./saude-ia";
 
 const MLX_BIN = process.env.WAC_MLX_WHISPER ?? "mlx_whisper";
 const SERVICE_URL = `http://127.0.0.1:${process.env.WAC_TRANSCRIBE_PORT ?? "4320"}`;
@@ -116,7 +117,14 @@ function viaCli(mediaAbsPath: string, model: string, language: string): Promise<
 
 async function runTranscription(absPath: string, model: string, language: string): Promise<string> {
   if (pickBackend() === "openrouter") {
-    return viaOpenRouter(absPath, language);
+    try {
+      const texto = await viaOpenRouter(absPath, language);
+      await anotarSaude("transcricao", null);
+      return texto;
+    } catch (err) {
+      await anotarSaude("transcricao", err instanceof Error ? err.message : String(err));
+      throw err;
+    }
   }
   try {
     return await viaService(absPath, model, language);

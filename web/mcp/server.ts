@@ -40,6 +40,7 @@ import { filtrarContatos } from "../lib/contatos-filtro";
 import { fundirMensagens, slugsIrmaosDeDm } from "../lib/dm-irmaos";
 import { mediaPathPorId, transcribe, transcribeBatch } from "../lib/transcribe";
 import { assistirVideo } from "../lib/assistir-video";
+import { anotarSaude, lerAvisosDeSaude } from "../lib/saude-ia";
 import { ultimaMidiaPath } from "../lib/ultima-midia";
 import { selectNew } from "../lib/novidades";
 import { baselineDoChat, carregarBaselinePadrao, contextoDeEscrita, type ContextoEscrita } from "../lib/estilo/contexto";
@@ -174,7 +175,14 @@ async function contextoDoChat(
 async function posturaDoRascunho(historico: LinhaHistorico[], baloes: string[]) {
   const p = await avaliarPostura({ historico, baloes });
   if (p.erro) process.stderr.write(`[whatsapp-mcp] ${p.erro}\n`);
+  await anotarPostura(p);
   return p;
+}
+
+/** Só conta o que de fato tentou avaliar: "não precisava" não é sucesso nem falha. */
+async function anotarPostura(p: { avaliado: boolean; erro?: string }) {
+  if (p.erro) await anotarSaude("postura", p.erro);
+  else if (p.avaliado) await anotarSaude("postura", null);
 }
 
 /**
@@ -725,6 +733,7 @@ server.registerTool(
     try {
       if (url) {
         const r = await assistirVideo({ url: url.trim(), pergunta });
+        await anotarSaude("video", null);
         return text({ fonte: r.fonte, url, modelo: r.modelo, custo_usd: r.custoUsd, resposta: r.texto });
       }
       if (!grupo) return fail("passe `grupo` (vídeo do chat) ou `url` (link de vídeo)");
@@ -736,9 +745,13 @@ server.registerTool(
       const m = await resolverMidia(grupo, mediaPath, ["video", "gif"]);
       if ("erro" in m) return fail(m.erro);
       const r = await assistirVideo({ arquivo: await ensureLocalMedia(m.path), pergunta });
+      await anotarSaude("video", null);
       return text({ fonte: "anexo do chat", midia: m.path, modelo: r.modelo, custo_usd: r.custoUsd, resposta: r.texto });
     } catch (e) {
-      return fail(e instanceof Error ? e.message : "falha ao assistir o vídeo");
+      const msg = e instanceof Error ? e.message : "falha ao assistir o vídeo";
+      // Vídeo longo demais ou link inválido é problema do pedido, não do serviço.
+      if (/OpenRouter|OPENROUTER_API_KEY|Gemini|timeout|aborted|fetch failed/i.test(msg)) await anotarSaude("video", msg);
+      return fail(msg);
     }
   },
 );
@@ -855,6 +868,7 @@ server.registerTool(
       const { slug, label, jid, ctx, modo, historico } = await contextoDoChat(grupo);
       const estilo = resumirEstilo(ctx.ultimasMinhas, ctx.baseline);
       const postura = await avaliarPostura({ historico });
+      await anotarPostura(postura);
       const e = ctx.estado;
       const agora = new Date();
       const mediana = ctx.baseline.tamanhoMediana || 24;
@@ -1842,7 +1856,8 @@ server.registerTool(
       "por projeto, diga em uma linha o que cada um quer e ainda descarte o que for só social; cite os " +
       "`antigos` numa linha. Num repositório ligado a um chat (`.claude/whatsapp.json`, bloco wa-link no " +
       "CLAUDE.md), passe `grupos` com o(s) slug(s) dele em vez de ler a caixa inteira; pra 'teve mensagem nova?' " +
-      "esta tool basta, e `ler_mensagens` (bem mais caro) só entra se precisar do conteúdo. Mostre a data e hora de Brasília da última mensagem (`ultima_brt`) com quanto " +
+      "esta tool basta, e `ler_mensagens` (bem mais caro) só entra se precisar do conteúdo. Se vier `avisos` " +
+      "(serviço de IA falhando), mostre ANTES de tudo, numa linha cada. Mostre a data e hora de Brasília da última mensagem (`ultima_brt`) com quanto " +
       "tempo faz em relação a `agora_brt` (ex: \"28/10 09:34, há 2h\"). Pra ler a conversa, `ler_mensagens(grupo)`.",
     inputSchema: {
       todos: z.boolean().optional().describe("default false = só quem espera resposta; true = também o que se mexeu desde `desde`"),
@@ -1861,7 +1876,10 @@ server.registerTool(
         ...(dias ? { dias } : {}),
       });
       const esperando = c.itens.filter((i) => i.esperando).length;
+      // A nuvem traz a saúde do que roda lá; postura e vídeo rodam aqui no MCP.
+      const avisos = [...new Set([...(await lerAvisosDeSaude()), ...(c.avisos ?? [])])];
       return text({
+        ...(avisos.length ? { avisos } : {}),
         ...c,
         esperando,
         ...(c.total === 0 ? { nota: c.modo === "pendentes" ? "Ninguém esperando resposta." : "Nenhum cliente escreveu nesse período." } : {}),

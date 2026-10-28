@@ -5,6 +5,7 @@ import { horaBRT } from './context';
 import { buildInbox, type InboxItem } from './inbox';
 import { type LinksMap, readLinks } from './links';
 import { relativeLabel } from './sla';
+import { lerAvisosDeSaude } from './saude-ia';
 import { readTriage } from './triage';
 
 /**
@@ -56,6 +57,8 @@ export interface EsperaAntiga {
 }
 
 export interface CaixaEntrada {
+  /** Serviço de IA falhando (chave recusada, sem saldo, fora do ar): vai no topo da resposta. */
+  avisos?: string[];
   /** Agora em Brasília, pra comparar com os horários dos itens. */
   agora_brt: string;
   modo: 'pendentes' | 'todos';
@@ -218,7 +221,9 @@ export async function caixaDeEntrada(opts: OpcoesCaixa = {}): Promise<CaixaEntra
   const fila = await buildInbox({ grupos, ...(filtro ? { slugs: filtro } : {}) });
   const agora = Date.now();
   const { recentes: inbox, antigos, encerrados } = separarEspera(fila, opts.dias ?? 7, agora);
+  const avisos = await lerAvisosDeSaude();
   const extra = {
+    ...(avisos.length ? { avisos } : {}),
     agora_brt: horaBRT(new Date(agora).toISOString()),
     encerrados,
     antigos: antigos.map((i) => ({
