@@ -3,7 +3,11 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { MedidorUso } from '@/app/components/ui';
-import type { ClienteEscritorio } from '@/lib/escritorio-estado';
+import type {
+  ClienteEscritorio,
+  ContatoProjetoEscritorio,
+  DmDisponivelEscritorio,
+} from '@/lib/escritorio-estado';
 import { instanteLongo } from '@/lib/formatar-data';
 import type { PresenceView } from '@/lib/presence';
 import { CharSprite } from './CharSprite';
@@ -25,6 +29,9 @@ interface PainelClienteEscritorioProps {
   autonomo?: boolean;
   notaInicial?: string;
   seatLabel?: string;
+  canalSelecionado?: string | null;
+  onSelectCanal?: (canalSlug: string | null) => void;
+  dmsDisponiveis?: DmDisponivelEscritorio[];
   onClose: () => void;
   onWalkTo: () => void;
   onRefreshEstado: () => void;
@@ -44,6 +51,9 @@ export function PainelClienteEscritorio({
   autonomo,
   notaInicial = '',
   seatLabel,
+  canalSelecionado,
+  onSelectCanal,
+  dmsDisponiveis = [],
   onClose,
   onWalkTo,
   onRefreshEstado,
@@ -56,6 +66,38 @@ export function PainelClienteEscritorio({
   const [marcandoResolvido, setMarcandoResolvido] = useState(false);
   const [alterandoMesa, setAlterandoMesa] = useState(false);
 
+  // Canal de conversa exibido no drawer: null = grupo/conversa principal do projeto; ou dmSlug de um contato vinculado
+  const [canalInterno, setCanalInterno] = useState<string | null>(canalSelecionado ?? null);
+
+  // Formulário para vincular novo contato / DM ao projeto
+  const [mostrarFormContato, setMostrarFormContato] = useState(false);
+  const [novoContatoNome, setNovoContatoNome] = useState('');
+  const [novoContatoPapel, setNovoContatoPapel] = useState('Cliente');
+  const [novoContatoDmSlug, setNovoContatoDmSlug] = useState('');
+  const [salvandoContato, setSalvandoContato] = useState(false);
+
+  useEffect(() => {
+    setCanalInterno(canalSelecionado ?? null);
+  }, [canalSelecionado, cliente.slug]);
+
+  function selecionarCanal(novo: string | null) {
+    setCanalInterno(novo);
+    onSelectCanal?.(novo);
+  }
+
+  // Encontra o contato vinculado correspondente ao canal ativo, se houver
+  const contatoCanalAtivo: ContatoProjetoEscritorio | undefined = canalInterno
+    ? cliente.contatosVinculados?.find(
+        (ct) => ct.dmSlug === canalInterno || ct.dmSlugs.includes(canalInterno),
+      )
+    : undefined;
+
+  const querySlugsAtivo = contatoCanalAtivo
+    ? contatoCanalAtivo.dmSlugs.join(',')
+    : (canalInterno ?? cliente.slug);
+
+  const linkConversaAtiva = contatoCanalAtivo?.dmSlug ?? canalInterno ?? cliente.slug;
+
   useEffect(() => {
     setNota(notaInicial);
   }, [notaInicial, cliente.slug]);
@@ -67,15 +109,20 @@ export function PainelClienteEscritorio({
     async function load() {
       try {
         const res = await fetch(
-          `/api/escritorio/mensagens?slug=${encodeURIComponent(cliente.slug)}&limit=20`,
+          `/api/escritorio/mensagens?slug=${encodeURIComponent(querySlugsAtivo)}&limit=20`,
           {
             cache: 'no-store',
           },
         );
         if (!res.ok) return;
-        const data = (await res.json()) as { messages?: MensagemResumo[] };
-        if (!cancelado && Array.isArray(data.messages)) {
-          setMensagens(data.messages.slice(-20));
+        const data = (await res.json()) as MensagemResumo[] | { messages?: MensagemResumo[] };
+        const lista = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.messages)
+            ? data.messages
+            : [];
+        if (!cancelado) {
+          setMensagens(lista.slice(-20));
         }
       } catch {
         // ignore
@@ -90,7 +137,52 @@ export function PainelClienteEscritorio({
       cancelado = true;
       clearInterval(timer);
     };
-  }, [cliente.slug]);
+  }, [querySlugsAtivo]);
+
+  async function handleVincularContato(e: React.FormEvent) {
+    e.preventDefault();
+    const nomeLimpo = novoContatoNome.trim();
+    if (!nomeLimpo) return;
+    setSalvandoContato(true);
+    try {
+      await fetch('/api/escritorio/estado', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: cliente.slug,
+          acao: 'vincular_contato',
+          contato: {
+            nome: nomeLimpo,
+            papel: novoContatoPapel.trim() || 'Contato',
+            dmSlug: novoContatoDmSlug.trim() || null,
+          },
+        }),
+      });
+      setNovoContatoNome('');
+      setNovoContatoDmSlug('');
+      setMostrarFormContato(false);
+      onRefreshEstado();
+    } finally {
+      setSalvandoContato(false);
+    }
+  }
+
+  async function handleRemoverContato(nomeContato: string) {
+    try {
+      await fetch('/api/escritorio/estado', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: cliente.slug,
+          acao: 'remover_contato',
+          contato: { nome: nomeContato },
+        }),
+      });
+      onRefreshEstado();
+    } catch {
+      // ignore
+    }
+  }
 
   async function handleMarcarResolvido() {
     setMarcandoResolvido(true);
@@ -224,10 +316,12 @@ export function PainelClienteEscritorio({
         )}
 
         <Link
-          href={`/g/${encodeURIComponent(cliente.slug)}`}
+          href={`/g/${encodeURIComponent(linkConversaAtiva)}`}
           className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-accent-ink transition-opacity hover:opacity-90"
         >
-          Abrir conversa →
+          {contatoCanalAtivo
+            ? `Abrir DM: ${contatoCanalAtivo.nome.split(' ')[0]} →`
+            : 'Abrir conversa →'}
         </Link>
 
         {cliente.aguardando && (
@@ -272,6 +366,193 @@ export function PainelClienteEscritorio({
 
       {/* Corpo rolável */}
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-3">
+        {/* Contatos do Projeto & Conversas Fora do Grupo (DMs Monitoradas) */}
+        <div className="rounded-lg border border-line bg-elevated p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-faint">
+              👥 Contatos &amp; Chats ({cliente.contatosVinculados?.length ?? 0})
+            </span>
+            <button
+              type="button"
+              onClick={() => setMostrarFormContato((v) => !v)}
+              className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] font-medium text-fg-dim hover:text-fg"
+            >
+              {mostrarFormContato ? 'Cancelar' : '+ Vincular'}
+            </button>
+          </div>
+
+          {mostrarFormContato && (
+            <form
+              onSubmit={handleVincularContato}
+              className="mt-2.5 space-y-2 rounded-md border border-line bg-surface p-2.5"
+            >
+              <div className="grid grid-cols-2 gap-1.5">
+                <input
+                  type="text"
+                  value={novoContatoNome}
+                  onChange={(e) => setNovoContatoNome(e.target.value)}
+                  placeholder="Nome (ex: Ana, Bruno)"
+                  required
+                  className="rounded border border-line bg-elevated px-2 py-1 text-[11px] text-fg placeholder:text-fg-faint focus:outline-none"
+                />
+                <input
+                  type="text"
+                  value={novoContatoPapel}
+                  onChange={(e) => setNovoContatoPapel(e.target.value)}
+                  placeholder="Papel (ex: Cliente)"
+                  className="rounded border border-line bg-elevated px-2 py-1 text-[11px] text-fg placeholder:text-fg-faint focus:outline-none"
+                />
+              </div>
+              <select
+                value={novoContatoDmSlug}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNovoContatoDmSlug(val);
+                  if (val && !novoContatoNome.trim()) {
+                    const found = dmsDisponiveis.find((d) => d.slug === val);
+                    if (found) setNovoContatoNome(found.nome);
+                  }
+                }}
+                className="w-full rounded border border-line bg-elevated px-2 py-1 text-[11px] text-fg focus:outline-none"
+              >
+                <option value="">Sem DM vinculada (apenas contato do grupo)</option>
+                {dmsDisponiveis.map((dm) => (
+                  <option key={dm.slug} value={dm.slug}>
+                    💬 {dm.nome} ({dm.slug}) · {dm.mensagens}m
+                    {dm.atividadeLabel ? ` · ${dm.atividadeLabel}` : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                disabled={salvandoContato}
+                className="w-full rounded bg-accent py-1 text-[11px] font-semibold text-accent-ink hover:opacity-90 disabled:opacity-50"
+              >
+                {salvandoContato ? 'Vinculando…' : 'Salvar vínculo no projeto'}
+              </button>
+            </form>
+          )}
+
+          {/* Aba do Grupo Principal */}
+          <div className="mt-2.5 space-y-1.5">
+            {cliente.tipo === 'grupo' && (
+              <div
+                onClick={() => selecionarCanal(null)}
+                className={`flex cursor-pointer items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-[11px] transition-colors ${
+                  canalInterno === null
+                    ? 'border-accent bg-accent-soft text-fg'
+                    : 'border-line bg-surface/60 text-fg-dim hover:bg-surface hover:text-fg'
+                }`}
+              >
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span>👥</span>
+                  <span className="truncate font-semibold">Grupo: {cliente.nome}</span>
+                </div>
+                <span className="shrink-0 font-mono text-[10px] text-fg-faint">
+                  {cliente.atividadeLabel ?? `${cliente.mensagens}m`}
+                </span>
+              </div>
+            )}
+
+            {(cliente.contatosVinculados ?? []).map((ct) => {
+              const temDm = Boolean(ct.dmSlug);
+              const selecionado =
+                temDm &&
+                canalInterno !== null &&
+                (ct.dmSlug === canalInterno || ct.dmSlugs.includes(canalInterno));
+              const dmUrgente = ct.aguardando && (ct.band === 'hot' || ct.band === 'warm');
+
+              return (
+                <div
+                  key={ct.id}
+                  onClick={() => {
+                    if (temDm && ct.dmSlug) {
+                      selecionarCanal(selecionado ? null : ct.dmSlug);
+                    }
+                  }}
+                  className={`rounded-md border px-2.5 py-1.5 text-[11px] transition-colors ${
+                    temDm ? 'cursor-pointer' : ''
+                  } ${
+                    selecionado
+                      ? 'border-accent bg-accent-soft text-fg'
+                      : ct.aguardando
+                        ? 'border-amber-500/40 bg-amber-500/10 text-fg hover:bg-amber-500/15'
+                        : 'border-line bg-surface/60 text-fg-dim hover:bg-surface hover:text-fg'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span>{temDm ? '💬' : '👤'}</span>
+                      <span className="truncate font-semibold text-fg">{ct.nome}</span>
+                      {ct.papel && (
+                        <span className="shrink-0 rounded border border-line bg-elevated px-1.5 py-0.2 text-[9px] text-fg-faint">
+                          {ct.papel}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {ct.aguardando ? (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold ${
+                            dmUrgente
+                              ? 'bg-red-500/25 text-red-300'
+                              : 'bg-amber-500/25 text-amber-300'
+                          }`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              dmUrgente ? 'bg-red-400' : 'bg-amber-400'
+                            }`}
+                          />
+                          {ct.waitingLabel ?? 'Aguardando'}
+                        </span>
+                      ) : temDm ? (
+                        <span className="font-mono text-[10px] text-fg-faint">
+                          {ct.atividadeLabel ? `DM · ${ct.atividadeLabel}` : `DM · ${ct.mensagensDm}m`}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-fg-faint">No grupo</span>
+                      )}
+
+                      {temDm && ct.dmSlug && (
+                        <Link
+                          href={`/g/${encodeURIComponent(ct.dmSlug)}`}
+                          onClick={(e) => e.stopPropagation()}
+                          title={`Abrir chat individual de ${ct.nome}`}
+                          className="rounded border border-line bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-fg-dim hover:border-accent hover:text-fg"
+                        >
+                          ↗
+                        </Link>
+                      )}
+
+                      {ct.custom && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoverContato(ct.nome);
+                          }}
+                          title="Remover vínculo"
+                          className="rounded px-1 text-[10px] text-fg-faint hover:text-red-300"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {temDm && ct.ultimaPreview && (
+                    <p className="mt-1 truncate pl-5 text-[10px] text-fg-faint">
+                      {ct.ultimaPreview}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Resumo de contrato / uso 30d */}
         <div className="rounded-lg border border-line bg-elevated p-3">
           <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-fg-faint">
@@ -355,11 +636,23 @@ export function PainelClienteEscritorio({
 
         {/* Últimas mensagens do WhatsApp */}
         <div>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-fg-faint">
-              Últimas mensagens no WhatsApp
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="truncate text-[11px] font-medium uppercase tracking-wider text-fg-faint">
+              {contatoCanalAtivo
+                ? `💬 Mensagens DM: ${contatoCanalAtivo.nome}`
+                : '👥 Últimas mensagens no Grupo'}
             </span>
-            <span className="font-mono text-[10px] text-fg-faint">Somente leitura</span>
+            {contatoCanalAtivo ? (
+              <button
+                type="button"
+                onClick={() => selecionarCanal(null)}
+                className="shrink-0 rounded border border-line bg-elevated px-1.5 py-0.5 text-[10px] text-fg-dim hover:text-fg"
+              >
+                ← Voltar ao grupo
+              </button>
+            ) : (
+              <span className="shrink-0 font-mono text-[10px] text-fg-faint">Somente leitura</span>
+            )}
           </div>
 
           {carregandoMsgs ? (

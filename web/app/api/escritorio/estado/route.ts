@@ -24,7 +24,17 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as {
       slug?: string;
-      acao?: 'ocupar_mesa' | 'liberar_mesa' | 'automatico';
+      acao?:
+        | 'ocupar_mesa'
+        | 'liberar_mesa'
+        | 'automatico'
+        | 'vincular_contato'
+        | 'remover_contato';
+      contato?: {
+        nome?: string;
+        papel?: string;
+        dmSlug?: string | null;
+      };
     };
     const slug = body.slug?.trim();
     if (!slug || !body.acao) {
@@ -32,6 +42,35 @@ export async function POST(req: Request) {
     }
 
     const atual = await lerConfigAssentos();
+
+    if (body.acao === 'vincular_contato') {
+      const nome = body.contato?.nome?.trim();
+      if (!nome) {
+        return NextResponse.json({ error: 'nome do contato obrigatorio' }, { status: 400 });
+      }
+      const mapa = { ...(atual.contatosExtrasPorProjeto ?? {}) };
+      const lista = [...(mapa[slug] ?? [])];
+      lista.push({
+        nome,
+        papel: body.contato?.papel?.trim() || 'Contato',
+        dmSlug: body.contato?.dmSlug?.trim() || null,
+      });
+      mapa[slug] = lista;
+      await salvarConfigAssentos({ contatosExtrasPorProjeto: mapa });
+      const estado = await carregarEstadoEscritorio();
+      return NextResponse.json(estado);
+    }
+
+    if (body.acao === 'remover_contato') {
+      const nome = body.contato?.nome?.trim();
+      const mapa = { ...(atual.contatosExtrasPorProjeto ?? {}) };
+      const lista = (mapa[slug] ?? []).filter((c) => c.nome !== nome);
+      mapa[slug] = lista;
+      await salvarConfigAssentos({ contatosExtrasPorProjeto: mapa });
+      const estado = await carregarEstadoEscritorio();
+      return NextResponse.json(estado);
+    }
+
     const fixados = new Set(atual.fixados ?? []);
     const ocultos = new Set(atual.ocultos ?? []);
 

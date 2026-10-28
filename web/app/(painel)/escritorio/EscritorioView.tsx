@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ClienteEscritorio } from '@/lib/escritorio-estado';
+import type { ClienteEscritorio, DmDisponivelEscritorio } from '@/lib/escritorio-estado';
 import type { PresenceView } from '@/lib/presence';
 import { AgentLabels, type AgentLabelMeta } from './components/AgentLabels';
 import { AreaLabelsOverlay } from './components/AreaLabelsOverlay';
@@ -62,6 +63,7 @@ export function EscritorioView({
   const [presencas, setPresencas] = useState<Record<string, PresenceView>>(presencasIniciais);
   const [autonomo, setAutonomo] = useState<Record<string, boolean>>(autonomoInicial);
   const [notas, setNotas] = useState<Record<string, string>>(notasIniciais);
+  const [dmsDisponiveis, setDmsDisponiveis] = useState<DmDisponivelEscritorio[]>([]);
 
   const [aba, setAba] = useState<AbaEscritorio>('mapa');
   const [escopo, setEscopo] = useState<FiltroEscopo>('em_dev');
@@ -72,6 +74,9 @@ export function EscritorioView({
   const [mostrarPausados, setMostrarPausados] = useState(false);
   const [somAtivo, setSomAtivo] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+  const [canalDrawerSelecionado, setCanalDrawerSelecionado] = useState<string | null>(null);
+  const [expandedProjetos, setExpandedProjetos] = useState<Record<string, boolean>>({});
+  const [expandirTodosContatos, setExpandirTodosContatos] = useState(false);
 
   // Em telas mobile (<768px), inicia com a lista lateral recolhida para não esmagar o mapa
   useEffect(() => {
@@ -128,11 +133,13 @@ export function EscritorioView({
         presencas?: Record<string, PresenceView>;
         autonomo?: Record<string, boolean>;
         notas?: Record<string, string>;
+        dmsDisponiveis?: DmDisponivelEscritorio[];
       };
       if (Array.isArray(data.clientes)) setClientes(data.clientes);
       if (data.presencas) setPresencas(data.presencas);
       if (data.autonomo) setAutonomo(data.autonomo);
       if (data.notas) setNotas(data.notas);
+      if (Array.isArray(data.dmsDisponiveis)) setDmsDisponiveis(data.dmsDisponiveis);
     } catch {
       // mantém último estado
     }
@@ -152,11 +159,13 @@ export function EscritorioView({
           presencas?: Record<string, PresenceView>;
           autonomo?: Record<string, boolean>;
           notas?: Record<string, string>;
+          dmsDisponiveis?: DmDisponivelEscritorio[];
         };
         if (Array.isArray(data.clientes)) setClientes(data.clientes);
         if (data.presencas) setPresencas(data.presencas);
         if (data.autonomo) setAutonomo(data.autonomo);
         if (data.notas) setNotas(data.notas);
+        if (Array.isArray(data.dmsDisponiveis)) setDmsDisponiveis(data.dmsDisponiveis);
       } catch {
         // ignore
       }
@@ -165,13 +174,13 @@ export function EscritorioView({
   );
 
   useEffect(() => {
-    // Se a página abriu com cache frio (0 clientes iniciais), busca imediatamente
-    if (clientesIniciais.length === 0) {
+    // Se a página abriu com cache frio (0 clientes iniciais) ou sem lista de DMs, busca imediatamente
+    if (clientesIniciais.length === 0 || dmsDisponiveis.length === 0) {
       void refreshEstado();
     }
     const timer = setInterval(refreshEstado, 8000);
     return () => clearInterval(timer);
-  }, [clientesIniciais.length, refreshEstado]);
+  }, [clientesIniciais.length, dmsDisponiveis.length, refreshEstado]);
 
   // Mapeia cada slug para um ID numérico estável na sessão
   const slugToIdRef = useRef<Map<string, number>>(new Map());
@@ -197,7 +206,7 @@ export function EscritorioView({
         ) {
           return false;
         }
-        if (statusFiltro === 'aguardando' && !c.aguardando) return false;
+        if (statusFiltro === 'aguardando' && !c.aguardando && !(c.dmsAguardando > 0)) return false;
         if (statusFiltro === 'em_dia' && c.aguardando) return false;
         if (q) {
           const matchNome =
@@ -205,7 +214,13 @@ export function EscritorioView({
             c.slug.toLowerCase().includes(q) ||
             (c.repoNome ?? '').toLowerCase().includes(q);
           const matchTag = c.etiquetas.some((e) => e.toLowerCase().includes(q));
-          if (!matchNome && !matchTag) return false;
+          const matchContato = (c.contatosVinculados ?? []).some(
+            (ct) =>
+              ct.nome.toLowerCase().includes(q) ||
+              (ct.papel ?? '').toLowerCase().includes(q) ||
+              (ct.dmSlug ?? '').toLowerCase().includes(q),
+          );
+          if (!matchNome && !matchTag && !matchContato) return false;
         }
         return true;
       })
@@ -214,6 +229,9 @@ export function EscritorioView({
         if (a.aguardando !== b.aguardando) return a.aguardando ? -1 : 1;
         if (a.aguardando && b.aguardando) {
           return b.waitingMs - a.waitingMs;
+        }
+        if ((a.dmsAguardando ?? 0) !== (b.dmsAguardando ?? 0)) {
+          return (b.dmsAguardando ?? 0) - (a.dmsAguardando ?? 0);
         }
         return b.msgsCliente30d - a.msgsCliente30d || a.nome.localeCompare(b.nome);
       });
@@ -704,8 +722,8 @@ export function EscritorioView({
             type="search"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar cliente…"
-            className="w-32 rounded-lg border border-line bg-elevated px-2.5 py-1 text-[12px] text-fg placeholder:text-fg-faint focus:outline-none sm:w-48"
+            placeholder="Buscar projeto ou contato…"
+            className="w-36 rounded-lg border border-line bg-elevated px-2.5 py-1 text-[12px] text-fg placeholder:text-fg-faint focus:outline-none sm:w-52"
           />
 
           {aba === 'mapa' && (
@@ -793,7 +811,7 @@ export function EscritorioView({
 
             {/* Mini-Roster Lateral de Clientes no Escritório */}
             {mostrarRoster && (
-              <aside className="flex h-full w-64 shrink-0 flex-col border-r border-line bg-surface max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-72 max-md:shadow-2xl">
+              <aside className="flex h-full w-68 shrink-0 flex-col border-r border-line bg-surface max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-76 max-md:shadow-2xl">
                 <div className="flex items-center justify-between border-b border-line px-3 py-2">
                   <div>
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-faint">
@@ -803,13 +821,27 @@ export function EscritorioView({
                       {contadores.mesasVazias} baias vazias no escritório
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setMostrarRoster(false)}
-                    className="rounded px-1.5 py-0.5 text-[11px] text-fg-faint hover:bg-elevated hover:text-fg md:hidden"
-                  >
-                    ✕ Fechar
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setExpandirTodosContatos((v) => !v)}
+                      title="Expandir ou recolher contatos e DMs de todos os projetos"
+                      className={`rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                        expandirTodosContatos
+                          ? 'border-accent bg-accent-soft text-fg'
+                          : 'border-line bg-elevated text-fg-faint hover:text-fg'
+                      }`}
+                    >
+                      👥 Contatos {expandirTodosContatos ? '▴' : '▾'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMostrarRoster(false)}
+                      className="rounded px-1.5 py-0.5 text-[11px] text-fg-faint hover:bg-elevated hover:text-fg md:hidden"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex-1 divide-y divide-line overflow-y-auto">
@@ -819,63 +851,200 @@ export function EscritorioView({
                     const selecionado = selectedAgentId === id;
                     const m = agentMeta[id];
                     const baiaNum = idx + 1;
+                    const contatos = c.contatosVinculados ?? [];
+                    const dmsPendentes = c.dmsAguardando ?? 0;
+                    const buscaAtiva = busca.trim().length > 0;
+                    const aberto =
+                      expandedProjetos[c.slug] !== undefined
+                        ? expandedProjetos[c.slug]
+                        : expandirTodosContatos || selecionado || dmsPendentes > 0 || buscaAtiva;
 
                     return (
-                      <div
-                        key={c.slug}
-                        onClick={() => {
-                          handleSelectAgent(selecionado ? null : id);
-                          if (typeof window !== 'undefined' && window.innerWidth < 768) {
-                            setMostrarRoster(false);
-                          }
-                        }}
-                        className={`flex cursor-pointer items-center gap-2.5 px-3 py-2 transition-colors ${
-                          selecionado
-                            ? 'bg-accent-soft text-fg'
-                            : 'hover:bg-elevated'
-                        }`}
-                      >
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-line bg-[#161822]">
-                          <CharSprite charIndex={palette} size={24} />
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className="h-2 w-2 shrink-0 rounded-full"
-                              style={{ background: m?.dotColor ?? '#22c55e' }}
-                            />
-                            <span className="truncate text-[12px] font-medium text-fg">
-                              {c.nome}
-                            </span>
-                          </div>
-                          <div className="mt-0.5 flex items-center justify-between text-[10px] text-fg-faint">
-                            <span className="truncate">
-                              Baia #{baiaNum} ·{' '}
-                              {c.aguardando && c.waitingLabel
-                                ? `Aguardando ${c.waitingLabel}`
-                                : c.repoNome
-                                  ? c.repoNome
-                                  : 'Em dev'}
-                            </span>
-                            {c.msgsCliente30d > 0 && (
-                              <span className="ml-1 shrink-0 font-mono">{c.msgsCliente30d}m</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSelectAgent(id);
-                            handleWalkToAgent(id);
+                      <div key={c.slug} className="flex flex-col">
+                        <div
+                          onClick={() => {
+                            if (selecionado) {
+                              handleSelectAgent(null);
+                              setCanalDrawerSelecionado(null);
+                            } else {
+                              handleSelectAgent(id);
+                              setCanalDrawerSelecionado(null);
+                              setExpandedProjetos((prev) => ({ ...prev, [c.slug]: true }));
+                            }
+                            if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                              setMostrarRoster(false);
+                            }
                           }}
-                          title="Ir até a mesa com seu personagem"
-                          className="rounded p-1 text-[11px] text-fg-faint opacity-60 hover:bg-elevated hover:text-fg hover:opacity-100"
+                          className={`flex cursor-pointer items-center gap-2 px-3 py-2 transition-colors ${
+                            selecionado
+                              ? 'bg-accent-soft text-fg'
+                              : 'hover:bg-elevated'
+                          }`}
                         >
-                          🚶
-                        </button>
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-line bg-[#161822]">
+                            <CharSprite charIndex={palette} size={24} />
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className="h-2 w-2 shrink-0 rounded-full"
+                                style={{ background: m?.dotColor ?? '#22c55e' }}
+                              />
+                              <span className="truncate text-[12px] font-medium text-fg">
+                                {c.nome}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 flex items-center justify-between gap-1 text-[10px] text-fg-faint">
+                              <span className="truncate">
+                                Baia #{baiaNum} ·{' '}
+                                {c.aguardando && c.waitingLabel
+                                  ? `Aguardando ${c.waitingLabel}`
+                                  : dmsPendentes > 0
+                                    ? `⚠️ ${dmsPendentes} DM aguardando`
+                                    : c.repoNome
+                                      ? c.repoNome
+                                      : 'Em dev'}
+                              </span>
+                              {c.msgsCliente30d > 0 && (
+                                <span className="shrink-0 font-mono">{c.msgsCliente30d}m</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {contatos.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedProjetos((prev) => ({
+                                  ...prev,
+                                  [c.slug]: !aberto,
+                                }));
+                              }}
+                              title="Mostrar/ocultar contatos e conversas fora do grupo"
+                              className={`inline-flex shrink-0 items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                                dmsPendentes > 0
+                                  ? 'border-amber-500/50 bg-amber-500/20 text-amber-300'
+                                  : aberto
+                                    ? 'border-line bg-elevated text-fg'
+                                    : 'border-line bg-surface text-fg-faint hover:text-fg'
+                              }`}
+                            >
+                              <span>{dmsPendentes > 0 ? '💬' : '👥'}</span>
+                              <span className="font-mono">{contatos.length}</span>
+                              <span>{aberto ? '▴' : '▾'}</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectAgent(id);
+                              handleWalkToAgent(id);
+                            }}
+                            title="Ir até a mesa com seu personagem"
+                            className="rounded p-1 text-[11px] text-fg-faint opacity-60 hover:bg-elevated hover:text-fg hover:opacity-100"
+                          >
+                            🚶
+                          </button>
+                        </div>
+
+                        {/* Dropdown de Contatos do Grupo + DMs Monitoradas */}
+                        {aberto && contatos.length > 0 && (
+                          <div className="border-t border-line/60 bg-elevated/35 pb-1.5 pl-6 pr-2.5 pt-1">
+                            {contatos.map((ct, cIdx) => {
+                              const ehUltimo = cIdx === contatos.length - 1;
+                              const temDm = Boolean(ct.dmSlug);
+                              const dmAtivaNoDrawer =
+                                selecionado &&
+                                temDm &&
+                                canalDrawerSelecionado !== null &&
+                                (ct.dmSlug === canalDrawerSelecionado ||
+                                  ct.dmSlugs.includes(canalDrawerSelecionado));
+
+                              return (
+                                <div
+                                  key={ct.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSelectAgent(id);
+                                    if (temDm && ct.dmSlug) {
+                                      setCanalDrawerSelecionado(ct.dmSlug);
+                                    } else {
+                                      setCanalDrawerSelecionado(null);
+                                    }
+                                    if (
+                                      typeof window !== 'undefined' &&
+                                      window.innerWidth < 768
+                                    ) {
+                                      setMostrarRoster(false);
+                                    }
+                                  }}
+                                  className={`group flex cursor-pointer flex-col rounded px-2 py-1 text-[11px] transition-colors ${
+                                    dmAtivaNoDrawer
+                                      ? 'bg-accent-soft text-fg'
+                                      : ct.aguardando
+                                        ? 'bg-amber-500/10 text-fg hover:bg-amber-500/20'
+                                        : 'text-fg-dim hover:bg-elevated hover:text-fg'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-1.5">
+                                    <div className="flex min-w-0 items-center gap-1.5">
+                                      <span className="font-mono text-[10px] text-fg-faint">
+                                        {ehUltimo ? '└─' : '├─'}
+                                      </span>
+                                      <span className="shrink-0 text-[11px]">
+                                        {temDm ? '💬' : '👤'}
+                                      </span>
+                                      <span className="truncate font-medium text-fg">
+                                        {ct.nome}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex shrink-0 items-center gap-1">
+                                      {ct.aguardando ? (
+                                        <span className="inline-flex items-center gap-1 rounded bg-red-500/20 px-1.5 py-0.2 font-mono text-[9px] font-semibold text-red-300">
+                                          <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                                          {ct.waitingLabel ?? 'DM'}
+                                        </span>
+                                      ) : temDm ? (
+                                        <span
+                                          className="rounded border border-line bg-surface px-1 py-0.2 font-mono text-[9px] text-fg-faint"
+                                          title={`Chat individual monitorado (${ct.dmSlug})`}
+                                        >
+                                          {ct.atividadeLabel
+                                            ? `DM · ${ct.atividadeLabel}`
+                                            : `DM · ${ct.mensagensDm}m`}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[9px] text-fg-faint">grupo</span>
+                                      )}
+
+                                      {temDm && ct.dmSlug && (
+                                        <Link
+                                          href={`/g/${encodeURIComponent(ct.dmSlug)}`}
+                                          onClick={(e) => e.stopPropagation()}
+                                          title={`Abrir conversa individual de ${ct.nome}`}
+                                          className="rounded px-1 text-[10px] text-fg-faint hover:bg-surface hover:text-fg"
+                                        >
+                                          ↗
+                                        </Link>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {temDm && ct.ultimaPreview && (
+                                    <div className="mt-0.5 truncate pl-6 text-[10px] text-fg-faint">
+                                      {ct.ultimaPreview}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1132,7 +1301,13 @@ export function EscritorioView({
                 ? `Baia #${selectedEntry.baiaIndex} · Sentado em sua mesa de desenvolvimento`
                 : 'Fora de desenvolvimento · Mesa vazia'
             }
-            onClose={() => handleSelectAgent(null)}
+            canalSelecionado={canalDrawerSelecionado}
+            onSelectCanal={setCanalDrawerSelecionado}
+            dmsDisponiveis={dmsDisponiveis}
+            onClose={() => {
+              handleSelectAgent(null);
+              setCanalDrawerSelecionado(null);
+            }}
             onWalkTo={() => {
               if (aba !== 'mapa') setAba('mapa');
               handleWalkToAgent(selectedAgentId);

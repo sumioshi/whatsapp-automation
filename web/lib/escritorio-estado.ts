@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
-import { type CaixaEntrada, caixaDeEntrada } from './caixa-de-entrada';
+import { type CaixaEntrada, caixaDeEntrada, type FaixaEspera } from './caixa-de-entrada';
 import { type ClienteLinha, ordenarCards, primeiraLinha, rotuloTempo, tipoDoSlug } from './clientes';
 import { cloudEnabled, cloudJson } from './cloud';
 import { CONTRATO_PADRAO } from './contratos';
@@ -58,6 +58,40 @@ export function ensureRootCloudEnv(): void {
   }
 }
 
+export interface ContatoCustomConfig {
+  id?: string;
+  nome: string;
+  papel?: string;
+  dmSlug?: string | null;
+}
+
+export interface ContatoProjetoEscritorio {
+  id: string;
+  nome: string;
+  papel?: string;
+  /** Slug principal da DM monitorada, se houver (ex.: "dm-5511900000084") */
+  dmSlug: string | null;
+  /** Todos os slugs de DM associados a esta pessoa (ex.: telefone + LID) */
+  dmSlugs: string[];
+  aguardando: boolean;
+  waitingMs: number;
+  waitingLabel: string | null;
+  band: FaixaEspera | null;
+  ultimaPreview: string | null;
+  ultimaTimestamp: string | null;
+  atividadeLabel: string | null;
+  mensagensDm: number;
+  custom?: boolean;
+}
+
+export interface DmDisponivelEscritorio {
+  slug: string;
+  nome: string;
+  ultimaTimestamp: string | null;
+  atividadeLabel: string | null;
+  mensagens: number;
+}
+
 export interface ClienteAssentosConfig {
   /** Slugs explicitamente colocados em mesa pelo operador */
   fixados?: string[];
@@ -65,6 +99,8 @@ export interface ClienteAssentosConfig {
   ocultos?: string[];
   /** Mapa opcional slug -> seatUid preferido */
   assentosPorSlug?: Record<string, string>;
+  /** Contatos e DMs extras vinculados manualmente pelo operador por slug de projeto */
+  contatosExtrasPorProjeto?: Record<string, ContatoCustomConfig[]>;
 }
 
 export interface ClienteEscritorio extends ClienteLinha {
@@ -80,6 +116,10 @@ export interface ClienteEscritorio extends ClienteLinha {
   fixadoMesa: boolean;
   /** Marcado manualmente pelo operador como fora de desenvolvimento (mesa vazia) */
   ocultoMesa: boolean;
+  /** Contatos do grupo e DMs individuais monitoradas vinculadas ao projeto */
+  contatosVinculados: ContatoProjetoEscritorio[];
+  /** Quantidade de DMs vinculadas que estão aguardando resposta fora do grupo */
+  dmsAguardando: number;
 }
 
 const ASSENTOS_FILE = () => safeDataPath('.escritorio-assentos.json');
@@ -107,6 +147,8 @@ export async function salvarConfigAssentos(
       ...(atual.assentosPorSlug ?? {}),
       ...(patch.assentosPorSlug ?? {}),
     },
+    contatosExtrasPorProjeto:
+      patch.contatosExtrasPorProjeto ?? atual.contatosExtrasPorProjeto ?? {},
   };
   await writeJsonAtomic(ASSENTOS_FILE(), proximo);
   estadoCache = null;
@@ -167,6 +209,138 @@ const NOMES_CURTOS_PROJETO: Record<string, string> = {
   'projeto-98': 'Projeto 172',
 };
 
+interface ContatoDefinicaoBase {
+  nome: string;
+  papel?: string;
+  dmSlugs?: string[];
+}
+
+/**
+ * Mapeamento dos contatos de cada grupo/projeto e suas respectivas DMs individuais monitoradas
+ * para que o operador veja quem faz parte de cada projeto e nunca esqueça mensagens fora do grupo.
+ */
+const CONTATOS_POR_PROJETO: Record<string, ContatoDefinicaoBase[]> = {
+  'projeto-05': [
+    { nome: 'Projeto 182', papel: 'Cliente · Sócia' },
+    { nome: 'Projeto 183', papel: 'Cliente · Sócia' },
+    { nome: 'Projeto 157', papel: 'Comercial', dmSlugs: ['dm-5511900000062'] },
+  ],
+  'projeto-128': [
+    {
+      nome: 'Projeto 164',
+      papel: 'Cliente · Operação',
+      dmSlugs: ['dm-5511900000060', 'dm-5511900000021'],
+    },
+    { nome: 'Projeto 18', papel: 'Cliente · Médica', dmSlugs: ['dm-5511900000058'] },
+    { nome: 'Projeto 06', papel: 'Cliente · Médico', dmSlugs: ['dm-5511900000059'] },
+  ],
+  'projeto-114': [
+    {
+      nome: 'Pessoa 07',
+      papel: 'Cliente · Gestão',
+      dmSlugs: ['dm-5511900000084', 'dm-5511900000022'],
+    },
+    { nome: 'Pessoa 92', papel: 'Cliente · Médico', dmSlugs: ['dm-5511900000076'] },
+    { nome: 'Pessoa 37', papel: 'Equipe', dmSlugs: ['dm-5511900000071'] },
+    { nome: 'Pessoa 90', papel: 'Bot Clínica', dmSlugs: ['dm-5511900000085'] },
+  ],
+  'projeto-30': [
+    { nome: 'Pessoa 105', papel: 'Cliente', dmSlugs: ['dm-5511900000078'] },
+    { nome: 'Pessoa 93', papel: 'Dev do Cliente' },
+    { nome: 'Projeto 51', papel: 'Bot', dmSlugs: ['dm-5511900000079'] },
+  ],
+  'projeto-38': [
+    { nome: 'Projeto 140', papel: 'Cliente · PT', dmSlugs: ['dm-5511900000054'] },
+    { nome: 'Projeto 156', papel: 'Cliente · PT' },
+  ],
+  'projeto-10': [
+    { nome: 'Pessoa 135', papel: 'Cliente', dmSlugs: ['dm-5511900000080'] },
+    { nome: 'Projeto 157', papel: 'Comercial', dmSlugs: ['dm-5511900000062'] },
+  ],
+  'projeto-87': [
+    { nome: 'Projeto 129', papel: 'Cliente', dmSlugs: ['dm-5511900000041'] },
+  ],
+  'projeto-02': [
+    { nome: 'Pessoa 20', papel: 'Projeto 175', dmSlugs: ['dm-5511900000083'] },
+    { nome: 'Projeto 119', papel: 'Projeto 155' },
+    { nome: 'Pessoa 133', papel: 'Dev / Parceiro', dmSlugs: ['dm-5511900000065'] },
+  ],
+  'dm-5511900000070': [
+    { nome: 'Projeto 91', papel: 'Cliente', dmSlugs: ['dm-5511900000070'] },
+    { nome: 'Projeto 181', papel: 'Projeto 26', dmSlugs: ['dm-5511900000039', 'dm-5511900000028'] },
+  ],
+  'projeto-116': [
+    { nome: 'Projeto 181', papel: 'Cliente', dmSlugs: ['dm-5511900000039', 'dm-5511900000028'] },
+  ],
+  'projeto-152': [
+    { nome: 'Pessoa 107', papel: 'Cliente' },
+    { nome: 'Pessoa 120', papel: 'Cliente', dmSlugs: ['dm-5511900000055'] },
+  ],
+  'projeto-44': [
+    { nome: 'Projeto 34', papel: 'Cliente' },
+  ],
+  'projeto-46': [
+    { nome: 'Projeto 102', papel: 'Cliente · PT' },
+    { nome: 'Projeto 159', papel: 'Equipe', dmSlugs: ['dm-5511900000061'] },
+  ],
+  'projeto-108': [
+    { nome: 'Projeto 169', papel: 'Cliente' },
+  ],
+  'projeto-115': [
+    { nome: 'Pessoa 17', papel: 'Sócio', dmSlugs: ['dm-5511900000074'] },
+    { nome: 'Pessoa 13', papel: 'Sócio', dmSlugs: ['dm-5511900000067'] },
+    { nome: 'Pessoa 95', papel: 'Sócio', dmSlugs: ['dm-5511900000072'] },
+  ],
+  'projeto-97': [
+    { nome: 'Projeto 150', papel: 'Cliente', dmSlugs: ['dm-5511900000081'] },
+  ],
+  'projeto-113': [
+    { nome: 'Pessoa 104', papel: 'Cliente' },
+    { nome: 'Projeto 122', papel: 'Cliente · Produto' },
+  ],
+  'projeto-29': [
+    { nome: 'Projeto 141', papel: 'Cliente', dmSlugs: ['dm-5511900000042'] },
+  ],
+  'projeto-23': [
+    { nome: 'Projeto 129', papel: 'Cliente', dmSlugs: ['dm-5511900000041'] },
+    { nome: 'Pessoa 19', papel: 'Cliente' },
+  ],
+  'projeto-98': [
+    { nome: 'Pessoa 35', papel: 'Cliente' },
+    { nome: 'Pessoa 106', papel: 'Parceiro', dmSlugs: ['dm-5511900000068'] },
+    { nome: 'Pessoa 49', papel: 'CRM', dmSlugs: ['dm-5511900000077'] },
+  ],
+  'projeto-99': [
+    { nome: 'Pessoa 133', papel: 'Cliente', dmSlugs: ['dm-5511900000065'] },
+  ],
+  'projeto-33': [
+    { nome: 'Pessoa 118', papel: 'Cliente', dmSlugs: ['dm-5511900000057'] },
+  ],
+  'projeto-45': [
+    { nome: 'Projeto 170', papel: 'Cliente', dmSlugs: ['dm-5511900000040'] },
+  ],
+  'projeto-89': [
+    { nome: 'Projeto 158', papel: 'Cliente', dmSlugs: ['dm-5511900000075'] },
+  ],
+  'projeto-08': [
+    {
+      nome: 'Pessoa 36',
+      papel: 'Cliente',
+      dmSlugs: ['dm-5511900000063', 'dm-5511900000056'],
+    },
+  ],
+  'projeto-31': [
+    { nome: 'Pessoa 94', papel: 'Cliente', dmSlugs: ['dm-5511900000073'] },
+  ],
+  'projeto-16': [
+    { nome: 'Projeto 143', papel: 'Cliente' },
+  ],
+  'dm-5511900000027': [
+    { nome: 'Projeto 24', papel: 'Cliente', dmSlugs: ['dm-5511900000027'] },
+    { nome: 'Projeto 25', papel: 'Equipe', dmSlugs: ['dm-5511900000069'] },
+  ],
+};
+
 function contratoTerminadoPeloNome(nome: string): boolean {
   const m = nome.match(/TERMINA\s+EM\s+(\d{2})\/(\d{2})\/(\d{4})/i);
   if (!m) return false;
@@ -181,6 +355,7 @@ export interface EstadoEscritorioPayload {
   autonomo: Record<string, boolean>;
   notas: Record<string, string>;
   assentos: ClienteAssentosConfig;
+  dmsDisponiveis?: DmDisponivelEscritorio[];
   updatedAt: string;
 }
 
@@ -189,6 +364,132 @@ const CACHE_STALE_MS = 300_000;
 
 let estadoCache: { atualizadoEm: number; payload: EstadoEscritorioPayload } | null = null;
 let refreshInFlight: Promise<EstadoEscritorioPayload> | null = null;
+
+function resolverContatosDoProjeto(
+  slug: string,
+  repoNome: string | null,
+  links: LinksMap,
+  caixaBySlug: Map<string, CaixaEntrada['itens'][number]>,
+  summaryBySlug: Map<string, GroupSummary>,
+  assentos: ClienteAssentosConfig,
+  agora: number,
+): ContatoProjetoEscritorio[] {
+  const baseDefs: Array<ContatoDefinicaoBase & { custom?: boolean }> = [
+    ...(CONTATOS_POR_PROJETO[slug] ?? []),
+  ];
+
+  // Anexa DMs vinculadas ao mesmo repo no links.json que ainda não estejam na lista
+  if (repoNome) {
+    for (const [otherSlug, l] of Object.entries(links)) {
+      if (!otherSlug.startsWith('dm-')) continue;
+      const otherRepo = l.repoPath ? basename(l.repoPath) : null;
+      if (otherRepo !== repoNome) continue;
+      const jaTem = baseDefs.some((d) => (d.dmSlugs ?? []).includes(otherSlug));
+      if (!jaTem) {
+        const sum = summaryBySlug.get(otherSlug);
+        baseDefs.push({
+          nome: l.cliente || sum?.name || otherSlug,
+          papel: 'Cliente',
+          dmSlugs: [otherSlug],
+        });
+      }
+    }
+  }
+
+  // Contatos/DMs customizados adicionados manualmente pelo operador
+  const extras = assentos.contatosExtrasPorProjeto?.[slug] ?? [];
+  for (const ex of extras) {
+    if (!ex.nome?.trim()) continue;
+    baseDefs.push({
+      nome: ex.nome.trim(),
+      papel: ex.papel?.trim() || 'Contato',
+      dmSlugs: ex.dmSlug ? [ex.dmSlug] : [],
+      custom: true,
+    });
+  }
+
+  const out: ContatoProjetoEscritorio[] = [];
+
+  for (let i = 0; i < baseDefs.length; i++) {
+    const def = baseDefs[i];
+    const dmSlugs = Array.from(new Set((def.dmSlugs ?? []).filter(Boolean)));
+    const dmSlugPrincipal = dmSlugs[0] ?? null;
+
+    let ultimaTimestamp: string | null = null;
+    let ultimaTimestampMs = 0;
+    let ultimaPreview: string | null = null;
+    let ultimaRespostaMinhaMs = 0;
+    let mensagensDm = 0;
+
+    for (const ds of dmSlugs) {
+      const sum = summaryBySlug.get(ds);
+      const cx = caixaBySlug.get(ds);
+      mensagensDm += sum?.messageCount ?? 0;
+
+      const ts = cx?.ultima?.quando ?? sum?.lastTimestamp ?? null;
+      const prev = cx?.ultima?.previa ?? sum?.lastPreview ?? null;
+      const tsMs = ts ? Date.parse(ts) : 0;
+
+      if (prev && prev.startsWith('Você:') && tsMs > ultimaRespostaMinhaMs) {
+        ultimaRespostaMinhaMs = tsMs;
+      }
+
+      if (tsMs > ultimaTimestampMs) {
+        ultimaTimestampMs = tsMs;
+        ultimaTimestamp = ts;
+        ultimaPreview = prev;
+      }
+    }
+
+    // Verifica se alguma DM deste contato está aguardando resposta (e não foi respondida em um slug irmão mais recente)
+    let aguardando = false;
+    let waitingMs = 0;
+    let waitingLabel: string | null = null;
+    let band: FaixaEspera | null = null;
+
+    for (const ds of dmSlugs) {
+      const cx = caixaBySlug.get(ds);
+      const esp = cx?.esperando;
+      if (!esp) continue;
+      const ultimaClienteMs = cx?.ultima?.quando
+        ? Date.parse(cx.ultima.quando)
+        : Date.parse(esp.desde);
+      // Se o operador já respondeu mais recentemente no outro DM slug da mesma pessoa (ex.: telefone vs LID), não está pendente
+      if (ultimaRespostaMinhaMs > 0 && ultimaRespostaMinhaMs > ultimaClienteMs) {
+        continue;
+      }
+      const wMs = Math.max(0, agora - Date.parse(esp.desde));
+      if (!aguardando || wMs > waitingMs) {
+        aguardando = true;
+        waitingMs = wMs;
+        waitingLabel = esp.ha;
+        band = esp.faixa;
+        if (esp.previa) {
+          ultimaPreview = esp.previa;
+        }
+      }
+    }
+
+    out.push({
+      id: `${slug}-c-${i}-${def.nome.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      nome: def.nome,
+      papel: def.papel,
+      dmSlug: dmSlugPrincipal,
+      dmSlugs,
+      aguardando,
+      waitingMs,
+      waitingLabel,
+      band,
+      ultimaPreview,
+      ultimaTimestamp,
+      atividadeLabel: rotuloTempo(ultimaTimestamp, agora),
+      mensagensDm,
+      custom: def.custom,
+    });
+  }
+
+  return out;
+}
 
 function montarCardsEscritorio(
   links: LinksMap,
@@ -293,6 +594,26 @@ function montarCardsEscritorio(
       idx >= 25 && atividadeBase > 0 ? Math.ceil(atividadeBase / 5) : 0,
     );
 
+    const contatosVinculados = resolverContatosDoProjeto(
+      slug,
+      repoNome,
+      links,
+      caixaBySlug,
+      summaryBySlug,
+      assentos,
+      agora,
+    );
+    const dmsAguardando = contatosVinculados.filter((ct) => ct.aguardando && ct.dmSlug !== slug).length;
+
+    const sinaisBase = [...(dashLinha?.sinais ?? [])];
+    for (const ct of contatosVinculados) {
+      if (ct.aguardando && ct.dmSlug && ct.dmSlug !== slug) {
+        sinaisBase.unshift(
+          `💬 DM fora do grupo aguardando: ${ct.nome} (${ct.waitingLabel ?? 'pendente'})`,
+        );
+      }
+    }
+
     cards.push({
       slug,
       nome: nomeExibicao,
@@ -319,7 +640,7 @@ function montarCardsEscritorio(
       entregasTotal: dashLinha?.featuresTotal ?? 0,
       msgsPorEntrega: dashLinha?.msgsPorFeature30d ?? null,
       valorPorEntrega: dashLinha?.valorPorFeature ?? null,
-      sinais: dashLinha?.sinais ?? [],
+      sinais: sinaisBase,
       equipe: [],
       emDesenvolvimento,
       projetoNome,
@@ -327,8 +648,22 @@ function montarCardsEscritorio(
       github: link?.github ?? null,
       fixadoMesa,
       ocultoMesa,
+      contatosVinculados,
+      dmsAguardando,
     });
   }
+
+  const dmsDisponiveis: DmDisponivelEscritorio[] = (groupsSummary ?? [])
+    .filter((g) => g.slug.startsWith('dm-') && !SLUGS_INTERNOS_OU_RUIDO.has(g.slug))
+    .sort((a, b) => (b.lastTimestamp ?? '').localeCompare(a.lastTimestamp ?? ''))
+    .slice(0, 80)
+    .map((g) => ({
+      slug: g.slug,
+      nome: g.name,
+      ultimaTimestamp: g.lastTimestamp,
+      atividadeLabel: rotuloTempo(g.lastTimestamp, agora),
+      mensagens: g.messageCount,
+    }));
 
   return {
     clientes: ordenarCards(cards),
@@ -336,6 +671,7 @@ function montarCardsEscritorio(
     autonomo: triage.autonomo ?? {},
     notas: triage.notes ?? {},
     assentos,
+    dmsDisponiveis,
     updatedAt: new Date(agora).toISOString(),
   };
 }

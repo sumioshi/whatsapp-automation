@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { MedidorUso } from '@/app/components/ui';
-import type { ClienteLinha } from '@/lib/clientes';
+import type { ClienteEscritorio } from '@/lib/escritorio-estado';
 import { CharSprite } from './CharSprite';
 
 interface ItemOrganograma {
   id: number;
   palette: number;
-  cliente: ClienteLinha;
+  cliente: ClienteEscritorio;
   autonomo?: boolean;
 }
 
@@ -163,6 +163,36 @@ export function OrganogramaClientesView({
                                   ? `Última interação ${cliente.atividadeLabel}`
                                   : 'Sem mensagens recentes'}
                               </p>
+                            )}
+
+                            {(cliente.contatosVinculados ?? []).length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1 border-t border-line/60 pt-2">
+                                {cliente.contatosVinculados.map((ct) => (
+                                  <span
+                                    key={ct.id}
+                                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium ${
+                                      ct.aguardando
+                                        ? 'border-red-500/40 bg-red-500/15 text-red-300'
+                                        : ct.dmSlug
+                                          ? 'border-line bg-surface text-fg-dim'
+                                          : 'border-line/70 bg-surface/50 text-fg-faint'
+                                    }`}
+                                    title={
+                                      ct.dmSlug
+                                        ? `DM monitorada: ${ct.dmSlug}${ct.atividadeLabel ? ` · ${ct.atividadeLabel}` : ''}`
+                                        : `Contato no grupo (${ct.papel ?? 'Cliente'})`
+                                    }
+                                  >
+                                    <span>{ct.dmSlug ? '💬' : '👤'}</span>
+                                    <span>{ct.nome}</span>
+                                    {ct.aguardando && ct.waitingLabel && (
+                                      <span className="font-mono text-[9px] text-red-300">
+                                        ({ct.waitingLabel})
+                                      </span>
+                                    )}
+                                  </span>
+                                ))}
+                              </div>
                             )}
 
                             <div className="mt-2.5 space-y-2">
