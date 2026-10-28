@@ -37,3 +37,6 @@ light-chat.jpeg
 .superpowers/
 
 __pycache__/
+
+# Memória dos agentes (link local para a memória do Claude Code; tem dado de cliente)
+.memoria
