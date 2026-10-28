@@ -11,13 +11,16 @@ persistente de monitoramento disponível no runtime. Se o runtime atual não con
 despertar o agente quando chegar um evento, não declare que o plantão foi armado;
 ofereça checar `novidades` sob demanda ou ligar `alertar_chat` (notificação no Mac).
 
-## Memória do projeto (leia antes de começar)
+## Memória do projeto = memória do Claude Code (leia antes de começar)
 
-Decisões, incidentes e preferências do operador que não estão no código ficam em `.memoria/`
-(link local para a memória do Claude Code; fora do git porque tem dado de cliente). Se o link
-existir, leia `.memoria/MEMORY.md` no início: cada linha é um fato com um gancho, e o arquivo
-apontado tem o detalhe. Abra só os que tocam a tarefa. O que estiver lá vale como contexto, mas
-confira no código antes de afirmar que uma função, flag ou arquivo citado ainda existe.
+"Memória do projeto" e "memórias do Claude" são a MESMA coisa: `.memoria/` é um link local para
+`~/.claude/projects/<este projeto>/memory`, a memória que o Claude Code grava (fora do git porque
+tem dado de cliente). Decisões, incidentes e preferências do operador que não estão no código
+ficam lá. Se o link existir, leia `.memoria/MEMORY.md` no início: é o índice, cada linha é um fato
+com um gancho, e o arquivo apontado tem o detalhe. Abra só os que tocam a tarefa (o índice tem
+~6 mil tokens, a memória inteira ~60 mil); se o operador pedir pra ler tudo, leia. O que estiver
+lá vale como contexto, mas confira no código antes de afirmar que uma função, flag ou arquivo
+citado ainda existe.
 
 Pra registrar algo novo (correção do operador, decisão de projeto, incidente), crie um arquivo
 por fato no mesmo formato dos que já estão lá (frontmatter com `name`, `description` e
