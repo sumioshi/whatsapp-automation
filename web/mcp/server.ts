@@ -78,6 +78,7 @@ import {
   dsSetContrato,
   dsRegistrarFeature,
   dsDashboard,
+  dsCaixaEntrada,
   dsAgendaApagar,
   dsAgendaCriar,
   dsAgendaEditar,
@@ -1820,6 +1821,44 @@ server.registerTool(
       return text({ geradoEm: d.geradoEm, totais: d.totais, linhas });
     } catch (e) {
       return fail(e instanceof Error ? e.message : "falha ao montar dashboard");
+    }
+  },
+);
+
+server.registerTool(
+  "caixa_de_entrada",
+  {
+    description:
+      "Quem está esperando resposta e de qual projeto, em todos os chats coletados (o operador não precisa " +
+      "abrir o WhatsApp). Use pra 'quem me mandou mensagem?', 'tem cliente esperando?', 'o que rolou hoje?'. " +
+      "Cada item traz o chat, o `projeto` (cliente, pasta do repo e GitHub, quando o chat está linkado) e, se " +
+      "alguém espera, `esperando` (quem, prévia, desde quando, há quanto tempo); pendentes vêm primeiro, quem " +
+      "espera há mais tempo no topo. Esperando = a última fala é de cliente (ou te mencionaram) e ninguém da " +
+      "conta respondeu depois; chat silenciado ou marcado resolvido não entra. Só lê: não marca nada como " +
+      "visto (ao contrário de `novidades`). `todos: true` inclui os chats em que cliente escreveu desde `desde` " +
+      "mesmo já respondidos, com `do_cliente_desde`. Pra ler a conversa, `ler_mensagens(grupo)`.",
+    inputSchema: {
+      todos: z.boolean().optional().describe("default false = só quem espera resposta; true = também o que se mexeu desde `desde`"),
+      desde: z.string().optional().describe("ISO (ex 2026-10-28T09:00:00-03:00); só no modo todos; default = últimas 24 h"),
+      grupos: z.array(z.string()).optional().describe("slugs pra restringir"),
+    },
+  },
+  async ({ todos, desde, grupos }) => {
+    try {
+      if (desde && Number.isNaN(Date.parse(desde))) return fail("desde precisa ser uma data ISO");
+      const c = await dsCaixaEntrada({
+        todos: todos === true,
+        ...(desde ? { desde: new Date(desde).toISOString() } : {}),
+        ...(grupos?.length ? { grupos } : {}),
+      });
+      const esperando = c.itens.filter((i) => i.esperando).length;
+      return text({
+        ...c,
+        esperando,
+        ...(c.total === 0 ? { nota: c.modo === "pendentes" ? "Ninguém esperando resposta." : "Nenhum cliente escreveu nesse período." } : {}),
+      });
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : "falha ao montar a caixa de entrada");
     }
   },
 );

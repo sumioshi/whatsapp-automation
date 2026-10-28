@@ -15,6 +15,7 @@ import { readContratos, setContrato } from './contratos';
 import type { EntradaFeature, Feature } from './features';
 import { listarFeatures, registrarFeature } from './features';
 import type { Dashboard } from './dashboard';
+import type { CaixaEntrada, OpcoesCaixa } from './caixa-de-entrada';
 import type { EntradaEvento, EstadoAgenda, Evento, PatchEvento } from './google/evento';
 import { CONTROL_URL } from './paths';
 
@@ -415,6 +416,18 @@ export async function dsDashboard(): Promise<Dashboard> {
   if (mcpRemote()) return cloudJson('/api/dashboard');
   const { montarDashboardAtual } = await import('./dashboard-atual');
   return montarDashboardAtual();
+}
+
+export async function dsCaixaEntrada(opts: OpcoesCaixa = {}): Promise<CaixaEntrada> {
+  if (mcpRemote()) {
+    const q = new URLSearchParams();
+    if (opts.todos) q.set('todos', '1');
+    if (opts.desde) q.set('desde', opts.desde);
+    if (opts.grupos?.length) q.set('grupos', opts.grupos.join(','));
+    return cloudJson(`/api/caixa/entrada?${q.toString()}`);
+  }
+  const { caixaDeEntrada } = await import('./caixa-de-entrada');
+  return caixaDeEntrada(opts);
 }
 
 /** A agenda só existe na nuvem: o token do Google mora no volume do painel. */

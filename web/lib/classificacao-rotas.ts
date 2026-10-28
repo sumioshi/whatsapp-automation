@@ -30,6 +30,7 @@ export const CLASSIFICACAO: Record<string, 'dono' | 'atendimento' | 'publico'> =
   'api/atendimento/status/route.ts': 'atendimento',
   'api/atendimento/transcrever/route.ts': 'atendimento',
   'api/atendimento/visto/route.ts': 'atendimento',
+  'api/caixa/entrada/route.ts': 'dono',
   'api/caixa/fila/route.ts': 'dono',
   'api/caixa/ia/route.ts': 'dono',
   'api/cancelar-envio/route.ts': 'dono',
