@@ -424,6 +424,7 @@ export async function dsCaixaEntrada(opts: OpcoesCaixa = {}): Promise<CaixaEntra
     if (opts.todos) q.set('todos', '1');
     if (opts.desde) q.set('desde', opts.desde);
     if (opts.grupos?.length) q.set('grupos', opts.grupos.join(','));
+    if (opts.dias) q.set('dias', String(opts.dias));
     return cloudJson(`/api/caixa/entrada?${q.toString()}`);
   }
   const { caixaDeEntrada } = await import('./caixa-de-entrada');

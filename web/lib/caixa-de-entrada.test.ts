@@ -3,7 +3,7 @@ import type { Contacts } from './contacts';
 import type { GroupSummary } from './data';
 import type { InboxItem } from './inbox';
 import type { LinksMap } from './links';
-import { contarDoCliente, montarCaixa, projetoDe } from './caixa-de-entrada';
+import { contarDoCliente, encerramento, montarCaixa, projetoDe, separarEspera } from './caixa-de-entrada';
 
 const links: LinksMap = {
   'projeto-113': { repoPath: '/Users/x/SaaS-clientes/projeto-177', cliente: 'Projeto 171', tipo: 'grupo', notas: '', github: 'org/projeto-177' },
@@ -94,5 +94,61 @@ describe('contarDoCliente', () => {
       m('2026-10-28T13:00:00.000Z', '5511888888888'),
     ];
     expect(contarDoCliente(msgs, '2026-10-28T00:00:00.000Z', contatos)).toBe(2);
+  });
+});
+
+describe('encerramento', () => {
+  it.each([
+    'Ok',
+    'ok. obrigada',
+    'Combinado',
+    'tranquilo',
+    'Vou testar',
+    'Pode ser assim mesmo',
+    'Tudo ótimo Tadeu. Beleza maravilha obrigada',
+    'Obrigada Tadeu, amanhã abro o e-mail e vemos tudo certinho 🙏🏻',
+    'e agradeço as indicações, sempre muito bem vindas',
+    '👍',
+    '[figurinha]',
+  ])('fecha o assunto: %s', (t) => {
+    expect(encerramento(t)).toBe(true);
+  });
+
+  it.each([
+    'opa tudo certo e vc?',
+    'Já estou aqui á 2 semanas quase',
+    'Obrigado, mas o app ainda não abre',
+    'Tem algo do processo que esteja dependendo de mim? Além do api do wpp?',
+    'Eu queria ver se podemos adiantar a parte de marketing, pra editar vídeos',
+    '[áudio]',
+    '[imagem]',
+    'vou mandar o print do erro',
+  ])('continua esperando: %s', (t) => {
+    expect(encerramento(t)).toBe(false);
+  });
+});
+
+describe('separarEspera', () => {
+  const agora = Date.parse('2026-10-28T12:00:00.000Z');
+  const item = (slug: string, timestamp: string, preview: string): InboxItem => ({ ...espera(slug, 0), timestamp, preview });
+
+  it('encerrado sai com contagem; antigo vai pela última fala do cliente, não pelo início da espera', () => {
+    const r = separarEspera(
+      [
+        item('fechou', '2026-10-28T11:00:00.000Z', 'Combinado'),
+        item('velho', '2026-10-18T11:00:00.000Z', 'cadê o build?'),
+        item('voltou', '2026-10-28T10:00:00.000Z', 'e aí, alguma novidade?'),
+      ],
+      7,
+      agora,
+    );
+    expect(r.encerrados).toBe(1);
+    expect(r.antigos.map((i) => i.slug)).toEqual(['velho']);
+    expect(r.recentes.map((i) => i.slug)).toEqual(['voltou']);
+  });
+
+  it('menção nunca é tratada como encerramento', () => {
+    const r = separarEspera([{ ...item('m', '2026-10-28T11:00:00.000Z', 'ok'), reason: 'mentioned' }], 7, agora);
+    expect(r.recentes).toHaveLength(1);
   });
 });

@@ -1836,20 +1836,26 @@ server.registerTool(
       "espera há mais tempo no topo. Esperando = a última fala é de cliente (ou te mencionaram) e ninguém da " +
       "conta respondeu depois; chat silenciado ou marcado resolvido não entra. Só lê: não marca nada como " +
       "visto (ao contrário de `novidades`). `todos: true` inclui os chats em que cliente escreveu desde `desde` " +
-      "mesmo já respondidos, com `do_cliente_desde`. Pra ler a conversa, `ler_mensagens(grupo)`.",
+      "mesmo já respondidos, com `do_cliente_desde`. Conversa que o cliente fechou (\"ok\", \"combinado\", " +
+      "\"valeu\", figurinha) não entra: vem só a contagem em `encerrados`. Espera cuja última fala do cliente " +
+      "passou de `dias` (default 7) vem resumida em `antigos` (nome e tempo). Ao responder o operador, agrupe " +
+      "por projeto, diga em uma linha o que cada um quer e ainda descarte o que for só social; cite os " +
+      "`antigos` numa linha. Pra ler a conversa, `ler_mensagens(grupo)`.",
     inputSchema: {
       todos: z.boolean().optional().describe("default false = só quem espera resposta; true = também o que se mexeu desde `desde`"),
       desde: z.string().optional().describe("ISO (ex 2026-10-28T09:00:00-03:00); só no modo todos; default = últimas 24 h"),
       grupos: z.array(z.string()).optional().describe("slugs pra restringir"),
+      dias: z.number().int().positive().optional().describe("default 7: espera mais velha que isso vai pra `antigos`"),
     },
   },
-  async ({ todos, desde, grupos }) => {
+  async ({ todos, desde, grupos, dias }) => {
     try {
       if (desde && Number.isNaN(Date.parse(desde))) return fail("desde precisa ser uma data ISO");
       const c = await dsCaixaEntrada({
         todos: todos === true,
         ...(desde ? { desde: new Date(desde).toISOString() } : {}),
         ...(grupos?.length ? { grupos } : {}),
+        ...(dias ? { dias } : {}),
       });
       const esperando = c.itens.filter((i) => i.esperando).length;
       return text({

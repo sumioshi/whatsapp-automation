@@ -40,11 +40,22 @@ export interface ItemCaixaEntrada {
   ultima: { previa: string | null; quando: string | null };
 }
 
+export interface EsperaAntiga {
+  grupo: string;
+  nome: string;
+  projeto: string | null;
+  ha: string;
+}
+
 export interface CaixaEntrada {
   modo: 'pendentes' | 'todos';
   desde: string | null;
   total: number;
   itens: ItemCaixaEntrada[];
+  /** Cliente fechou a conversa ("ok", "combinado", "valeu"): teve a última palavra, mas não espera nada. */
+  encerrados: number;
+  /** Esperando, mas a última fala do cliente é mais velha que `dias`: só o essencial, pra não sumir. */
+  antigos: EsperaAntiga[];
 }
 
 export interface OpcoesCaixa {
@@ -54,7 +65,11 @@ export interface OpcoesCaixa {
   desde?: string;
   /** Restringe a estes chats. */
   grupos?: string[];
+  /** Espera cuja última fala do cliente passou disso vai para `antigos` (default 7). */
+  dias?: number;
 }
+
+const DIA_MS = 24 * 60 * 60_000;
 
 export function projetoDe(links: LinksMap, slug: string): ProjetoDoChat | null {
   const l = links[slug];
@@ -71,6 +86,65 @@ function paraEspera(i: InboxItem): EsperaDoChat {
     ha: i.waitingLabel,
     faixa: i.band,
   };
+}
+
+const normalizar = (t: string) =>
+  t
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+/** Palavras de quem só confirma, agradece ou fecha o assunto. */
+const VOCAB_FECHO = new Set(
+  (
+    'ok okay okey oks blz beleza valeu vlw obrigado obrigada obrigados obg brigado brigada grato grata agradeco ' +
+    'agradecida combinado combinados fechado fechou show top perfeito perfeita tranquilo tranquila certo certinho ' +
+    'entendi entendido otimo otima maravilha joia massa boa bom legal excelente tmj demais amem de nada pode ser ' +
+    'assim mesmo vou vamos testar ver olhar tudo bem e o a muito mt mto sim isso entao aqui ja jaja abraco abracos ' +
+    'opa kk kkk kkkk haha ' 
+  )
+    .trim()
+    .split(/\s+/),
+);
+const AGRADECE = /\b(obrigad|brigad|agradec|valeu|vlw|obg|grat[oa]\b)/;
+/** Agradecimento que ainda carrega problema ou pedido não fecha nada. */
+const AINDA_PEDE = /\b(mas|porem|ainda|nao|erro|problema|bug|preciso|precisa|urgente|quando|cade|consegue|poderia)\b/;
+
+/**
+ * true quando a última fala do cliente só fecha o assunto: confirmação curta,
+ * agradecimento sem pedido ou figurinha. Pergunta nunca fecha. Regra simples de
+ * propósito: na dúvida, o chat continua na lista.
+ */
+export function encerramento(previa: string): boolean {
+  if (previa === '[figurinha]') return true;
+  // Áudio, imagem, documento: não dá pra saber o que diz, então continua esperando.
+  if (/^\[[^\]]+\]$/.test(previa)) return false;
+  if (previa.includes('?') || previa.length > 80) return false;
+  const t = normalizar(previa);
+  const palavras = t.match(/[a-z]+/g) ?? [];
+  if (palavras.length === 0) return /^[\p{Extended_Pictographic}\s\u200d\ufe0f]+$/u.test(previa);
+  const desconhecidas = palavras.filter((p) => !VOCAB_FECHO.has(p));
+  // Uma palavra fora do vocabulário em frase curta é quase sempre o nome de quem recebe ("Ok Tadeu").
+  if (desconhecidas.length === 0 || (desconhecidas.length === 1 && previa.length <= 25)) return true;
+  return AGRADECE.test(t) && !AINDA_PEDE.test(t);
+}
+
+/** Separa a fila em recentes, antigos (pela última fala do cliente) e encerrados. */
+export function separarEspera(
+  inbox: InboxItem[],
+  dias: number,
+  agora: number,
+): { recentes: InboxItem[]; antigos: InboxItem[]; encerrados: number } {
+  const limite = agora - dias * DIA_MS;
+  const recentes: InboxItem[] = [];
+  const antigos: InboxItem[] = [];
+  let encerrados = 0;
+  for (const i of inbox) {
+    if (i.reason === 'client-waiting' && encerramento(i.preview)) encerrados++;
+    else if (new Date(i.timestamp).getTime() < limite) antigos.push(i);
+    else recentes.push(i);
+  }
+  return { recentes, antigos, encerrados };
 }
 
 /** Quantas mensagens de cliente o chat recebeu desde um instante. */
@@ -122,18 +196,21 @@ export function montarCaixa(
   return [...itens, ...resto];
 }
 
-const DIA_MS = 24 * 60 * 60_000;
-
 export async function caixaDeEntrada(opts: OpcoesCaixa = {}): Promise<CaixaEntrada> {
   const filtro = opts.grupos?.length ? new Set(opts.grupos) : null;
   const [todosGrupos, links, triage] = await Promise.all([listGroups(), readLinks(), readTriage()]);
   // Silenciado some da fila do painel; aqui também, nos dois modos.
   const grupos = todosGrupos.filter((g) => (!filtro || filtro.has(g.slug)) && !triage.muted[g.slug]);
-  const inbox = await buildInbox({ grupos, ...(filtro ? { slugs: filtro } : {}) });
+  const fila = await buildInbox({ grupos, ...(filtro ? { slugs: filtro } : {}) });
+  const { recentes: inbox, antigos, encerrados } = separarEspera(fila, opts.dias ?? 7, Date.now());
+  const extra = {
+    encerrados,
+    antigos: antigos.map((i) => ({ grupo: i.slug, nome: i.groupName, projeto: projetoDe(links, i.slug)?.repo ?? null, ha: i.waitingLabel })),
+  };
 
   if (!opts.todos) {
     const itens = montarCaixa(inbox, grupos, links, null);
-    return { modo: 'pendentes', desde: null, total: itens.length, itens };
+    return { modo: 'pendentes', desde: null, total: itens.length, itens, ...extra };
   }
 
   const desde = opts.desde ?? new Date(Date.now() - DIA_MS).toISOString();
@@ -143,5 +220,5 @@ export async function caixaDeEntrada(opts: OpcoesCaixa = {}): Promise<CaixaEntra
     recentes.map(async (g) => [g.slug, contarDoCliente(await readGroupRecords(g.slug), desde, contacts)] as const),
   );
   const itens = montarCaixa(inbox, grupos, links, new Map(contagens));
-  return { modo: 'todos', desde, total: itens.length, itens };
+  return { modo: 'todos', desde, total: itens.length, itens, ...extra };
 }
