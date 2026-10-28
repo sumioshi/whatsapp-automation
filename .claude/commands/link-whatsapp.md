@@ -64,7 +64,8 @@ Caminho canônico — siga nesta ordem, não improvise:
    - No `<pwd>/CLAUDE.md` (crie se não existir), faça upsert do bloco entre os marcadores
      `<!-- wa-link:start -->` e `<!-- wa-link:end -->`, com uma linha tipo:
      "WhatsApp deste projeto: `<slug>` (<cliente>). Consulte o histórico via MCP `whatsapp-collector`
-     usando esse slug. Pra acompanhar ativamente, use `acompanhar_chat`. Detalhes em `.claude/whatsapp.json`."
+     usando esse slug. 'Teve mensagem nova?': `caixa_de_entrada` com `grupos: ["<slug>"]` (barato;
+     `ler_mensagens` só pra ler a conversa). Pra acompanhar ativamente, use `/plantao`. Detalhes em `.claude/whatsapp.json`."
    - Avise o usuário: o índice central (painel) **não** foi atualizado e por quê (fora do ar, ou
      validação de `repoPath` do painel na nuvem).
 

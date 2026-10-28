@@ -118,7 +118,8 @@ function claudeMdBlock(slug: string, entry: LinkEntry): string {
   return [
     MARK_START,
     `WhatsApp deste projeto: \`${slug}\`${quem}. Consulte o histórico via MCP \`whatsapp-collector\``,
-    `usando esse slug (ex: resumo_do_dia, ler_mensagens, buscar). Pra acompanhar ativamente (ser`,
+    `usando esse slug (ex: resumo_do_dia, ler_mensagens, buscar). "Teve mensagem nova?": \`caixa_de_entrada\``,
+    `com \`grupos: ["${slug}"]\` (barato; \`ler_mensagens\` só pra ler a conversa). Pra acompanhar ativamente (ser`,
     `acordado quando chega msg), arme um Monitor no \`data/${slug}/messages.jsonl\`. Detalhes em \`.claude/whatsapp.json\`.`,
     MARK_END,
   ].join('\n');
