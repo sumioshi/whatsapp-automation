@@ -47,13 +47,23 @@ describe('montarCaixa', () => {
   const grupos = [grupo('projeto-113', '2026-10-28T12:00:00.000Z'), grupo('dm-5511', '2026-10-28T14:00:00.000Z'), grupo('calado', '2026-10-28T15:00:00.000Z')];
 
   it('pendentes: só quem espera, na ordem da fila, com projeto e espera traduzidos', () => {
-    const itens = montarCaixa([espera('projeto-113', 3 * 3600_000)], grupos, links, null);
+    const itens = montarCaixa([espera('projeto-113', 3 * 3600_000)], grupos, links, null, Date.parse('2026-10-28T14:30:00.000Z'));
     expect(itens).toEqual([
       {
         grupo: 'projeto-113',
         nome: 'Nome projeto-113',
         projeto: { cliente: 'Projeto 171', repo: 'projeto-177', github: 'org/projeto-177' },
-        esperando: { motivo: 'cliente_esperando', de: 'Tânia', previa: 'cadê o build?', desde: '2026-10-28T09:00:00.000Z', ha: 'há 3h', faixa: 'warm' },
+        esperando: {
+          motivo: 'cliente_esperando',
+          de: 'Tânia',
+          previa: 'cadê o build?',
+          desde: '2026-10-28T09:00:00.000Z',
+          desde_brt: '28/10, 06:00',
+          ha: 'há 3h',
+          ultima_brt: '28/10, 09:00',
+          ultima_ha: 'há 2h',
+          faixa: 'warm',
+        },
         do_cliente_desde: null,
         ultima: { previa: 'Fulano: oi de projeto-113', quando: '2026-10-28T12:00:00.000Z' },
       },

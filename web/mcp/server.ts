@@ -1840,7 +1840,8 @@ server.registerTool(
       "\"valeu\", figurinha) não entra: vem só a contagem em `encerrados`. Espera cuja última fala do cliente " +
       "passou de `dias` (default 7) vem resumida em `antigos` (nome e tempo). Ao responder o operador, agrupe " +
       "por projeto, diga em uma linha o que cada um quer e ainda descarte o que for só social; cite os " +
-      "`antigos` numa linha. Pra ler a conversa, `ler_mensagens(grupo)`.",
+      "`antigos` numa linha. Mostre a data e hora de Brasília da última mensagem (`ultima_brt`) com quanto " +
+      "tempo faz em relação a `agora_brt` (ex: \"28/10 09:34, há 2h\"). Pra ler a conversa, `ler_mensagens(grupo)`.",
     inputSchema: {
       todos: z.boolean().optional().describe("default false = só quem espera resposta; true = também o que se mexeu desde `desde`"),
       desde: z.string().optional().describe("ISO (ex 2026-10-28T09:00:00-03:00); só no modo todos; default = últimas 24 h"),

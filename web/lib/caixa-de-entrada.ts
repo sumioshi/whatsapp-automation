@@ -1,8 +1,10 @@
 import { basename } from 'node:path';
 import { buildContacts, numberFromJid, roleOf, type Contacts } from './contacts';
 import { type GroupSummary, listGroups, readGroupRecords } from './data';
+import { horaBRT } from './context';
 import { buildInbox, type InboxItem } from './inbox';
 import { type LinksMap, readLinks } from './links';
+import { relativeLabel } from './sla';
 import { readTriage } from './triage';
 
 /**
@@ -24,8 +26,13 @@ export interface EsperaDoChat {
   motivo: 'cliente_esperando' | 'mencao';
   de: string;
   previa: string;
+  /** Início da espera (1ª fala do cliente sem resposta). */
   desde: string;
+  desde_brt: string;
   ha: string;
+  /** Última fala do cliente, em Brasília, e quanto tempo faz. */
+  ultima_brt: string;
+  ultima_ha: string;
   faixa: InboxItem['band'];
 }
 
@@ -45,9 +52,12 @@ export interface EsperaAntiga {
   nome: string;
   projeto: string | null;
   ha: string;
+  ultima_brt: string;
 }
 
 export interface CaixaEntrada {
+  /** Agora em Brasília, pra comparar com os horários dos itens. */
+  agora_brt: string;
   modo: 'pendentes' | 'todos';
   desde: string | null;
   total: number;
@@ -77,13 +87,16 @@ export function projetoDe(links: LinksMap, slug: string): ProjetoDoChat | null {
   return { cliente: l.cliente, repo: basename(l.repoPath), github: l.github || null };
 }
 
-function paraEspera(i: InboxItem): EsperaDoChat {
+function paraEspera(i: InboxItem, agora: number): EsperaDoChat {
   return {
     motivo: i.reason === 'mentioned' ? 'mencao' : 'cliente_esperando',
     de: i.who,
     previa: i.preview,
     desde: i.waitingSince,
+    desde_brt: horaBRT(i.waitingSince),
     ha: i.waitingLabel,
+    ultima_brt: horaBRT(i.timestamp),
+    ultima_ha: relativeLabel(Math.max(0, agora - new Date(i.timestamp).getTime())),
     faixa: i.band,
   };
 }
@@ -171,6 +184,7 @@ export function montarCaixa(
   grupos: GroupSummary[],
   links: LinksMap,
   movimentados: Map<string, number> | null,
+  agora: number = Date.now(),
 ): ItemCaixaEntrada[] {
   const porSlug = new Map(grupos.map((g) => [g.slug, g]));
   const item = (slug: string, nome: string, espera: InboxItem | null): ItemCaixaEntrada => {
@@ -179,7 +193,7 @@ export function montarCaixa(
       grupo: slug,
       nome: g?.name ?? nome,
       projeto: projetoDe(links, slug),
-      esperando: espera ? paraEspera(espera) : null,
+      esperando: espera ? paraEspera(espera, agora) : null,
       do_cliente_desde: movimentados ? (movimentados.get(slug) ?? 0) : null,
       ultima: { previa: g?.lastPreview ?? null, quando: g?.lastTimestamp ?? null },
     };
@@ -202,14 +216,22 @@ export async function caixaDeEntrada(opts: OpcoesCaixa = {}): Promise<CaixaEntra
   // Silenciado some da fila do painel; aqui também, nos dois modos.
   const grupos = todosGrupos.filter((g) => (!filtro || filtro.has(g.slug)) && !triage.muted[g.slug]);
   const fila = await buildInbox({ grupos, ...(filtro ? { slugs: filtro } : {}) });
-  const { recentes: inbox, antigos, encerrados } = separarEspera(fila, opts.dias ?? 7, Date.now());
+  const agora = Date.now();
+  const { recentes: inbox, antigos, encerrados } = separarEspera(fila, opts.dias ?? 7, agora);
   const extra = {
+    agora_brt: horaBRT(new Date(agora).toISOString()),
     encerrados,
-    antigos: antigos.map((i) => ({ grupo: i.slug, nome: i.groupName, projeto: projetoDe(links, i.slug)?.repo ?? null, ha: i.waitingLabel })),
+    antigos: antigos.map((i) => ({
+      grupo: i.slug,
+      nome: i.groupName,
+      projeto: projetoDe(links, i.slug)?.repo ?? null,
+      ha: i.waitingLabel,
+      ultima_brt: horaBRT(i.timestamp),
+    })),
   };
 
   if (!opts.todos) {
-    const itens = montarCaixa(inbox, grupos, links, null);
+    const itens = montarCaixa(inbox, grupos, links, null, agora);
     return { modo: 'pendentes', desde: null, total: itens.length, itens, ...extra };
   }
 
@@ -219,6 +241,6 @@ export async function caixaDeEntrada(opts: OpcoesCaixa = {}): Promise<CaixaEntra
   const contagens = await Promise.all(
     recentes.map(async (g) => [g.slug, contarDoCliente(await readGroupRecords(g.slug), desde, contacts)] as const),
   );
-  const itens = montarCaixa(inbox, grupos, links, new Map(contagens));
+  const itens = montarCaixa(inbox, grupos, links, new Map(contagens), agora);
   return { modo: 'todos', desde, total: itens.length, itens, ...extra };
 }
