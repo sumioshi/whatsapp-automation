@@ -1,10 +1,10 @@
-import { carregarEstadoEscritorio } from '@/lib/escritorio-estado';
+import { obterEstadoEscritorioImediato } from '@/lib/escritorio-estado';
 import { EscritorioView } from './EscritorioView';
 
 export const dynamic = 'force-dynamic';
 
-export default async function EscritorioPage() {
-  const estado = await carregarEstadoEscritorio();
+export default function EscritorioPage() {
+  const estado = obterEstadoEscritorioImediato();
 
   return (
     <EscritorioView

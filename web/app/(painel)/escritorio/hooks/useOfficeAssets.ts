@@ -11,66 +11,21 @@ import { setCharacterTemplates } from '../office/sprites/spriteData';
 import type { OfficeLayout } from '../office/types';
 import { setWallSprites } from '../office/wallTiles';
 
-type FurnitureAsset = LoadedAssetData['catalog'][number] & { file: string };
-
-const CHAR_COUNT = 18;
-const CHAR_FRAME_W = 16;
-const CHAR_FRAME_H = 32;
-const CHAR_FRAMES_PER_ROW = 7;
-const DIRECTIONS = ['down', 'up', 'right'] as const;
-
-const WALL_PIECE_W = 16;
-const WALL_PIECE_H = 32;
-const WALL_GRID_COLS = 4;
-const WALL_BITMASK_COUNT = 16;
-
-const FLOOR_PATTERN_COUNT = 9;
-const FLOOR_TILE_SIZE = 16;
-
-function pngUrlToSprite(
-  url: string,
-  frameW: number,
-  frameH: number,
-  offsetX = 0,
-  offsetY = 0,
-): Promise<string[][]> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0);
-      const data = ctx.getImageData(offsetX, offsetY, frameW, frameH).data;
-      const sprite: string[][] = [];
-      for (let y = 0; y < frameH; y++) {
-        const row: string[] = [];
-        for (let x = 0; x < frameW; x++) {
-          const idx = (y * frameW + x) * 4;
-          const r = data[idx];
-          const g = data[idx + 1];
-          const b = data[idx + 2];
-          const a = data[idx + 3];
-          if (a < 2) {
-            row.push('');
-          } else {
-            const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
-            row.push(hex);
-          }
-        }
-        sprite.push(row);
-      }
-      resolve(sprite);
-    };
-    img.onerror = reject;
-    img.src = url;
-  });
+interface PrebakedOfficeSpritesBundle {
+  characters: Array<{ down: string[][][]; up: string[][][]; right: string[][][] }>;
+  floors: string[][][];
+  walls: string[][][];
+  catalog: LoadedAssetData['catalog'];
+  sprites: Record<string, string[][]>;
 }
+
+let cachedBundle: PrebakedOfficeSpritesBundle | null = null;
+let cachedLayout: OfficeLayout | null = null;
 
 export interface UseOfficeAssetsReturn {
   layoutReady: boolean;
+  loadingProgress: number;
+  loadingStep: string;
   loadedAssets?: LoadedAssetData;
   reloadLayout: (customLayout?: OfficeLayout) => Promise<void>;
 }
@@ -80,7 +35,13 @@ export function useOfficeAssets(
   onLayoutLoaded?: (layout: OfficeLayout) => void,
 ): UseOfficeAssetsReturn {
   const [layoutReady, setLayoutReady] = useState(false);
-  const [loadedAssets, setLoadedAssets] = useState<LoadedAssetData | undefined>();
+  const [loadingProgress, setLoadingProgress] = useState(cachedBundle ? 100 : 12);
+  const [loadingStep, setLoadingStep] = useState(
+    cachedBundle ? 'Abrindo portas do estúdio…' : 'Carregando sprites em pixel-art…',
+  );
+  const [loadedAssets, setLoadedAssets] = useState<LoadedAssetData | undefined>(
+    cachedBundle ? { catalog: cachedBundle.catalog, sprites: cachedBundle.sprites } : undefined,
+  );
   const initializedRef = useRef(false);
 
   const reloadLayout = useCallback(
@@ -88,6 +49,7 @@ export function useOfficeAssets(
       const os = getOfficeState();
       if (customLayout) {
         const migrated = migrateLayoutColors(customLayout);
+        cachedLayout = migrated;
         os.rebuildFromLayout(migrated);
         onLayoutLoaded?.(migrated);
         return;
@@ -99,6 +61,7 @@ export function useOfficeAssets(
           const rawLayout = (data?.layout ?? data) as OfficeLayout;
           if (rawLayout && rawLayout.version === 1 && Array.isArray(rawLayout.tiles)) {
             const migrated = migrateLayoutColors(rawLayout);
+            cachedLayout = migrated;
             os.rebuildFromLayout(migrated);
             onLayoutLoaded?.(migrated);
             return;
@@ -112,6 +75,7 @@ export function useOfficeAssets(
         if (resp.ok) {
           const rawLayout = (await resp.json()) as OfficeLayout;
           const migrated = migrateLayoutColors(rawLayout);
+          cachedLayout = migrated;
           os.rebuildFromLayout(migrated);
           onLayoutLoaded?.(migrated);
           return;
@@ -130,109 +94,71 @@ export function useOfficeAssets(
     initializedRef.current = true;
 
     async function boot() {
-      // 1. Character sprites (char_0..char_17)
       try {
-        const characters: Array<{ down: string[][][]; up: string[][][]; right: string[][][] }> = [];
-        for (let ci = 0; ci < CHAR_COUNT; ci++) {
-          const url = `/assets/characters/char_${ci}.png`;
-          const charData: { down: string[][][]; up: string[][][]; right: string[][][] } = {
-            down: [],
-            up: [],
-            right: [],
-          };
-          for (let dirIdx = 0; dirIdx < DIRECTIONS.length; dirIdx++) {
-            const dir = DIRECTIONS[dirIdx];
-            const rowOffsetY = dirIdx * CHAR_FRAME_H;
-            const frames: string[][][] = [];
-            for (let f = 0; f < CHAR_FRAMES_PER_ROW; f++) {
-              const sprite = await pngUrlToSprite(
-                url,
-                CHAR_FRAME_W,
-                CHAR_FRAME_H,
-                f * CHAR_FRAME_W,
-                rowOffsetY,
-              );
-              frames.push(sprite);
-            }
-            charData[dir] = frames;
-          }
-          characters.push(charData);
+        // Caminho ultra-rápido se já estiver em memória na sessão
+        if (cachedBundle && cachedLayout) {
+          setCharacterTemplates(cachedBundle.characters);
+          setFloorSprites(cachedBundle.floors);
+          setWallSprites(cachedBundle.walls);
+          buildDynamicCatalog({ catalog: cachedBundle.catalog, sprites: cachedBundle.sprites });
+          setLoadedAssets({ catalog: cachedBundle.catalog, sprites: cachedBundle.sprites });
+          const os = getOfficeState();
+          os.rebuildFromLayout(cachedLayout);
+          onLayoutLoaded?.(cachedLayout);
+          setLoadingProgress(100);
+          setLayoutReady(true);
+          return;
         }
-        setCharacterTemplates(characters);
+
+        setLoadingProgress(28);
+        setLoadingStep('Baixando pacote de sprites e planta 36×26…');
+
+        // Baixa o bundle único pré-compilado (50 KB gzipped) + o layout em paralelo!
+        const [bundleRes, layoutPromise] = await Promise.all([
+          cachedBundle ? Promise.resolve(null) : fetch('/assets/office-sprites-bundle.json'),
+          reloadLayout(),
+        ]);
+
+        setLoadingProgress(72);
+        setLoadingStep('Montando 28 estações de trabalho e iluminação…');
+
+        let bundle = cachedBundle;
+        if (!bundle && bundleRes && bundleRes.ok) {
+          bundle = (await bundleRes.json()) as PrebakedOfficeSpritesBundle;
+          cachedBundle = bundle;
+        }
+
+        if (bundle) {
+          setCharacterTemplates(bundle.characters);
+          if (bundle.floors?.length) setFloorSprites(bundle.floors);
+          if (bundle.walls?.length) setWallSprites(bundle.walls);
+          buildDynamicCatalog({ catalog: bundle.catalog, sprites: bundle.sprites });
+          setLoadedAssets({ catalog: bundle.catalog, sprites: bundle.sprites });
+          // Reconstrói as instâncias de móveis após o catálogo dinâmico estar pronto
+          const os = getOfficeState();
+          os.rebuildFromLayout(os.getLayout());
+        }
+
+        void layoutPromise;
+        setLoadingProgress(100);
+        setLoadingStep('Posicionando projetos nas baias…');
+
+        // Pequena transição suave para o usuário ver a barra completar em 100%
+        await new Promise((r) => setTimeout(r, 180));
+        setLayoutReady(true);
       } catch (err) {
-        console.warn('[escritorio] Falha ao carregar sprites de personagens:', err);
+        console.warn('[escritorio] Erro no boot de assets:', err);
+        setLayoutReady(true);
       }
-
-      // 2. Floor pattern sprites (/assets/floors/floor_0..8.png)
-      try {
-        const floors: string[][][] = [];
-        for (let fi = 0; fi < FLOOR_PATTERN_COUNT; fi++) {
-          const sprite = await pngUrlToSprite(
-            `/assets/floors/floor_${fi}.png`,
-            FLOOR_TILE_SIZE,
-            FLOOR_TILE_SIZE,
-          );
-          floors.push(sprite);
-        }
-        if (floors.length > 0) {
-          setFloorSprites(floors);
-        }
-      } catch {
-        // Fallback solid tile is automatic
-      }
-
-      // 3. Wall sprites (/assets/walls.png)
-      try {
-        const sprites: string[][][] = [];
-        for (let mask = 0; mask < WALL_BITMASK_COUNT; mask++) {
-          const ox = (mask % WALL_GRID_COLS) * WALL_PIECE_W;
-          const oy = Math.floor(mask / WALL_GRID_COLS) * WALL_PIECE_H;
-          const sprite = await pngUrlToSprite('/assets/walls.png', WALL_PIECE_W, WALL_PIECE_H, ox, oy);
-          sprites.push(sprite);
-        }
-        setWallSprites(sprites);
-      } catch (err) {
-        console.warn('[escritorio] Falha ao carregar walls.png:', err);
-      }
-
-      // 4. Furniture catalog + PNGs
-      try {
-        const catalogRes = await fetch('/assets/furniture/furniture-catalog.json');
-        if (catalogRes.ok) {
-          const catalogData = (await catalogRes.json()) as { assets: FurnitureAsset[] };
-          const catalog = catalogData.assets || [];
-          const sprites: Record<string, string[][]> = {};
-          await Promise.all(
-            catalog.map(async (asset) => {
-              try {
-                let filePath = asset.file;
-                if (!filePath.startsWith('assets/')) {
-                  filePath = `assets/${filePath}`;
-                }
-                const sprite = await pngUrlToSprite(`/${filePath}`, asset.width, asset.height);
-                sprites[asset.id] = sprite;
-              } catch {
-                // ignore missing individual furniture sprite
-              }
-            }),
-          );
-          buildDynamicCatalog({ catalog, sprites });
-          setLoadedAssets({ catalog, sprites });
-        }
-      } catch (err) {
-        console.warn('[escritorio] Falha ao carregar catalogo de moveis:', err);
-      }
-
-      // 5. Office Layout
-      await reloadLayout();
-      setLayoutReady(true);
     }
 
     boot();
-  }, [reloadLayout]);
+  }, [getOfficeState, onLayoutLoaded, reloadLayout]);
 
   return {
     layoutReady,
+    loadingProgress,
+    loadingStep,
     loadedAssets,
     reloadLayout,
   };

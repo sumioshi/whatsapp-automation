@@ -5,6 +5,7 @@ import type { ClienteEscritorio } from '@/lib/escritorio-estado';
 import type { PresenceView } from '@/lib/presence';
 import { AgentLabels, type AgentLabelMeta } from './components/AgentLabels';
 import { AreaLabelsOverlay } from './components/AreaLabelsOverlay';
+import { CenaLoaderEscritorio } from './components/CenaLoaderEscritorio';
 import { CharSprite } from './components/CharSprite';
 import { OrganogramaClientesView } from './components/OrganogramaClientesView';
 import { PainelClienteEscritorio } from './components/PainelClienteEscritorio';
@@ -98,7 +99,7 @@ export function EscritorioView({
 
   const editor = useEditorActions(getOfficeState, getEditorState());
 
-  const { layoutReady, loadedAssets, reloadLayout } = useOfficeAssets(
+  const { layoutReady, loadingProgress, loadingStep, loadedAssets, reloadLayout } = useOfficeAssets(
     getOfficeState,
     editor.setLastSavedLayout,
   );
@@ -164,9 +165,13 @@ export function EscritorioView({
   );
 
   useEffect(() => {
+    // Se a página abriu com cache frio (0 clientes iniciais), busca imediatamente
+    if (clientesIniciais.length === 0) {
+      void refreshEstado();
+    }
     const timer = setInterval(refreshEstado, 8000);
     return () => clearInterval(timer);
-  }, [refreshEstado]);
+  }, [clientesIniciais.length, refreshEstado]);
 
   // Mapeia cada slug para um ID numérico estável na sessão
   const slugToIdRef = useRef<Map<string, number>>(new Map());
@@ -938,9 +943,11 @@ export function EscritorioView({
               className="relative min-w-0 flex-1 overflow-hidden bg-[#12131c]"
             >
               {!layoutReady ? (
-                <div className="flex h-full w-full items-center justify-center text-sm text-fg-faint">
-                  Carregando sprites e mapa do escritório…
-                </div>
+                <CenaLoaderEscritorio
+                  progress={loadingProgress}
+                  step={loadingStep}
+                  totalProjetos={clientesVisiveis.length}
+                />
               ) : (
                 <>
                   <OfficeCanvas
