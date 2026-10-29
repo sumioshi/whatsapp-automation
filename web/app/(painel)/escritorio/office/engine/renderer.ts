@@ -527,11 +527,13 @@ export function renderLighting(
     ctx.fill();
   }
 
-  // Focal ambient lights in the office: Recepção, Lounge / Café, Sala Reuniões
+  // Focal ambient lights in the office: Recepção, Lounge / Café, Sala Reuniões e Alas
   const focalLights = [
-    { col: 18, row: 2.5, rad: 38, r: 254, g: 240, b: 138, a: 0.22 }, // Recepção
-    { col: 28.5, row: 3.5, rad: 40, r: 253, g: 224, b: 71, a: 0.25 }, // Lounge / Copa
-    { col: 6.5, row: 2.5, rad: 32, r: 254, g: 240, b: 138, a: 0.18 }, // Sala Reuniões
+    { col: 24, row: 3.5, rad: 45, r: 254, g: 240, b: 138, a: 0.22 }, // Recepção Central
+    { col: 40, row: 3.5, rad: 48, r: 253, g: 224, b: 71, a: 0.25 }, // Cafeteria / Lounge
+    { col: 7.5, row: 3.5, rad: 38, r: 254, g: 240, b: 138, a: 0.18 }, // Sala Reuniões
+    { col: 11, row: 17, rad: 55, r: 125, g: 211, b: 252, a: 0.10 }, // Ala Oeste (SaaS)
+    { col: 36, row: 17, rad: 55, r: 125, g: 211, b: 252, a: 0.10 }, // Ala Leste (Operações)
   ];
   for (const fl of focalLights) {
     const fx = Math.round(offsetX + fl.col * TILE_SIZE * zoom);

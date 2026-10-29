@@ -32,6 +32,6 @@ export function defaultZoom(): number {
   }
   const availW = Math.max(640, window.innerWidth - 264) * dpr;
   const availH = Math.max(480, window.innerHeight - 64) * dpr;
-  const fit = Math.floor(Math.min(availW / (36 * 16), availH / (26 * 16)));
+  const fit = Math.floor(Math.min(availW / (48 * 16), availH / (32 * 16)));
   return Math.max(ZOOM_MIN, Math.min(Math.round(ZOOM_DEFAULT_DPR_FACTOR * dpr), Math.max(2, fit)));
 }

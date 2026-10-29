@@ -14,11 +14,16 @@ const DEFAULT_LAYOUT_FILE = () =>
 async function readSavedOrDefaultLayout(): Promise<unknown> {
   try {
     const raw = await readFile(LAYOUT_FILE(), 'utf8');
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    // Se o layout salvo for antigo (menos de 48 colunas), migra para o novo escritório ampliado
+    if (parsed && typeof parsed === 'object' && parsed.cols >= 48) {
+      return parsed;
+    }
   } catch {
-    const fallback = await readFile(DEFAULT_LAYOUT_FILE(), 'utf8');
-    return JSON.parse(fallback);
+    // fallback abaixo
   }
+  const fallback = await readFile(DEFAULT_LAYOUT_FILE(), 'utf8');
+  return JSON.parse(fallback);
 }
 
 async function readSavedSeats(): Promise<Record<string, unknown>> {

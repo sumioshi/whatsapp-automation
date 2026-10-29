@@ -584,12 +584,12 @@ export function EscritorioView({
       const ch = os.characters.get(idSorteado);
       if (!ch || !ch.seatId) return;
 
-      // Posições no Lounge/Copa perto da cafeteira (col 28..30, row 3..5)
+      // Posições na Cafeteria / Lounge Barista (col 37..43, row 3..5)
       const loungeSpots = [
-        { col: 28, row: 3 },
-        { col: 29, row: 3 },
-        { col: 28, row: 5 },
-        { col: 30, row: 5 },
+        { col: 37, row: 3 },
+        { col: 40, row: 3 },
+        { col: 39, row: 5 },
+        { col: 43, row: 3 },
       ];
       const spot = loungeSpots[Math.floor(Math.random() * loungeSpots.length)];
       const pathIda = findPath(ch.tileCol, ch.tileRow, spot.col, spot.row, os.tileMap, os.blockedTiles);

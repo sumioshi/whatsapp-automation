@@ -13,11 +13,11 @@ interface AreaZone {
 }
 
 const DEFAULT_ZONES: AreaZone[] = [
-  { id: 'reuniao', label: '📋 Sala de Contratos & Reuniões', col: 6.5, row: 1.5, color: '#fbbf24' },
-  { id: 'recepcao', label: '🏛️ Recepção & Diretoria', col: 18, row: 1.5, color: '#c084fc' },
-  { id: 'lounge', label: '☕ Copa, Café & Lounge', col: 29.5, row: 1.5, color: '#34d399' },
-  { id: 'ala-oeste', label: '💻 Ala Acme & SaaS (Baias 1–16)', col: 9, row: 9.2, color: '#60a5fa' },
-  { id: 'ala-leste', label: '🚀 Ala Acme & Operações (Baias 17–28)', col: 26, row: 9.2, color: '#38bdf8' },
+  { id: 'reuniao', label: '📋 Sala de Contratos & Reuniões', col: 7.5, row: 1.5, color: '#fbbf24' },
+  { id: 'recepcao', label: '🏛️ Recepção & Diretoria', col: 24, row: 1.5, color: '#c084fc' },
+  { id: 'lounge', label: '☕ Cafeteria, Coffee Lab & Lounge', col: 40, row: 1.5, color: '#34d399' },
+  { id: 'ala-oeste', label: '💻 Ala SaaS & AI Core (Baias 1–14)', col: 11, row: 8.8, color: '#60a5fa' },
+  { id: 'ala-leste', label: '🚀 Ala Operações & Automação (Baias 15–28)', col: 36, row: 8.8, color: '#38bdf8' },
 ];
 
 interface AreaLabelsOverlayProps {
