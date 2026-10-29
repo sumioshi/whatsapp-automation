@@ -13,6 +13,7 @@ export interface ChatBubbleInfo {
   autor?: string;
   texto?: string | null;
   aguardando?: boolean;
+  waitingMs?: number;
   urgente?: boolean;
   presenca?: PresenceView;
 }
@@ -65,6 +66,7 @@ export function ChatBubblesOverlay({
   const deviceOffsetY = Math.floor((canvasH - mapH) / 2) + Math.round(panRef.current.y);
 
   const selectedId = officeState.selectedAgentId;
+  const hoveredId = officeState.hoveredAgentId;
 
   return (
     <>
@@ -76,16 +78,26 @@ export function ChatBubblesOverlay({
         const isTyping = b.presenca?.status === 'typing';
         const isRecording = b.presenca?.status === 'recording';
         const hasText = Boolean(b.texto && b.texto.trim().length > 0);
+        const isSelected = selectedId === id;
+        const isHovered = hoveredId === id;
+        const isRecente = Boolean(b.aguardando && b.waitingMs !== undefined && b.waitingMs < 180000);
 
-        // Só exibe se estiver digitando, gravando ou tiver texto de mensagem recente/aguardando
-        if (!isTyping && !isRecording && !hasText) return null;
+        // Exibe o balão apenas se houver interação ativa ou relevância imediata:
+        // 1. Cliente está digitando ou gravando áudio agora
+        // 2. Cliente está selecionado (clicado)
+        // 3. Cliente está com o cursor em cima (hover)
+        // 4. Mensagem novíssima recebida há menos de 3 minutos
+        const deveExibir =
+          (isTyping || isRecording || isSelected || isHovered || isRecente) &&
+          (isTyping || isRecording || hasText);
+
+        if (!deveExibir) return null;
 
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
         // Posicionado logo acima do nome do personagem
         const screenY = (deviceOffsetY + (ch.y + sittingOffset - 24) * zoom) / dpr - (isMobile ? 36 : 46);
 
-        const isSelected = selectedId === id;
         const isUrgente = b.urgente ?? false;
 
         // Limita o texto do balão

@@ -15,8 +15,8 @@ async function readSavedOrDefaultLayout(): Promise<unknown> {
   try {
     const raw = await readFile(LAYOUT_FILE(), 'utf8');
     const parsed = JSON.parse(raw);
-    // Se o layout salvo for antigo (menos de 48 colunas), migra para o novo escritório ampliado
-    if (parsed && typeof parsed === 'object' && parsed.cols >= 48) {
+    // Se o layout salvo for antigo (menos de 48 colunas ou versão anterior), migra para o novo escritório arquitetural
+    if (parsed && typeof parsed === 'object' && parsed.cols >= 48 && (parsed.version ?? 1) >= 2) {
       return parsed;
     }
   } catch {
