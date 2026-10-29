@@ -10,6 +10,7 @@ interface QuickActionHudProps {
   baiaIndex: number;
   onWalkTo: () => void;
   onOpenDrawer: () => void;
+  onOpenOrca?: () => void;
   onClose: () => void;
 }
 
@@ -19,6 +20,7 @@ export function QuickActionHud({
   baiaIndex,
   onWalkTo,
   onOpenDrawer,
+  onOpenOrca,
   onClose,
 }: QuickActionHudProps) {
   const [copiado, setCopiado] = useState(false);
@@ -171,6 +173,19 @@ export function QuickActionHud({
           <span>🚶</span>
           <span className="hidden lg:inline">Ir à Mesa</span>
         </button>
+
+        {/* Abrir Agente Orca */}
+        {onOpenOrca && (
+          <button
+            type="button"
+            onClick={onOpenOrca}
+            title="Abrir chat e terminal do Agente Orca deste projeto"
+            className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/50 bg-emerald-500/20 px-2 py-1 text-[11px] font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/30 sm:px-2.5 sm:text-xs"
+          >
+            <span>🐋</span>
+            <span>Agente Orca</span>
+          </button>
+        )}
 
         {/* Abrir Ficha Completa */}
         <button

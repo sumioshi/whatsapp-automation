@@ -43,6 +43,7 @@ import { assistirVideo } from "../lib/assistir-video";
 import { anotarSaude, lerAvisosDeSaude } from "../lib/saude-ia";
 import { ultimaMidiaPath } from "../lib/ultima-midia";
 import { selectNew } from "../lib/novidades";
+import { startOrcaRemoteRelayLoop } from "../lib/orca-relay";
 import { baselineDoChat, carregarBaselinePadrao, contextoDeEscrita, type ContextoEscrita } from "../lib/estilo/contexto";
 import { resumirEstilo } from "../lib/estilo/resumo";
 import { revisar, type Revisao } from "../lib/estilo/revisar";
@@ -2047,6 +2048,7 @@ server.registerTool(
 );
 
 async function main() {
+  startOrcaRemoteRelayLoop();
   await server.connect(new StdioServerTransport());
 }
 

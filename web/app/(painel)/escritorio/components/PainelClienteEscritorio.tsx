@@ -9,6 +9,7 @@ import type {
   DmDisponivelEscritorio,
 } from '@/lib/escritorio-estado';
 import { instanteLongo } from '@/lib/formatar-data';
+import type { OrcaAgentSession, OrcaProjectAgentInfo } from '@/lib/orca-bridge';
 import type { PresenceView } from '@/lib/presence';
 import { CharSprite } from './CharSprite';
 
@@ -32,6 +33,10 @@ interface PainelClienteEscritorioProps {
   canalSelecionado?: string | null;
   onSelectCanal?: (canalSlug: string | null) => void;
   dmsDisponiveis?: DmDisponivelEscritorio[];
+  orcaInfo?: OrcaProjectAgentInfo | null;
+  orcaAvailable?: boolean;
+  onRefreshOrca?: () => void;
+  abaInicial?: 'whatsapp' | 'orca';
   onClose: () => void;
   onWalkTo: () => void;
   onRefreshEstado: () => void;
@@ -54,6 +59,10 @@ export function PainelClienteEscritorio({
   canalSelecionado,
   onSelectCanal,
   dmsDisponiveis = [],
+  orcaInfo,
+  orcaAvailable = false,
+  onRefreshOrca,
+  abaInicial = 'whatsapp',
   onClose,
   onWalkTo,
   onRefreshEstado,
@@ -65,6 +74,155 @@ export function PainelClienteEscritorio({
   const [salvandoNota, setSalvandoNota] = useState(false);
   const [marcandoResolvido, setMarcandoResolvido] = useState(false);
   const [alterandoMesa, setAlterandoMesa] = useState(false);
+
+  // Aba ativa do painel lateral: WhatsApp/CRM vs Agente Orca (Chat & Terminal)
+  const [abaAtiva, setAbaAtiva] = useState<'whatsapp' | 'orca'>(abaInicial);
+  const [indiceAgenteOrca, setIndiceAgenteOrca] = useState(0);
+  const [mostrarTerminalOrca, setMostrarTerminalOrca] = useState(false);
+  const [screenTailLocal, setScreenTailLocal] = useState<string[] | null>(null);
+  const [carregandoScreen, setCarregandoScreen] = useState(false);
+  const [promptOrca, setPromptOrca] = useState('');
+  const [enviandoPromptOrca, setEnviandoPromptOrca] = useState(false);
+  const [feedbackOrca, setFeedbackOrca] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAbaAtiva(abaInicial);
+    setIndiceAgenteOrca(0);
+    setScreenTailLocal(null);
+    setFeedbackOrca(null);
+  }, [abaInicial, cliente.slug]);
+
+  const agentesOrca: OrcaAgentSession[] = orcaInfo?.agents ?? [];
+  const agenteSelecionado: OrcaAgentSession | null =
+    agentesOrca[indiceAgenteOrca] ?? agentesOrca[0] ?? null;
+  const terminalHandleAtivo =
+    agenteSelecionado?.terminalHandle ?? orcaInfo?.primaryTerminalHandle ?? null;
+
+  async function carregarScreenTerminal(handle?: string | null) {
+    const h = handle ?? terminalHandleAtivo;
+    if (!h) return;
+    setCarregandoScreen(true);
+    try {
+      const res = await fetch(
+        `/api/escritorio/orca?slug=${encodeURIComponent(cliente.slug)}&terminal=${encodeURIComponent(h)}&screen=1`,
+        { cache: 'no-store' },
+      );
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        screen?: { tail?: string[] } | null;
+      };
+      if (data?.screen?.tail) {
+        setScreenTailLocal(data.screen.tail);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setCarregandoScreen(false);
+    }
+  }
+
+  useEffect(() => {
+    if (abaAtiva !== 'orca' || !terminalHandleAtivo) return;
+    carregarScreenTerminal(terminalHandleAtivo);
+    const t = setInterval(() => {
+      carregarScreenTerminal(terminalHandleAtivo);
+    }, 5000);
+    return () => clearInterval(t);
+  }, [abaAtiva, terminalHandleAtivo, cliente.slug]);
+
+  async function handleEnviarPromptOrca(e?: React.FormEvent) {
+    e?.preventDefault();
+    const texto = promptOrca.trim();
+    if (!texto || enviandoPromptOrca) return;
+    setEnviandoPromptOrca(true);
+    setFeedbackOrca(null);
+    try {
+      const res = await fetch('/api/escritorio/orca', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          acao: 'enviar_prompt',
+          slug: cliente.slug,
+          terminalHandle: terminalHandleAtivo,
+          worktreePath: orcaInfo?.worktreePath,
+          text: texto,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        queued?: boolean;
+        message?: string;
+        error?: string;
+        screenTail?: string[];
+      };
+      if (data.ok) {
+        setPromptOrca('');
+        if (data.screenTail) {
+          setScreenTailLocal(data.screenTail);
+        }
+        setFeedbackOrca(
+          data.queued
+            ? '⏳ Comando na fila para o Orca local executar...'
+            : '✓ Prompt enviado para o agente no Orca!',
+        );
+        onRefreshOrca?.();
+        setTimeout(() => {
+          carregarScreenTerminal(terminalHandleAtivo);
+          onRefreshOrca?.();
+        }, 1800);
+      } else {
+        setFeedbackOrca(`⚠️ ${data.error || 'Falha ao enviar para o Orca'}`);
+      }
+    } catch {
+      setFeedbackOrca('⚠️ Erro de conexão com a ponte Orca');
+    } finally {
+      setEnviandoPromptOrca(false);
+    }
+  }
+
+  async function handleAcaoOrca(
+    acao: 'iniciar_agente' | 'interromper' | 'focar_orca',
+    agentType?: string,
+  ) {
+    setEnviandoPromptOrca(true);
+    setFeedbackOrca(null);
+    try {
+      const res = await fetch('/api/escritorio/orca', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          acao,
+          slug: cliente.slug,
+          terminalHandle: terminalHandleAtivo,
+          worktreePath: orcaInfo?.worktreePath,
+          agentType,
+          text: promptOrca.trim() || undefined,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        message?: string;
+        error?: string;
+      };
+      setFeedbackOrca(
+        data.ok
+          ? `✓ ${data.message || 'Comando executado no Orca'}`
+          : `⚠️ ${data.error || 'Falha ao executar comando'}`,
+      );
+      if (acao === 'iniciar_agente' && data.ok) {
+        setPromptOrca('');
+      }
+      onRefreshOrca?.();
+      setTimeout(() => {
+        carregarScreenTerminal();
+        onRefreshOrca?.();
+      }, 2000);
+    } catch {
+      setFeedbackOrca('⚠️ Erro ao comunicar com o Orca');
+    } finally {
+      setEnviandoPromptOrca(false);
+    }
+  }
 
   // Canal de conversa exibido no drawer: null = grupo/conversa principal do projeto; ou dmSlug de um contato vinculado
   const [canalInterno, setCanalInterno] = useState<string | null>(canalSelecionado ?? null);
@@ -226,7 +384,7 @@ export function PainelClienteEscritorio({
 
   return (
     <aside
-      className="flex shrink-0 flex-col border-line bg-surface text-fg shadow-2xl max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:top-14 max-md:w-full max-md:rounded-t-2xl max-md:border-t md:relative md:h-full md:w-[380px] md:border-l"
+      className="flex shrink-0 flex-col border-line bg-surface text-fg shadow-2xl max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:top-14 max-md:w-full max-md:rounded-t-2xl max-md:border-t md:relative md:h-full md:w-[420px] md:border-l"
       style={{ zIndex: 55 }}
     >
       {/* Topo com Sprite + Nome + Status */}
@@ -364,7 +522,460 @@ export function PainelClienteEscritorio({
         )}
       </div>
 
-      {/* Corpo rolável */}
+      {/* Seletor de Abas: WhatsApp & CRM vs Agente Orca (Remote / Local) */}
+      <div className="grid grid-cols-2 gap-1.5 border-b border-line bg-elevated/60 px-4 py-2">
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('whatsapp')}
+          className={`flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+            abaAtiva === 'whatsapp'
+              ? 'border-accent bg-accent text-accent-ink shadow-sm'
+              : 'border-line bg-surface text-fg-dim hover:text-fg'
+          }`}
+        >
+          <span>💬</span>
+          <span>WhatsApp &amp; CRM</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAbaAtiva('orca')}
+          className={`flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+            abaAtiva === 'orca'
+              ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-200 shadow-sm'
+              : 'border-line bg-surface text-fg-dim hover:text-fg'
+          }`}
+        >
+          <span>🐋</span>
+          <span>Agente Orca</span>
+          {orcaInfo ? (
+            orcaInfo.status === 'working' ? (
+              <span className="inline-flex items-center gap-1 rounded bg-emerald-500/30 px-1.5 py-0.2 text-[9px] font-bold text-emerald-200">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                Codando
+              </span>
+            ) : orcaInfo.status === 'monitoring' ? (
+              <span className="inline-flex items-center gap-1 rounded bg-blue-500/30 px-1.5 py-0.2 text-[9px] font-bold text-blue-200">
+                👁️ Plantão
+              </span>
+            ) : orcaInfo.liveTerminalCount > 0 ? (
+              <span className="rounded bg-emerald-500/20 px-1.5 py-0.2 font-mono text-[9px] text-emerald-300">
+                {orcaInfo.liveTerminalCount} term
+              </span>
+            ) : (
+              <span className="rounded bg-surface px-1 py-0.2 text-[9px] text-fg-faint">
+                Pronto
+              </span>
+            )
+          ) : (
+            <span className="rounded bg-surface px-1 py-0.2 text-[9px] text-fg-faint">
+              {orcaAvailable ? 'Sem repo' : 'Offline'}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {abaAtiva === 'orca' ? (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+            {/* Cabeçalho do Worktree Orca */}
+            {orcaInfo ? (
+              <div className="rounded-lg border border-line bg-elevated p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[12px]">🐋</span>
+                      <span className="truncate text-[12px] font-semibold text-fg">
+                        {orcaInfo.repoLabel}
+                      </span>
+                      <span className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-fg-dim">
+                        🌿 {orcaInfo.branch}
+                      </span>
+                    </div>
+                    <p
+                      className="mt-1 truncate font-mono text-[10px] text-fg-faint"
+                      title={orcaInfo.worktreePath}
+                    >
+                      {orcaInfo.worktreePath}
+                    </p>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1">
+                    {terminalHandleAtivo && (
+                      <button
+                        type="button"
+                        onClick={() => handleAcaoOrca('focar_orca')}
+                        title="Focar este terminal no app Orca"
+                        className="rounded border border-line bg-surface px-2 py-1 text-[10px] font-medium text-fg-dim hover:border-accent hover:text-fg"
+                      >
+                        ↗ App Orca
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onRefreshOrca?.();
+                        carregarScreenTerminal();
+                      }}
+                      title="Atualizar estado e tela do agente"
+                      className="rounded border border-line bg-surface px-2 py-1 text-[10px] font-medium text-fg-dim hover:text-fg"
+                    >
+                      {carregandoScreen ? '⏳' : '🔄'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Seletor de sessão/terminal quando há mais de 1 agente aberto no projeto */}
+                {agentesOrca.length > 1 && (
+                  <div className="mt-2.5 flex flex-wrap gap-1 border-t border-line pt-2">
+                    {agentesOrca.map((ag, idx) => {
+                      const ativo = idx === indiceAgenteOrca;
+                      return (
+                        <button
+                          key={ag.paneKey}
+                          type="button"
+                          onClick={() => {
+                            setIndiceAgenteOrca(idx);
+                            setScreenTailLocal(null);
+                          }}
+                          className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-medium transition-colors ${
+                            ativo
+                              ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-200'
+                              : 'border-line bg-surface text-fg-dim hover:text-fg'
+                          }`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              ag.state === 'working'
+                                ? 'animate-pulse bg-emerald-400'
+                                : ag.workingMode === 'monitoring'
+                                  ? 'bg-blue-400'
+                                  : 'bg-zinc-400'
+                            }`}
+                          />
+                          <span className="uppercase">{ag.agentType}</span>
+                          <span className="font-mono text-[9px] opacity-75">#{idx + 1}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Barra de controles do terminal ativo */}
+                <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1.5 border-t border-line pt-2 text-[10px]">
+                  <div className="flex items-center gap-1.5">
+                    {agenteSelecionado ? (
+                      <>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold uppercase ${
+                            agenteSelecionado.state === 'working'
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : agenteSelecionado.workingMode === 'monitoring'
+                                ? 'bg-blue-500/20 text-blue-300'
+                                : 'bg-surface text-fg-dim'
+                          }`}
+                        >
+                          🤖 {agenteSelecionado.agentType} ·{' '}
+                          {agenteSelecionado.state === 'working'
+                            ? 'Trabalhando'
+                            : agenteSelecionado.workingMode === 'monitoring'
+                              ? 'Plantão'
+                              : 'Aguardando prompt'}
+                        </span>
+                        {agenteSelecionado.toolName && (
+                          <span className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] text-amber-300">
+                            ⚙️ {agenteSelecionado.toolName}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-fg-faint">Nenhum terminal de agente aberto</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {agenteSelecionado?.state === 'working' && (
+                      <button
+                        type="button"
+                        onClick={() => handleAcaoOrca('interromper')}
+                        className="rounded border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-300 hover:bg-red-500/25"
+                      >
+                        ⏹ Parar
+                      </button>
+                    )}
+                    {terminalHandleAtivo && (
+                      <button
+                        type="button"
+                        onClick={() => setMostrarTerminalOrca((v) => !v)}
+                        className={`rounded border px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                          mostrarTerminalOrca
+                            ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
+                            : 'border-line bg-surface text-fg-dim hover:text-fg'
+                        }`}
+                      >
+                        🖥️ {mostrarTerminalOrca ? 'Ver Chat' : 'Ver Terminal TUI'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-line bg-elevated p-4 text-center text-[12px] text-fg-dim">
+                <p className="font-semibold text-fg">
+                  🐋 Nenhum worktree Orca vinculado a &ldquo;{cliente.nome}&rdquo;
+                </p>
+                <p className="mt-1 text-[11px] text-fg-faint">
+                  {orcaAvailable
+                    ? 'Vincule um repositório local no Orca para conversar com o agente deste projeto diretamente daqui.'
+                    : 'O Orca Desktop local não está acessível neste momento.'}
+                </p>
+              </div>
+            )}
+
+            {/* Caso o projeto tenha worktree mas nenhum terminal aberto: botões de Launch */}
+            {orcaInfo && orcaInfo.liveTerminalCount === 0 && (
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+                <div className="text-[11px] font-semibold text-emerald-200">
+                  🚀 Iniciar novo agente neste projeto
+                </div>
+                <p className="mt-0.5 text-[11px] text-fg-dim">
+                  Escolha qual agente abrir no worktree <strong>{orcaInfo.repoLabel}</strong> (ou
+                  digite o prompt abaixo primeiro):
+                </p>
+                <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    disabled={enviandoPromptOrca}
+                    onClick={() => handleAcaoOrca('iniciar_agente', 'claude')}
+                    className="rounded border border-line bg-surface px-2 py-1.5 text-[11px] font-semibold text-fg hover:border-emerald-500/50 hover:bg-elevated disabled:opacity-50"
+                  >
+                    🤖 Claude
+                  </button>
+                  <button
+                    type="button"
+                    disabled={enviandoPromptOrca}
+                    onClick={() => handleAcaoOrca('iniciar_agente', 'codex')}
+                    className="rounded border border-line bg-surface px-2 py-1.5 text-[11px] font-semibold text-fg hover:border-emerald-500/50 hover:bg-elevated disabled:opacity-50"
+                  >
+                    ⚡ Codex
+                  </button>
+                  <button
+                    type="button"
+                    disabled={enviandoPromptOrca}
+                    onClick={() => handleAcaoOrca('iniciar_agente', 'antigravity')}
+                    className="rounded border border-line bg-surface px-2 py-1.5 text-[11px] font-semibold text-fg hover:border-emerald-500/50 hover:bg-elevated disabled:opacity-50"
+                  >
+                    🌌 Antigravity
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Conversa estruturada do Agente Orca OU Tela TUI ao vivo */}
+            {agenteSelecionado && (
+              <div className="space-y-2.5">
+                {!mostrarTerminalOrca ? (
+                  <>
+                    {/* Último comando do operador */}
+                    {agenteSelecionado.prompt && (
+                      <div className="ml-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-[12px] text-fg">
+                        <div className="mb-1 flex items-center justify-between text-[10px] text-blue-300">
+                          <span className="font-semibold">👤 Seu último comando no Orca</span>
+                          <span className="font-mono opacity-80">Prompt</span>
+                        </div>
+                        <p className="whitespace-pre-wrap break-words leading-relaxed">
+                          {agenteSelecionado.prompt}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Subagentes em paralelo, se houver */}
+                    {agenteSelecionado.subagents.length > 0 && (
+                      <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 p-2.5 text-[11px]">
+                        <div className="font-semibold text-purple-300">
+                          🛸 Subagentes ativos ({agenteSelecionado.subagents.length})
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {agenteSelecionado.subagents.map((sub) => (
+                            <span
+                              key={sub.id}
+                              className="rounded border border-purple-500/30 bg-surface px-1.5 py-0.5 font-mono text-[10px] text-purple-200"
+                            >
+                              {sub.agentType || 'subagent'} · {sub.state}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Última resposta do Assistente no Orca */}
+                    {agenteSelecionado.lastAssistantMessage ? (
+                      <div className="mr-2 rounded-lg border border-emerald-500/30 bg-elevated p-3 text-[12px] text-fg">
+                        <div className="mb-1.5 flex items-center justify-between text-[10px] text-emerald-300">
+                          <span className="font-semibold uppercase">
+                            🤖 {agenteSelecionado.agentType} ({orcaInfo?.repoLabel})
+                          </span>
+                          <span className="font-mono text-fg-faint">
+                            {agenteSelecionado.state === 'working'
+                              ? '⚡ Gerando / Codando…'
+                              : 'Última resposta'}
+                          </span>
+                        </div>
+                        <div className="max-h-[300px] overflow-y-auto whitespace-pre-wrap break-words font-sans text-[12px] leading-relaxed text-fg">
+                          {agenteSelecionado.lastAssistantMessage}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-line bg-elevated p-3 text-[11px] text-fg-faint">
+                        Sem mensagem estruturada recente — exibindo saída do terminal abaixo:
+                      </div>
+                    )}
+                  </>
+                ) : null}
+
+                {/* Tela do Terminal (TUI) ao vivo — exibida quando o toggle está ativo ou quando não há lastAssistantMessage */}
+                {(mostrarTerminalOrca || !agenteSelecionado.lastAssistantMessage) && (
+                  <div className="rounded-lg border border-line bg-[#0b0e14] p-2.5">
+                    <div className="mb-1.5 flex items-center justify-between border-b border-white/10 pb-1.5 text-[10px] text-zinc-400">
+                      <span className="font-mono">
+                        🖥️ {agenteSelecionado.terminalTitle || agenteSelecionado.paneKey} (
+                        {agenteSelecionado.terminalHandle || 'sem-pty'})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => carregarScreenTerminal()}
+                        className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] text-zinc-200 hover:bg-white/20"
+                      >
+                        Atualizar TUI
+                      </button>
+                    </div>
+                    <pre className="max-h-[320px] overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words font-mono text-[10.5px] leading-[1.45] text-emerald-300/90">
+                      {(
+                        screenTailLocal ??
+                        agenteSelecionado.screenTail ?? [
+                          'Carregando tela do terminal no Orca...',
+                        ]
+                      )
+                        .slice(-38)
+                        .join('\n')}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Sub-worktrees / branches filhos abertos no Orca */}
+            {orcaInfo && orcaInfo.childWorktrees.length > 0 && (
+              <div className="rounded-lg border border-line bg-elevated p-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
+                  🌿 Worktrees Paralelos no Orca ({orcaInfo.childWorktrees.length})
+                </div>
+                <div className="mt-2 space-y-1.5">
+                  {orcaInfo.childWorktrees.map((cw) => (
+                    <div
+                      key={cw.worktreeId}
+                      className="rounded border border-line bg-surface px-2.5 py-1.5 text-[11px]"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate font-semibold text-fg">{cw.displayName}</span>
+                        <span className="shrink-0 rounded bg-elevated px-1.5 py-0.2 font-mono text-[9px] text-fg-dim">
+                          {cw.branch} · {cw.status}
+                        </span>
+                      </div>
+                      {cw.lastAssistantMessage && (
+                        <p className="mt-1 line-clamp-2 text-[10px] text-fg-faint">
+                          {cw.lastAssistantMessage}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Composer fixo na base da aba Orca para enviar comando direto ao agente */}
+          {orcaInfo && (
+            <form
+              onSubmit={handleEnviarPromptOrca}
+              className="border-t border-line bg-elevated px-4 py-3"
+            >
+              <div className="mb-2 flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPromptOrca(
+                      `Leia as últimas mensagens do grupo ${cliente.slug} via MCP whatsapp-collector e me diga o que o cliente pediu e o que precisamos fazer.`,
+                    )
+                  }
+                  className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] text-fg-dim hover:border-emerald-500/40 hover:text-fg"
+                >
+                  🔍 Checar grupo WPP
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPromptOrca('Qual o status atual desta tarefa e o que falta implementar?')
+                  }
+                  className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] text-fg-dim hover:border-emerald-500/40 hover:text-fg"
+                >
+                  📋 O que falta?
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPromptOrca('Rode o build e os testes para garantir que está tudo passando.')
+                  }
+                  className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] text-fg-dim hover:border-emerald-500/40 hover:text-fg"
+                >
+                  🧪 Rodar testes e build
+                </button>
+              </div>
+
+              {feedbackOrca && (
+                <div className="mb-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200">
+                  {feedbackOrca}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <textarea
+                  value={promptOrca}
+                  onChange={(e) => setPromptOrca(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      handleEnviarPromptOrca();
+                    }
+                  }}
+                  rows={2}
+                  placeholder={
+                    terminalHandleAtivo
+                      ? `Mandar comando para ${agenteSelecionado?.agentType || 'o agente'} em ${orcaInfo.repoLabel}... (⌘+Enter envia)`
+                      : `Digite o prompt para iniciar um agente em ${orcaInfo.repoLabel}...`
+                  }
+                  className="w-full resize-none rounded-md border border-line bg-surface px-2.5 py-1.5 text-[12px] text-fg placeholder:text-fg-faint focus:border-emerald-500/60 focus:outline-none"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-fg-faint">
+                    {terminalHandleAtivo
+                      ? `Terminal: ${terminalHandleAtivo.slice(0, 13)}…`
+                      : 'Abre novo terminal Claude no Orca'}
+                  </span>
+                  <button
+                    type="submit"
+                    disabled={enviandoPromptOrca || !promptOrca.trim()}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500 px-3 py-1.5 text-[11px] font-semibold text-slate-950 transition-opacity hover:opacity-90 disabled:opacity-40"
+                  >
+                    {enviandoPromptOrca ? 'Enviando…' : '🐋 Enviar pro Agente ↵'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
+        </div>
+      ) : (
+      /* Corpo rolável: Aba WhatsApp & CRM */
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-3">
         {/* Contatos do Projeto & Conversas Fora do Grupo (DMs Monitoradas) */}
         <div className="rounded-lg border border-line bg-elevated p-3">
@@ -680,7 +1291,24 @@ export function PainelClienteEscritorio({
                       <span className="truncate font-semibold text-fg-dim">
                         {ehMinha ? 'Você' : m.senderName || 'Cliente'}
                       </span>
-                      <span className="shrink-0 font-mono">{instanteLongo(m.timestamp)}</span>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {!ehMinha && m.text && orcaInfo && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPromptOrca(
+                                `Mensagem de ${m.senderName || cliente.nome} no WhatsApp (${cliente.slug}): "${m.text}"\n\nAnalise o que foi pedido e implemente ou prepare a solução.`,
+                              );
+                              setAbaAtiva('orca');
+                            }}
+                            title="Encaminhar esta mensagem do cliente para o Agente no Orca"
+                            className="rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.2 text-[9px] font-semibold text-emerald-300 hover:bg-emerald-500/25"
+                          >
+                            🐋 Mandar pro Agente
+                          </button>
+                        )}
+                        <span className="font-mono">{instanteLongo(m.timestamp)}</span>
+                      </div>
                     </div>
                     {m.quotedText && (
                       <div className="mb-1 truncate border-l-2 border-line pl-2 text-[11px] italic text-fg-faint">
@@ -701,6 +1329,7 @@ export function PainelClienteEscritorio({
           )}
         </div>
       </div>
+      )}
     </aside>
   );
 }
