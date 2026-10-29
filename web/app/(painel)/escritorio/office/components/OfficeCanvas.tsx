@@ -39,6 +39,7 @@ interface OfficeCanvasProps {
   zoom: number;
   onZoomChange: (zoom: number) => void;
   panRef: React.MutableRefObject<{ x: number; y: number }>;
+  faseIluminacao?: 'dia' | 'tarde' | 'noite';
 }
 
 export function OfficeCanvas({
@@ -56,6 +57,7 @@ export function OfficeCanvas({
   zoom,
   onZoomChange,
   panRef,
+  faseIluminacao,
 }: OfficeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,6 +93,9 @@ export function OfficeCanvas({
   const isEraseDraggingRef = useRef(false);
   // Zoom scroll accumulator for trackpad pinch sensitivity
   const zoomAccumulatorRef = useRef(0);
+  // Iluminação ambiente dinâmica (dia / tarde / noite)
+  const faseIluminacaoRef = useRef(faseIluminacao);
+  faseIluminacaoRef.current = faseIluminacao;
 
   // Clamp pan so the map edge can't go past a margin inside the viewport
   const clampPan = useCallback(
@@ -283,6 +288,7 @@ export function OfficeCanvas({
           officeState.getLayout().tileColors,
           officeState.getLayout().cols,
           officeState.getLayout().rows,
+          faseIluminacaoRef.current,
         );
         offsetRef.current = { x: offsetX, y: offsetY };
 

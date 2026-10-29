@@ -8,21 +8,38 @@ import { AgentLabels, type AgentLabelMeta } from './components/AgentLabels';
 import { AreaLabelsOverlay } from './components/AreaLabelsOverlay';
 import { CenaLoaderEscritorio } from './components/CenaLoaderEscritorio';
 import { CharSprite } from './components/CharSprite';
+import { ChatBubblesOverlay, type ChatBubbleInfo } from './components/ChatBubblesOverlay';
 import { OrganogramaClientesView } from './components/OrganogramaClientesView';
 import { PainelClienteEscritorio } from './components/PainelClienteEscritorio';
+import { PlayerAvatarModal } from './components/PlayerAvatarModal';
+import { QuickActionHud } from './components/QuickActionHud';
 import { ZoomControls } from './components/ZoomControls';
 import { PALETTE_COUNT } from './constants';
 import { useEditorActions } from './hooks/useEditorActions';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useLeaderKeyboard } from './hooks/useLeaderKeyboard';
 import { useOfficeAssets } from './hooks/useOfficeAssets';
-import { isSoundEnabled, playDoneSound, setSoundEnabled } from './notificationSound';
+import {
+  type CicloIluminacaoModo,
+  type FaseIluminacao,
+  getInfoFase,
+  resolverFase,
+} from './lib/timeCycle';
+import {
+  isSoundEnabled,
+  playDoneSound,
+  playKeyClickSound,
+  playUrgentAlertSound,
+  setSoundEnabled,
+  unlockAudio,
+} from './notificationSound';
 import { OfficeCanvas } from './office/components/OfficeCanvas';
 import { type SubagentCharacter, ToolOverlay } from './office/components/ToolOverlay';
 import { EditorState } from './office/editor/editorState';
 import { EditorToolbar } from './office/editor/EditorToolbar';
 import { OfficeState } from './office/engine/officeState';
 import { getCatalogEntry } from './office/layout/furnitureCatalog';
+import { findPath } from './office/layout/tileMap';
 import { CharacterState, EditTool, TILE_SIZE, type ToolActivity } from './office/types';
 
 interface EscritorioViewProps {
@@ -77,6 +94,17 @@ export function EscritorioView({
   const [canalDrawerSelecionado, setCanalDrawerSelecionado] = useState<string | null>(null);
   const [expandedProjetos, setExpandedProjetos] = useState<Record<string, boolean>>({});
   const [expandirTodosContatos, setExpandirTodosContatos] = useState(false);
+
+  // Ciclo Dinâmico de Iluminação (Dia / Tarde / Noite)
+  const [cicloModo, setCicloModo] = useState<CicloIluminacaoModo>('auto');
+  const [faseIluminacao, setFaseIluminacao] = useState<FaseIluminacao>('dia');
+
+  // Balões de fala flutuantes sobre os NPCs
+  const [mostrarBaloes, setMostrarBaloes] = useState(true);
+
+  // Customizador do Avatar do Jogador ("Você")
+  const [playerPalette, setPlayerPalette] = useState<number>(5);
+  const [mostrarAvatarModal, setMostrarAvatarModal] = useState(false);
 
   // Em telas mobile (<768px), inicia com a lista lateral recolhida para não esmagar o mapa
   useEffect(() => {
@@ -246,7 +274,61 @@ export function EscritorioView({
     [clientes],
   );
 
-  // Controle de som quando um cliente novo entra em aguardando
+  // Carrega e sincroniza ciclo de iluminação dinâmico
+  useEffect(() => {
+    const salvo = localStorage.getItem('escritorio_ciclo') as CicloIluminacaoModo | null;
+    if (salvo && ['auto', 'dia', 'tarde', 'noite'].includes(salvo)) {
+      setCicloModo(salvo);
+    }
+  }, []);
+
+  useEffect(() => {
+    const atualiza = () => {
+      setFaseIluminacao(resolverFase(cicloModo));
+    };
+    atualiza();
+    const interval = setInterval(atualiza, 30000);
+    return () => clearInterval(interval);
+  }, [cicloModo]);
+
+  const handleCycleIluminacao = useCallback(() => {
+    playKeyClickSound();
+    const proximo: Record<CicloIluminacaoModo, CicloIluminacaoModo> = {
+      auto: 'dia',
+      dia: 'tarde',
+      tarde: 'noite',
+      noite: 'auto',
+    };
+    setCicloModo((prev) => {
+      const novo = proximo[prev];
+      localStorage.setItem('escritorio_ciclo', novo);
+      return novo;
+    });
+  }, []);
+
+  // Carrega e sincroniza paleta do avatar do jogador ("Você")
+  useEffect(() => {
+    const salvo = localStorage.getItem('escritorio_player_palette');
+    if (salvo !== null) {
+      const num = parseInt(salvo, 10);
+      if (!isNaN(num) && num >= 0 && num < PALETTE_COUNT) {
+        setPlayerPalette(num);
+        getOfficeState().setPlayerPalette(num);
+      }
+    }
+  }, [getOfficeState]);
+
+  const handleSelectPlayerPalette = useCallback(
+    (pal: number) => {
+      playKeyClickSound();
+      setPlayerPalette(pal);
+      getOfficeState().setPlayerPalette(pal);
+      localStorage.setItem('escritorio_player_palette', String(pal));
+    },
+    [getOfficeState],
+  );
+
+  // Controle de som retrô quando um cliente entra em aguardando ou urgência
   const prevAguardandoSlugsRef = useRef<Set<string>>(
     new Set(clientesIniciais.filter((c) => c.aguardando).map((c) => c.slug)),
   );
@@ -254,15 +336,23 @@ export function EscritorioView({
   useEffect(() => {
     const currentSet = new Set(clientes.filter((c) => c.aguardando).map((c) => c.slug));
     let novoAguardando = false;
+    let novoUrgente = false;
     for (const slug of currentSet) {
       if (!prevAguardandoSlugsRef.current.has(slug)) {
         novoAguardando = true;
-        break;
+        const cli = clientes.find((c) => c.slug === slug);
+        if (cli && (cli.band === 'hot' || cli.band === 'warm')) {
+          novoUrgente = true;
+        }
       }
     }
     prevAguardandoSlugsRef.current = currentSet;
     if (novoAguardando && isSoundEnabled()) {
-      playDoneSound();
+      if (novoUrgente) {
+        playUrgentAlertSound();
+      } else {
+        playDoneSound();
+      }
     }
   }, [clientes]);
 
@@ -408,23 +498,45 @@ export function EscritorioView({
         ch.seatId = preferredSeatUid;
       }
 
-      // Garante que todo NPC ativo no escritório fique sentado em sua respectiva mesa
-      os.setAgentActive(id, true);
-      if (ch.seatId) {
-        const seat = os.seats.get(ch.seatId);
-        if (
-          seat &&
-          ch.path.length === 0 &&
-          (ch.tileCol !== seat.seatCol ||
-            ch.tileRow !== seat.seatRow ||
-            ch.state !== CharacterState.TYPE)
-        ) {
-          ch.tileCol = seat.seatCol;
-          ch.tileRow = seat.seatRow;
-          ch.x = seat.seatCol * TILE_SIZE + TILE_SIZE / 2;
-          ch.y = seat.seatRow * TILE_SIZE + TILE_SIZE / 2;
-          ch.dir = seat.facingDir;
-          ch.state = CharacterState.TYPE;
+      const temTrabalho = cliente.aguardando || isTyping;
+      if (temTrabalho) {
+        // Garante que o NPC ocupado fique sentado em sua mesa produzindo
+        os.setAgentActive(id, true);
+        if (ch.seatId) {
+          const seat = os.seats.get(ch.seatId);
+          if (
+            seat &&
+            ch.path.length === 0 &&
+            (ch.tileCol !== seat.seatCol ||
+              ch.tileRow !== seat.seatRow ||
+              ch.state !== CharacterState.TYPE)
+          ) {
+            ch.tileCol = seat.seatCol;
+            ch.tileRow = seat.seatRow;
+            ch.x = seat.seatCol * TILE_SIZE + TILE_SIZE / 2;
+            ch.y = seat.seatRow * TILE_SIZE + TILE_SIZE / 2;
+            ch.dir = seat.facingDir;
+            ch.state = CharacterState.TYPE;
+          }
+        }
+      } else {
+        // NPC 'Em dia': fica sentado na mesa quando não estiver no lounge
+        if (ch.seatId) {
+          const seat = os.seats.get(ch.seatId);
+          if (
+            seat &&
+            ch.path.length === 0 &&
+            ch.state !== CharacterState.WALK &&
+            (ch.tileCol !== seat.seatCol || ch.tileRow !== seat.seatRow) &&
+            ch.state !== CharacterState.IDLE
+          ) {
+            ch.tileCol = seat.seatCol;
+            ch.tileRow = seat.seatRow;
+            ch.x = seat.seatCol * TILE_SIZE + TILE_SIZE / 2;
+            ch.y = seat.seatRow * TILE_SIZE + TILE_SIZE / 2;
+            ch.dir = seat.facingDir;
+            ch.state = CharacterState.TYPE;
+          }
         }
       }
 
@@ -450,8 +562,110 @@ export function EscritorioView({
     }
   }, [layoutReady, activeAgentIds, idToCliente, presencas, getOfficeState]);
 
+  // Pausa periódica para Café & Lounge de personagens 'Em dia'
+  useEffect(() => {
+    if (!layoutReady || aba !== 'mapa') return;
+    const interval = setInterval(() => {
+      const os = getOfficeState();
+      // Candidatos: personagens 'em dia' (não aguardando, sem presença ativa) que estejam sentados na mesa
+      const candidatos = activeAgentIds.filter((id) => {
+        const entry = idToCliente.get(id);
+        if (!entry) return false;
+        const { cliente } = entry;
+        const pres = presencas[cliente.slug];
+        const isTyping = pres?.status === 'typing' || pres?.status === 'recording';
+        if (cliente.aguardando || isTyping) return false;
+        const ch = os.characters.get(id);
+        return ch && ch.state === CharacterState.TYPE && ch.seatId && ch.path.length === 0;
+      });
+
+      if (candidatos.length === 0) return;
+      const idSorteado = candidatos[Math.floor(Math.random() * candidatos.length)];
+      const ch = os.characters.get(idSorteado);
+      if (!ch || !ch.seatId) return;
+
+      // Posições no Lounge/Copa perto da cafeteira (col 28..30, row 3..5)
+      const loungeSpots = [
+        { col: 28, row: 3 },
+        { col: 29, row: 3 },
+        { col: 28, row: 5 },
+        { col: 30, row: 5 },
+      ];
+      const spot = loungeSpots[Math.floor(Math.random() * loungeSpots.length)];
+      const pathIda = findPath(ch.tileCol, ch.tileRow, spot.col, spot.row, os.tileMap, os.blockedTiles);
+      if (pathIda.length > 0) {
+        ch.path = pathIda;
+        ch.moveProgress = 0;
+        ch.state = CharacterState.WALK;
+        ch.frame = 0;
+        ch.frameTimer = 0;
+
+        // Fica na copa tomando café por 12 segundos e depois retorna para a sua mesa
+        setTimeout(() => {
+          const currentCh = os.characters.get(idSorteado);
+          if (!currentCh || !currentCh.seatId) return;
+          const seat = os.seats.get(currentCh.seatId);
+          if (!seat) return;
+          const pathVolta = findPath(
+            currentCh.tileCol,
+            currentCh.tileRow,
+            seat.seatCol,
+            seat.seatRow,
+            os.tileMap,
+            os.blockedTiles,
+          );
+          if (pathVolta.length > 0) {
+            currentCh.path = pathVolta;
+            currentCh.moveProgress = 0;
+            currentCh.state = CharacterState.WALK;
+          } else {
+            currentCh.tileCol = seat.seatCol;
+            currentCh.tileRow = seat.seatRow;
+            currentCh.x = seat.seatCol * TILE_SIZE + TILE_SIZE / 2;
+            currentCh.y = seat.seatRow * TILE_SIZE + TILE_SIZE / 2;
+            currentCh.dir = seat.facingDir;
+            currentCh.state = CharacterState.TYPE;
+          }
+        }, 12000);
+      }
+    }, 24000);
+
+    return () => clearInterval(interval);
+  }, [layoutReady, aba, activeAgentIds, idToCliente, presencas, getOfficeState]);
+
+  // Balões de fala com preview da última mensagem dos clientes
+  const chatBubbles = useMemo<Record<number, ChatBubbleInfo>>(() => {
+    const result: Record<number, ChatBubbleInfo> = {};
+    for (const c of clientesVisiveis) {
+      const id = getIdForSlug(c.slug);
+      const pres = presencas[c.slug];
+      const isUrgente = c.aguardando && (c.band === 'hot' || c.band === 'warm');
+      let autor: string | undefined;
+      let texto: string | null = c.ultimaPreview;
+      if (c.ultimaPreview && c.ultimaPreview.includes(': ')) {
+        const parts = c.ultimaPreview.split(': ');
+        autor = parts[0];
+        texto = parts.slice(1).join(': ');
+      }
+      result[id] = {
+        id,
+        slug: c.slug,
+        nome: c.nome,
+        autor,
+        texto,
+        aguardando: c.aguardando,
+        urgente: isUrgente,
+        presenca: pres,
+      };
+    }
+    return result;
+  }, [clientesVisiveis, presencas, getIdForSlug]);
+
   const handleSelectAgent = useCallback(
     (id: number | null) => {
+      if (id !== null) {
+        playKeyClickSound();
+      }
       const os = getOfficeState();
       os.selectedAgentId = id;
       setSelectedAgentId(id);
@@ -461,6 +675,7 @@ export function EscritorioView({
 
   const handleWalkToAgent = useCallback(
     (id: number) => {
+      playKeyClickSound();
       const os = getOfficeState();
       const ch = os.characters.get(id);
       if (!ch) return;
@@ -752,6 +967,58 @@ export function EscritorioView({
                 title="Mostrar/ocultar nomes das salas no mapa"
               >
                 🏷️ Salas
+              </button>
+
+              {/* Ciclo Dia / Tarde / Noite */}
+              {(() => {
+                const infoFase = getInfoFase(faseIluminacao);
+                return (
+                  <button
+                    type="button"
+                    onClick={handleCycleIluminacao}
+                    className="inline-flex items-center gap-1 rounded-lg border border-line bg-elevated px-2 py-1 text-[11px] font-medium text-fg hover:border-white/30"
+                    title={`Iluminação: ${infoFase.rotulo} (${infoFase.descricao}) · Modo: ${cicloModo}. Clique para alternar.`}
+                  >
+                    <span>{infoFase.icone}</span>
+                    <span className="hidden xl:inline">
+                      {cicloModo === 'auto' ? `Auto (${infoFase.rotulo})` : infoFase.rotulo}
+                    </span>
+                  </button>
+                );
+              })()}
+
+              {/* Balões de Fala em Tempo Real */}
+              <button
+                type="button"
+                onClick={() => {
+                  playKeyClickSound();
+                  setMostrarBaloes((v) => !v);
+                }}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors ${
+                  mostrarBaloes
+                    ? 'border-line bg-elevated text-fg'
+                    : 'border-line text-fg-faint hover:text-fg'
+                }`}
+                title="Mostrar/ocultar balões de mensagens recentes e digitação dos NPCs"
+              >
+                <span>💬</span>
+                <span className="hidden xl:inline">Balões</span>
+              </button>
+
+              {/* Customizador de Avatar ("Você") */}
+              <button
+                type="button"
+                onClick={() => {
+                  playKeyClickSound();
+                  setMostrarAvatarModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-elevated px-2 py-1 text-[11px] font-medium text-fg hover:border-white/30"
+                title="Personalizar seu personagem ('Você') no mapa"
+              >
+                <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-line bg-[#161822]">
+                  <CharSprite charIndex={playerPalette} size={15} />
+                </div>
+                <span className="hidden sm:inline">Você</span>
               </button>
 
               <button
@@ -1134,6 +1401,7 @@ export function EscritorioView({
                     zoom={editor.zoom}
                     onZoomChange={editor.handleZoomChange}
                     panRef={editor.panRef}
+                    faseIluminacao={faseIluminacao}
                   />
 
                   <AreaLabelsOverlay
@@ -1154,6 +1422,16 @@ export function EscritorioView({
                     subagentCharacters={emptySubagents}
                     onSelectAgent={(id) => handleSelectAgent(id)}
                     playerLabel="Você"
+                  />
+
+                  <ChatBubblesOverlay
+                    officeState={officeState}
+                    bubbles={chatBubbles}
+                    containerRef={containerRef}
+                    zoom={editor.zoom}
+                    panRef={editor.panRef}
+                    visible={mostrarBaloes && !editor.isEditMode}
+                    onSelectAgent={(id) => handleSelectAgent(id)}
                   />
 
                   <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
@@ -1180,6 +1458,20 @@ export function EscritorioView({
                     onCloseAgent={() => {}}
                     onWalkTo={handleWalkToAgent}
                   />
+
+                  {/* Barra Flutuante de Ações Rápidas (1-Click HUD) */}
+                  {selectedEntry && selectedAgentId !== null && !editor.isEditMode && (
+                    <QuickActionHud
+                      cliente={selectedEntry.cliente}
+                      palette={selectedEntry.palette}
+                      baiaIndex={selectedEntry.baiaIndex}
+                      onWalkTo={() => handleWalkToAgent(selectedAgentId)}
+                      onOpenDrawer={() => {
+                        // Gaveta lateral direita já permanece aberta
+                      }}
+                      onClose={() => handleSelectAgent(null)}
+                    />
+                  )}
 
                   {/* Dica de Controles de Movimento (canto inferior esquerdo) */}
                   {!editor.isEditMode && (
@@ -1317,6 +1609,14 @@ export function EscritorioView({
           />
         )}
       </div>
+
+      {/* Modal de Personalização do Avatar ("Você") */}
+      <PlayerAvatarModal
+        currentPalette={playerPalette}
+        isOpen={mostrarAvatarModal}
+        onSelectPalette={handleSelectPlayerPalette}
+        onClose={() => setMostrarAvatarModal(false)}
+      />
     </div>
   );
 }

@@ -455,6 +455,101 @@ export function renderRotateButton(
   return { cx, cy, radius };
 }
 
+// ── Iluminação Ambiente Dinâmica (Ciclo Dia/Tarde/Noite) ───────
+
+export function renderLighting(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+  fase: 'dia' | 'tarde' | 'noite',
+  characters: Character[],
+  furniture: FurnitureInstance[],
+): void {
+  if (fase === 'dia') return;
+
+  ctx.save();
+
+  if (fase === 'tarde') {
+    // Golden Hour sunset tint
+    ctx.fillStyle = 'rgba(255, 140, 40, 0.12)';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    // Warm soft glow at windows or center
+    ctx.globalCompositeOperation = 'lighter';
+    const sunsetGlow = ctx.createRadialGradient(
+      canvasWidth * 0.5,
+      canvasHeight * 0.3,
+      10 * zoom,
+      canvasWidth * 0.5,
+      canvasHeight * 0.5,
+      canvasWidth * 0.8,
+    );
+    sunsetGlow.addColorStop(0, 'rgba(255, 180, 70, 0.08)');
+    sunsetGlow.addColorStop(1, 'rgba(255, 120, 30, 0)');
+    ctx.fillStyle = sunsetGlow;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ctx.restore();
+    return;
+  }
+
+  // Noite: Ambient darkness
+  ctx.fillStyle = 'rgba(10, 14, 28, 0.50)';
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+  // Additive light sources: monitors, lamps, copa
+  ctx.globalCompositeOperation = 'lighter';
+
+  // Light from active workstations (seated/typing characters)
+  for (const ch of characters) {
+    if (ch.matrixEffect === 'despawn') continue;
+    const px = Math.round(offsetX + ch.x * zoom);
+    const py = Math.round(offsetY + ch.y * zoom);
+
+    // Monitor glow (cyan/cool white when active/typing, warm soft if idle)
+    const isTyping = ch.state === CharacterState.TYPE;
+    const radius = (isTyping ? 34 : 24) * zoom;
+    const grad = ctx.createRadialGradient(px, py - 4 * zoom, 4 * zoom, px, py - 4 * zoom, radius);
+    if (isTyping) {
+      grad.addColorStop(0, 'rgba(125, 211, 252, 0.35)');
+      grad.addColorStop(0.4, 'rgba(56, 189, 248, 0.18)');
+      grad.addColorStop(1, 'rgba(14, 165, 233, 0)');
+    } else {
+      grad.addColorStop(0, 'rgba(254, 240, 138, 0.22)');
+      grad.addColorStop(0.5, 'rgba(253, 224, 71, 0.08)');
+      grad.addColorStop(1, 'rgba(253, 224, 71, 0)');
+    }
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(px, py - 4 * zoom, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Focal ambient lights in the office: Recepção, Lounge / Café, Sala Reuniões
+  const focalLights = [
+    { col: 18, row: 2.5, rad: 38, r: 254, g: 240, b: 138, a: 0.22 }, // Recepção
+    { col: 28.5, row: 3.5, rad: 40, r: 253, g: 224, b: 71, a: 0.25 }, // Lounge / Copa
+    { col: 6.5, row: 2.5, rad: 32, r: 254, g: 240, b: 138, a: 0.18 }, // Sala Reuniões
+  ];
+  for (const fl of focalLights) {
+    const fx = Math.round(offsetX + fl.col * TILE_SIZE * zoom);
+    const fy = Math.round(offsetY + fl.row * TILE_SIZE * zoom);
+    const rad = fl.rad * zoom;
+    const lampGrad = ctx.createRadialGradient(fx, fy, 4 * zoom, fx, fy, rad);
+    lampGrad.addColorStop(0, `rgba(${fl.r}, ${fl.g}, ${fl.b}, ${fl.a})`);
+    lampGrad.addColorStop(0.5, `rgba(${fl.r}, ${fl.g}, ${fl.b}, ${fl.a * 0.4})`);
+    lampGrad.addColorStop(1, `rgba(${fl.r}, ${fl.g}, ${fl.b}, 0)`);
+    ctx.fillStyle = lampGrad;
+    ctx.beginPath();
+    ctx.arc(fx, fy, rad, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 // ── Speech bubbles ──────────────────────────────────────────────
 
 export function renderBubbles(
@@ -552,6 +647,7 @@ export function renderFrame(
   tileColors?: Array<FloorColor | null>,
   layoutCols?: number,
   layoutRows?: number,
+  faseIluminacao?: 'dia' | 'tarde' | 'noite',
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -591,6 +687,21 @@ export function renderFrame(
   const selectedId = selection?.selectedAgentId ?? null;
   const hoveredId = selection?.hoveredAgentId ?? null;
   renderScene(ctx, allFurniture, characters, offsetX, offsetY, zoom, selectedId, hoveredId);
+
+  // Iluminação ambiente dinâmica (dia / entardecer / noite)
+  if (faseIluminacao && faseIluminacao !== 'dia') {
+    renderLighting(
+      ctx,
+      canvasWidth,
+      canvasHeight,
+      offsetX,
+      offsetY,
+      zoom,
+      faseIluminacao,
+      characters,
+      allFurniture,
+    );
+  }
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);

@@ -101,6 +101,8 @@ export class OfficeState {
     this.characters.set(LEADER_ID, ch);
   }
 
+  public playerPalette: number = 5;
+
   /** Spawn the user-controlled player avatar (keyboard-driven) */
   private spawnPlayer(): void {
     const leader = this.characters.get(LEADER_ID);
@@ -117,7 +119,7 @@ export class OfficeState {
         bestTile = t;
       }
     }
-    const ch = createCharacter(PLAYER_ID, 5, null, null, 0);
+    const ch = createCharacter(PLAYER_ID, this.playerPalette, null, null, 0);
     ch.isPlayerControlled = true;
     ch.isActive = false;
     ch.state = CharacterState.IDLE;
@@ -126,6 +128,15 @@ export class OfficeState {
     ch.x = bestTile.col * TILE_SIZE + TILE_SIZE / 2;
     ch.y = bestTile.row * TILE_SIZE + TILE_SIZE / 2;
     this.characters.set(PLAYER_ID, ch);
+  }
+
+  /** Atualiza o visual / paleta do avatar do jogador ("Você") */
+  setPlayerPalette(palette: number): void {
+    this.playerPalette = palette;
+    const player = this.characters.get(PLAYER_ID);
+    if (player) {
+      player.palette = palette;
+    }
   }
 
   /** Rebuild all derived state from a new layout. Reassigns existing characters.

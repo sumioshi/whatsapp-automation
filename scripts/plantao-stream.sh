@@ -22,6 +22,8 @@
 # Variáveis de ambiente vencem o .env da raiz (WAC_CLOUD_URL/USER/PASS).
 # PLANTAO_CLOUD=pessoal troca pro coletor PESSOAL (trio WAC_PESSOAL_URL/USER/PASS).
 # PLANTAO_STATE_DIR (lock/cursor; default $TMPDIR ou /tmp), PLANTAO_RETRY_S (default 5).
+# PLANTAO_RECONNECT_S (default 600): reconecta a cada N s, retomando pelo cursor. Conexão
+# meio-morta (sem FIN) deixava o curl parado pra sempre e o plantão mudo.
 
 set -u
 [ $# -ge 1 ] || { echo "uso: plantao-stream.sh <slug> [slug...] | --alertar" >&2; exit 2; }
@@ -73,10 +75,10 @@ trap 'rm -f "$LOCK" "$CURSOR"' EXIT INT TERM
 
 conectar() {
   if [ -s "$CURSOR" ]; then
-    curl -sN -u "$WAC_CLOUD_USER:$WAC_CLOUD_PASS" -H "Last-Event-ID: $(cat "$CURSOR")" \
+    curl -sN --max-time "${PLANTAO_RECONNECT_S:-600}" -u "$WAC_CLOUD_USER:$WAC_CLOUD_PASS" -H "Last-Event-ID: $(cat "$CURSOR")" \
       "$WAC_CLOUD_URL/api/events?$QUERY"
   else
-    curl -sN -u "$WAC_CLOUD_USER:$WAC_CLOUD_PASS" "$WAC_CLOUD_URL/api/events?$QUERY"
+    curl -sN --max-time "${PLANTAO_RECONNECT_S:-600}" -u "$WAC_CLOUD_USER:$WAC_CLOUD_PASS" "$WAC_CLOUD_URL/api/events?$QUERY"
   fi
 }
 
