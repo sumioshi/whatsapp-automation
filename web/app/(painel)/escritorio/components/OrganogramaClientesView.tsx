@@ -67,12 +67,12 @@ export function OrganogramaClientesView({
   ];
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-canvas px-6 py-8">
+    <div className="h-full w-full overflow-y-auto bg-bg px-6 py-8">
       <div className="mx-auto max-w-6xl space-y-8">
         {/* Nó central do Líder / Operação */}
         <div className="flex flex-col items-center">
-          <div className="flex items-center gap-4 rounded-2xl border-2 border-amber-500/60 bg-surface px-6 py-4 shadow-lg">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-amber-500/40 bg-amber-500/10">
+          <div className="flex items-center gap-4 rounded-2xl border-2 border-warn-mark/60 bg-surface px-6 py-4 shadow-lg">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-warn-mark/40 bg-[#161822]">
               <CharSprite charIndex={0} size={34} />
             </div>
             <div>
@@ -80,17 +80,17 @@ export function OrganogramaClientesView({
                 <span className="text-sm font-bold text-fg">
                   👑 Central de Operações · Balcão
                 </span>
-                <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
+                <span className="rounded border border-warn-mark/40 bg-warn-bg px-2 py-0.5 text-[11px] font-bold text-warn">
                   {itens.length} clientes no escritório
                 </span>
               </div>
-              <p className="mt-1 text-xs text-fg-dim">
+              <p className="mt-1 text-xs font-medium text-fg-dim">
                 {urgentes.length + aguardando.length} aguardando resposta · {emDia.length} em dia
                 {receitaTotal > 0 ? ` · MRR ${BRL.format(receitaTotal)}` : ''}
               </p>
             </div>
           </div>
-          <div className="h-6 w-0.5 bg-amber-500/35" />
+          <div className="h-6 w-0.5 bg-warn-mark/40" />
         </div>
 
         {/* Colunas de Baias por Estado */}
@@ -98,23 +98,23 @@ export function OrganogramaClientesView({
           {secoes.map((sec) => (
             <div
               key={sec.id}
-              className={`flex flex-col rounded-xl border ${sec.corBorda} bg-surface p-4`}
+              className={`flex flex-col rounded-xl border ${sec.corBorda} bg-surface p-4 shadow-sm`}
             >
               <div className="mb-3 flex items-center justify-between border-b border-line pb-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className={`h-2.5 w-2.5 rounded-full ${sec.corPonto}`} />
-                    <h3 className="text-[13px] font-semibold text-fg">{sec.titulo}</h3>
+                    <h3 className="text-[13px] font-bold text-fg">{sec.titulo}</h3>
                   </div>
-                  <p className="mt-0.5 text-[11px] text-fg-faint">{sec.subtitulo}</p>
+                  <p className="mt-0.5 text-[11px] font-medium text-fg-dim">{sec.subtitulo}</p>
                 </div>
-                <span className="rounded-md bg-elevated px-2 py-0.5 font-mono text-xs font-semibold text-fg-dim">
+                <span className="rounded-md border border-line bg-elevated px-2 py-0.5 font-mono text-xs font-bold text-fg">
                   {sec.lista.length}
                 </span>
               </div>
 
               {sec.lista.length === 0 ? (
-                <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-line py-10 text-xs text-fg-faint">
+                <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-line py-10 text-xs font-medium text-fg-dim">
                   Nenhum cliente nesta fila
                 </div>
               ) : (
@@ -127,8 +127,8 @@ export function OrganogramaClientesView({
                         onClick={() => onSelectInOffice(id)}
                         className={`group cursor-pointer rounded-lg border p-3 transition-all ${
                           selecionado
-                            ? 'border-accent bg-elevated ring-1 ring-accent'
-                            : 'border-line bg-elevated hover:border-fg-faint'
+                            ? 'border-accent bg-selected ring-1 ring-accent'
+                            : 'border-line bg-surface-2 hover:border-line-2 hover:bg-elevated'
                         }`}
                       >
                         <div className="flex items-start gap-2.5">
@@ -137,15 +137,15 @@ export function OrganogramaClientesView({
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-1.5">
-                              <span className="truncate text-[13px] font-semibold text-fg">
+                              <span className="truncate text-[13px] font-bold text-fg">
                                 {cliente.nome}
                               </span>
                               {cliente.aguardando && cliente.waitingLabel && (
                                 <span
-                                  className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ${
+                                  className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold ${
                                     cliente.band === 'hot' || cliente.band === 'warm'
-                                      ? 'bg-red-500/20 text-red-300'
-                                      : 'bg-amber-500/20 text-amber-300'
+                                      ? 'border-danger/30 bg-danger-bg text-danger'
+                                      : 'border-warn-mark/40 bg-warn-bg text-warn'
                                   }`}
                                 >
                                   {cliente.waitingLabel}
@@ -154,11 +154,11 @@ export function OrganogramaClientesView({
                             </div>
 
                             {cliente.ultimaPreview ? (
-                              <p className="mt-1 line-clamp-2 text-[11px] text-fg-dim">
+                              <p className="mt-1 line-clamp-2 text-[11.5px] font-medium text-fg-dim">
                                 {cliente.ultimaPreview}
                               </p>
                             ) : (
-                              <p className="mt-1 text-[11px] text-fg-faint">
+                              <p className="mt-1 text-[11px] text-fg-dim">
                                 {cliente.atividadeLabel
                                   ? `Última interação ${cliente.atividadeLabel}`
                                   : 'Sem mensagens recentes'}
@@ -166,16 +166,16 @@ export function OrganogramaClientesView({
                             )}
 
                             {(cliente.contatosVinculados ?? []).length > 0 && (
-                              <div className="mt-2 flex flex-wrap gap-1 border-t border-line/60 pt-2">
+                              <div className="mt-2 flex flex-wrap gap-1 border-t border-line pt-2">
                                 {cliente.contatosVinculados.map((ct) => (
                                   <span
                                     key={ct.id}
-                                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium ${
+                                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
                                       ct.aguardando
-                                        ? 'border-red-500/40 bg-red-500/15 text-red-300'
+                                        ? 'border-danger/30 bg-danger-bg text-danger'
                                         : ct.dmSlug
-                                          ? 'border-line bg-surface text-fg-dim'
-                                          : 'border-line/70 bg-surface/50 text-fg-faint'
+                                          ? 'border-line bg-surface text-fg'
+                                          : 'border-line bg-surface/80 text-fg-dim'
                                     }`}
                                     title={
                                       ct.dmSlug
@@ -186,7 +186,7 @@ export function OrganogramaClientesView({
                                     <span>{ct.dmSlug ? '💬' : '👤'}</span>
                                     <span>{ct.nome}</span>
                                     {ct.aguardando && ct.waitingLabel && (
-                                      <span className="font-mono text-[9px] text-red-300">
+                                      <span className="font-mono text-[9px] font-bold text-danger">
                                         ({ct.waitingLabel})
                                       </span>
                                     )}
@@ -202,19 +202,19 @@ export function OrganogramaClientesView({
                                 compacto
                               />
                               <div className="flex items-center justify-between gap-2">
-                                <span className="font-mono text-[10px] text-fg-faint">
+                                <span className="font-mono text-[10.5px] font-semibold text-fg-dim">
                                   {cliente.msgsCliente30d} msgs / 30d
                                 </span>
                                 <div className="flex items-center gap-1.5">
                                   {autonomo && (
-                                    <span className="rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-medium text-blue-300">
+                                    <span className="rounded border border-accent-line bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold text-info">
                                       Autônomo
                                     </span>
                                   )}
                                   <Link
                                     href={`/g/${encodeURIComponent(cliente.slug)}`}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] font-medium text-fg-dim hover:text-fg"
+                                    className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] font-semibold text-fg hover:border-accent"
                                   >
                                     Abrir chat →
                                   </Link>

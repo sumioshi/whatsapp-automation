@@ -793,7 +793,7 @@ export function EscritorioView({
 
   return (
     <div
-      className="escritorio-pixel-root flex h-full w-full flex-col overflow-hidden bg-canvas"
+      className="escritorio-pixel-root flex h-full w-full flex-col overflow-hidden bg-bg text-fg"
       style={
         {
           '--pixel-bg': '#1e1e2e',
@@ -850,10 +850,10 @@ export function EscritorioView({
             <button
               type="button"
               onClick={() => setAba('mapa')}
-              className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors md:px-3 md:text-[12px] ${
+              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors md:px-3 md:text-[12px] ${
                 aba === 'mapa'
-                  ? 'bg-surface text-fg shadow-sm'
-                  : 'text-fg-faint hover:text-fg'
+                  ? 'border border-line bg-surface text-fg shadow-sm'
+                  : 'text-fg-dim hover:text-fg'
               }`}
             >
               🏢 Escritório 2D
@@ -861,10 +861,10 @@ export function EscritorioView({
             <button
               type="button"
               onClick={() => setAba('organograma')}
-              className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors md:px-3 md:text-[12px] ${
+              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors md:px-3 md:text-[12px] ${
                 aba === 'organograma'
-                  ? 'bg-surface text-fg shadow-sm'
-                  : 'text-fg-faint hover:text-fg'
+                  ? 'border border-line bg-surface text-fg shadow-sm'
+                  : 'text-fg-dim hover:text-fg'
               }`}
             >
               📊 Organograma ({clientesVisiveis.length})
@@ -876,10 +876,10 @@ export function EscritorioView({
             <button
               type="button"
               onClick={() => setEscopo('em_dev')}
-              className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors md:px-2.5 ${
+              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors md:px-2.5 ${
                 escopo === 'em_dev'
-                  ? 'bg-surface text-fg shadow-sm'
-                  : 'text-fg-faint hover:text-fg'
+                  ? 'border border-line bg-surface text-fg shadow-sm'
+                  : 'text-fg-dim hover:text-fg'
               }`}
               title="Mostrar apenas projetos em desenvolvimento ativo (demais mesas ficam vazias)"
             >
@@ -888,10 +888,10 @@ export function EscritorioView({
             <button
               type="button"
               onClick={() => setEscopo('todos')}
-              className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors md:px-2.5 ${
+              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors md:px-2.5 ${
                 escopo === 'todos'
-                  ? 'bg-surface text-fg shadow-sm'
-                  : 'text-fg-faint hover:text-fg'
+                  ? 'border border-line bg-surface text-fg shadow-sm'
+                  : 'text-fg-dim hover:text-fg'
               }`}
               title="Mostrar todos os projetos vinculados, inclusive pausados"
             >
@@ -900,24 +900,22 @@ export function EscritorioView({
           </div>
 
           <span
-            className="hidden items-center gap-1.5 rounded-full border border-line bg-elevated px-2.5 py-0.5 text-[11px] text-fg-dim lg:inline-flex"
+            className="hidden items-center gap-1.5 rounded-full border border-line bg-elevated px-2.5 py-0.5 text-[11px] font-medium text-fg lg:inline-flex"
             title="Capacidade das baias individuais no escritório"
           >
             🪑 <strong className="font-mono text-fg">{contadores.mesasOcupadas}</strong>/
             {TOTAL_MESAS_ESCRITORIO} mesas ·{' '}
-            <span className="text-fg-faint">{contadores.mesasVazias} vazias</span>
+            <span className="text-fg-dim">{contadores.mesasVazias} vazias</span>
           </span>
 
           {orcaSnapshot?.available && (
             <span
-              className="hidden items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-medium text-emerald-200 lg:inline-flex"
+              className="hidden items-center gap-1.5 rounded-full border border-ok/40 bg-ok-bg px-2.5 py-0.5 text-[11px] font-semibold text-ok lg:inline-flex"
               title={`Conectado ao Orca (${orcaSnapshot.source === 'local-cli' ? 'CLI Local' : 'Remote Sync'}) · ${orcaSnapshot.allWorktreesCount} worktrees`}
             >
               <span>🐋</span>
               <span>Orca</span>
-              <strong className="font-mono text-emerald-300">
-                {orcaSnapshot.activeAgentsCount} ativos
-              </strong>
+              <strong className="font-mono">{orcaSnapshot.activeAgentsCount} ativos</strong>
             </span>
           )}
 
@@ -926,10 +924,10 @@ export function EscritorioView({
             <button
               type="button"
               onClick={() => setStatusFiltro('todos')}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
                 statusFiltro === 'todos'
-                  ? 'border-accent bg-accent-soft text-fg'
-                  : 'border-line text-fg-faint hover:text-fg'
+                  ? 'border-accent bg-accent-soft text-accent'
+                  : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
               }`}
             >
               Todos <span className="font-mono text-[10px]">{contadores.total}</span>
@@ -939,10 +937,10 @@ export function EscritorioView({
               onClick={() =>
                 setStatusFiltro(statusFiltro === 'urgentes' ? 'todos' : 'urgentes')
               }
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
                 statusFiltro === 'urgentes'
-                  ? 'border-red-500 bg-red-500/20 text-red-300'
-                  : 'border-line text-fg-faint hover:text-fg'
+                  ? 'border-danger bg-danger-bg text-danger'
+                  : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
               }`}
             >
               <span className="h-2 w-2 rounded-full bg-red-500" />
@@ -954,10 +952,10 @@ export function EscritorioView({
               onClick={() =>
                 setStatusFiltro(statusFiltro === 'aguardando' ? 'todos' : 'aguardando')
               }
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
                 statusFiltro === 'aguardando'
-                  ? 'border-amber-500 bg-amber-500/20 text-amber-300'
-                  : 'border-line text-fg-faint hover:text-fg'
+                  ? 'border-warn-mark bg-warn-bg text-warn'
+                  : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
               }`}
             >
               <span className="h-2 w-2 rounded-full bg-amber-500" />
@@ -967,10 +965,10 @@ export function EscritorioView({
             <button
               type="button"
               onClick={() => setStatusFiltro(statusFiltro === 'em_dia' ? 'todos' : 'em_dia')}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
                 statusFiltro === 'em_dia'
-                  ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                  : 'border-line text-fg-faint hover:text-fg'
+                  ? 'border-ok bg-ok-bg text-ok'
+                  : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
               }`}
             >
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
@@ -986,7 +984,7 @@ export function EscritorioView({
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar projeto ou contato…"
-            className="w-36 rounded-lg border border-line bg-elevated px-2.5 py-1 text-[12px] text-fg placeholder:text-fg-faint focus:outline-none sm:w-52"
+            className="w-36 rounded-lg border border-line bg-elevated px-2.5 py-1 text-[12px] font-medium text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none sm:w-52"
           />
 
           {aba === 'mapa' && (
@@ -994,10 +992,10 @@ export function EscritorioView({
               <button
                 type="button"
                 onClick={() => setMostrarRoster((v) => !v)}
-                className={`rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors md:px-2.5 ${
+                className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors md:px-2.5 ${
                   mostrarRoster
-                    ? 'border-line bg-elevated text-fg'
-                    : 'border-line text-fg-faint hover:text-fg'
+                    ? 'border-line-2 bg-elevated text-fg'
+                    : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
                 }`}
                 title="Mostrar/ocultar lista lateral de personagens"
               >
@@ -1007,10 +1005,10 @@ export function EscritorioView({
               <button
                 type="button"
                 onClick={() => setMostrarAreas((v) => !v)}
-                className={`rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors md:px-2.5 ${
+                className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors md:px-2.5 ${
                   mostrarAreas
-                    ? 'border-line bg-elevated text-fg'
-                    : 'border-line text-fg-faint hover:text-fg'
+                    ? 'border-line-2 bg-elevated text-fg'
+                    : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
                 }`}
                 title="Mostrar/ocultar nomes das salas no mapa"
               >
@@ -1024,7 +1022,7 @@ export function EscritorioView({
                   <button
                     type="button"
                     onClick={handleCycleIluminacao}
-                    className="inline-flex items-center gap-1 rounded-lg border border-line bg-elevated px-2 py-1 text-[11px] font-medium text-fg hover:border-white/30"
+                    className="inline-flex items-center gap-1 rounded-lg border border-line bg-elevated px-2 py-1 text-[11px] font-semibold text-fg hover:border-line-2"
                     title={`Iluminação: ${infoFase.rotulo} (${infoFase.descricao}) · Modo: ${cicloModo}. Clique para alternar.`}
                   >
                     <span>{infoFase.icone}</span>
@@ -1042,10 +1040,10 @@ export function EscritorioView({
                   playKeyClickSound();
                   setMostrarBaloes((v) => !v);
                 }}
-                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors ${
+                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors ${
                   mostrarBaloes
-                    ? 'border-line bg-elevated text-fg'
-                    : 'border-line text-fg-faint hover:text-fg'
+                    ? 'border-line-2 bg-elevated text-fg'
+                    : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
                 }`}
                 title="Mostrar/ocultar balões de mensagens recentes e digitação dos NPCs"
               >
@@ -1060,7 +1058,7 @@ export function EscritorioView({
                   playKeyClickSound();
                   setMostrarAvatarModal(true);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-elevated px-2 py-1 text-[11px] font-medium text-fg hover:border-white/30"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-elevated px-2 py-1 text-[11px] font-semibold text-fg hover:border-line-2"
                 title="Personalizar seu personagem ('Você') no mapa"
               >
                 <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-line bg-[#161822]">
@@ -1072,10 +1070,10 @@ export function EscritorioView({
               <button
                 type="button"
                 onClick={handleToggleSound}
-                className={`hidden rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors sm:inline-flex ${
+                className={`hidden rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors sm:inline-flex ${
                   somAtivo
-                    ? 'border-amber-500/50 bg-amber-500/15 text-amber-300'
-                    : 'border-line text-fg-faint hover:text-fg'
+                    ? 'border-warn-mark bg-warn-bg text-warn'
+                    : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
                 }`}
                 title="Aviso sonoro quando um cliente entrar em espera"
               >
@@ -1087,8 +1085,8 @@ export function EscritorioView({
                 onClick={editor.handleToggleEditMode}
                 className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors md:px-3 ${
                   editor.isEditMode
-                    ? 'border-blue-500 bg-blue-500 text-white'
-                    : 'border-line bg-elevated text-fg-dim hover:text-fg'
+                    ? 'border-accent bg-accent text-accent-ink'
+                    : 'border-line bg-elevated text-fg hover:border-line-2'
                 }`}
               >
                 {editor.isEditMode ? '✓ Fechar' : '🛠️ Editar'}
@@ -1126,13 +1124,13 @@ export function EscritorioView({
 
             {/* Mini-Roster Lateral de Clientes no Escritório */}
             {mostrarRoster && (
-              <aside className="flex h-full w-68 shrink-0 flex-col border-r border-line bg-surface max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-76 max-md:shadow-2xl">
-                <div className="flex items-center justify-between border-b border-line px-3 py-2">
+              <aside className="flex h-full w-72 shrink-0 flex-col border-r border-line bg-surface max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-76 max-md:shadow-2xl">
+                <div className="flex items-center justify-between border-b border-line bg-surface-2 px-3 py-2.5">
                   <div>
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-faint">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-fg">
                       🪑 Nas Mesas ({clientesVisiveis.length}/{TOTAL_MESAS_ESCRITORIO})
                     </span>
-                    <div className="text-[10px] text-fg-faint">
+                    <div className="text-[11px] font-medium text-fg-dim">
                       {contadores.mesasVazias} baias vazias no escritório
                     </div>
                   </div>
@@ -1141,10 +1139,10 @@ export function EscritorioView({
                       type="button"
                       onClick={() => setExpandirTodosContatos((v) => !v)}
                       title="Expandir ou recolher contatos e DMs de todos os projetos"
-                      className={`rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                      className={`rounded border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
                         expandirTodosContatos
-                          ? 'border-accent bg-accent-soft text-fg'
-                          : 'border-line bg-elevated text-fg-faint hover:text-fg'
+                          ? 'border-accent bg-accent-soft text-accent'
+                          : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
                       }`}
                     >
                       👥 Contatos {expandirTodosContatos ? '▴' : '▾'}
@@ -1152,7 +1150,7 @@ export function EscritorioView({
                     <button
                       type="button"
                       onClick={() => setMostrarRoster(false)}
-                      className="rounded px-1.5 py-0.5 text-[11px] text-fg-faint hover:bg-elevated hover:text-fg md:hidden"
+                      className="rounded px-1.5 py-0.5 text-[11px] text-fg-dim hover:bg-elevated hover:text-fg md:hidden"
                     >
                       ✕
                     </button>
@@ -1191,10 +1189,10 @@ export function EscritorioView({
                               setMostrarRoster(false);
                             }
                           }}
-                          className={`flex cursor-pointer items-center gap-2 px-3 py-2 transition-colors ${
+                          className={`flex cursor-pointer items-center gap-2.5 px-3 py-2.5 transition-colors ${
                             selecionado
-                              ? 'bg-accent-soft text-fg'
-                              : 'hover:bg-elevated'
+                              ? 'border-l-2 border-l-accent bg-selected text-fg'
+                              : 'hover:bg-surface-2'
                           }`}
                         >
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-line bg-[#161822]">
@@ -1207,11 +1205,11 @@ export function EscritorioView({
                                 className="h-2 w-2 shrink-0 rounded-full"
                                 style={{ background: m?.dotColor ?? '#22c55e' }}
                               />
-                              <span className="truncate text-[12px] font-medium text-fg">
+                              <span className="truncate text-[12.5px] font-semibold text-fg">
                                 {c.nome}
                               </span>
                             </div>
-                            <div className="mt-0.5 flex items-center justify-between gap-1 text-[10px] text-fg-faint">
+                            <div className="mt-0.5 flex items-center justify-between gap-1 text-[11px] font-medium text-fg-dim">
                               <span className="truncate">
                                 Baia #{baiaNum} ·{' '}
                                 {c.aguardando && c.waitingLabel
@@ -1222,8 +1220,10 @@ export function EscritorioView({
                                       ? c.repoNome
                                       : 'Em dev'}
                               </span>
-                                {c.msgsCliente30d > 0 && (
-                                <span className="shrink-0 font-mono">{c.msgsCliente30d}m</span>
+                              {c.msgsCliente30d > 0 && (
+                                <span className="shrink-0 font-mono text-[10.5px] font-semibold text-fg-dim">
+                                  {c.msgsCliente30d}m
+                                </span>
                               )}
                             </div>
 
@@ -1249,12 +1249,12 @@ export function EscritorioView({
                                       }
                                     }}
                                     title="Abrir chat e terminal deste agente no Orca"
-                                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.2 text-[9px] font-semibold transition-colors ${
+                                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
                                       working
-                                        ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
+                                        ? 'border-ok/40 bg-ok-bg text-ok'
                                         : monitoring
-                                          ? 'border-blue-500/40 bg-blue-500/15 text-blue-200'
-                                          : 'border-line bg-elevated text-fg-dim hover:text-fg'
+                                          ? 'border-accent-line bg-accent-soft text-info'
+                                          : 'border-line-2 bg-elevated text-fg-dim hover:text-fg'
                                     }`}
                                   >
                                     <span>🐋</span>
@@ -1284,12 +1284,12 @@ export function EscritorioView({
                                 }));
                               }}
                               title="Mostrar/ocultar contatos e conversas fora do grupo"
-                              className={`inline-flex shrink-0 items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                              className={`inline-flex shrink-0 items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
                                 dmsPendentes > 0
-                                  ? 'border-amber-500/50 bg-amber-500/20 text-amber-300'
+                                  ? 'border-warn-mark bg-warn-bg text-warn'
                                   : aberto
-                                    ? 'border-line bg-elevated text-fg'
-                                    : 'border-line bg-surface text-fg-faint hover:text-fg'
+                                    ? 'border-line-2 bg-elevated text-fg'
+                                    : 'border-line bg-surface-2 text-fg-dim hover:text-fg'
                               }`}
                             >
                               <span>{dmsPendentes > 0 ? '💬' : '👥'}</span>
@@ -1306,7 +1306,7 @@ export function EscritorioView({
                               handleWalkToAgent(id);
                             }}
                             title="Ir até a mesa com seu personagem"
-                            className="rounded p-1 text-[11px] text-fg-faint opacity-60 hover:bg-elevated hover:text-fg hover:opacity-100"
+                            className="rounded p-1 text-[11px] text-fg-dim hover:bg-elevated hover:text-fg"
                           >
                             🚶
                           </button>
@@ -1314,7 +1314,7 @@ export function EscritorioView({
 
                         {/* Dropdown de Contatos do Grupo + DMs Monitoradas */}
                         {aberto && contatos.length > 0 && (
-                          <div className="border-t border-line/60 bg-elevated/35 pb-1.5 pl-6 pr-2.5 pt-1">
+                          <div className="border-t border-line bg-surface-2 pb-1.5 pl-6 pr-2.5 pt-1">
                             {contatos.map((ct, cIdx) => {
                               const ehUltimo = cIdx === contatos.length - 1;
                               const temDm = Boolean(ct.dmSlug);
@@ -1345,34 +1345,34 @@ export function EscritorioView({
                                   }}
                                   className={`group flex cursor-pointer flex-col rounded px-2 py-1 text-[11px] transition-colors ${
                                     dmAtivaNoDrawer
-                                      ? 'bg-accent-soft text-fg'
+                                      ? 'bg-selected font-semibold text-fg'
                                       : ct.aguardando
-                                        ? 'bg-amber-500/10 text-fg hover:bg-amber-500/20'
+                                        ? 'bg-warn-bg text-fg hover:opacity-95'
                                         : 'text-fg-dim hover:bg-elevated hover:text-fg'
                                   }`}
                                 >
                                   <div className="flex items-center justify-between gap-1.5">
                                     <div className="flex min-w-0 items-center gap-1.5">
-                                      <span className="font-mono text-[10px] text-fg-faint">
+                                      <span className="font-mono text-[10px] text-fg-dim">
                                         {ehUltimo ? '└─' : '├─'}
                                       </span>
                                       <span className="shrink-0 text-[11px]">
                                         {temDm ? '💬' : '👤'}
                                       </span>
-                                      <span className="truncate font-medium text-fg">
+                                      <span className="truncate font-semibold text-fg">
                                         {ct.nome}
                                       </span>
                                     </div>
 
                                     <div className="flex shrink-0 items-center gap-1">
                                       {ct.aguardando ? (
-                                        <span className="inline-flex items-center gap-1 rounded bg-red-500/20 px-1.5 py-0.2 font-mono text-[9px] font-semibold text-red-300">
-                                          <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                                        <span className="inline-flex items-center gap-1 rounded border border-danger/30 bg-danger-bg px-1.5 py-0.2 font-mono text-[9.5px] font-bold text-danger">
+                                          <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
                                           {ct.waitingLabel ?? 'DM'}
                                         </span>
                                       ) : temDm ? (
                                         <span
-                                          className="rounded border border-line bg-surface px-1 py-0.2 font-mono text-[9px] text-fg-faint"
+                                          className="rounded border border-line bg-surface px-1.5 py-0.2 font-mono text-[9.5px] font-medium text-fg-dim"
                                           title={`Chat individual monitorado (${ct.dmSlug})`}
                                         >
                                           {ct.atividadeLabel
@@ -1380,7 +1380,9 @@ export function EscritorioView({
                                             : `DM · ${ct.mensagensDm}m`}
                                         </span>
                                       ) : (
-                                        <span className="text-[9px] text-fg-faint">grupo</span>
+                                        <span className="text-[10px] font-medium text-fg-dim">
+                                          grupo
+                                        </span>
                                       )}
 
                                       {temDm && ct.dmSlug && (
@@ -1388,7 +1390,7 @@ export function EscritorioView({
                                           href={`/g/${encodeURIComponent(ct.dmSlug)}`}
                                           onClick={(e) => e.stopPropagation()}
                                           title={`Abrir conversa individual de ${ct.nome}`}
-                                          className="rounded px-1 text-[10px] text-fg-faint hover:bg-surface hover:text-fg"
+                                          className="rounded px-1 text-[10px] font-semibold text-fg-dim hover:bg-surface hover:text-fg"
                                         >
                                           ↗
                                         </Link>
@@ -1397,7 +1399,7 @@ export function EscritorioView({
                                   </div>
 
                                   {temDm && ct.ultimaPreview && (
-                                    <div className="mt-0.5 truncate pl-6 text-[10px] text-fg-faint">
+                                    <div className="mt-0.5 truncate pl-6 text-[10.5px] font-normal text-fg-dim">
                                       {ct.ultimaPreview}
                                     </div>
                                   )}
@@ -1412,11 +1414,11 @@ export function EscritorioView({
 
                   {/* Seção de Projetos Pausados / Fora de Desenvolvimento (Mesas Vazias) */}
                   {escopo === 'em_dev' && clientesPausados.length > 0 && (
-                    <div className="bg-elevated/40">
+                    <div className="bg-surface-2">
                       <button
                         type="button"
                         onClick={() => setMostrarPausados((v) => !v)}
-                        className="flex w-full items-center justify-between px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-fg-faint hover:bg-elevated"
+                        className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-fg-dim hover:bg-elevated hover:text-fg"
                       >
                         <span>
                           💤 Fora de Dev / Mesa Vazia ({clientesPausados.length})
@@ -1435,13 +1437,13 @@ export function EscritorioView({
                                 onClick={() => handleSelectAgent(selecionado ? null : id)}
                                 className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-[11px] transition-colors ${
                                   selecionado
-                                    ? 'bg-accent-soft text-fg'
-                                    : 'text-fg-faint hover:bg-elevated hover:text-fg'
+                                    ? 'bg-selected text-fg'
+                                    : 'text-fg-dim hover:bg-elevated hover:text-fg'
                                 }`}
                               >
                                 <div className="min-w-0 flex-1">
-                                  <div className="truncate font-medium">{c.nome}</div>
-                                  <div className="truncate text-[10px] opacity-75">
+                                  <div className="truncate font-semibold text-fg">{c.nome}</div>
+                                  <div className="truncate text-[10.5px] text-fg-dim">
                                     Mesa vazia · {c.repoNome ?? '0 msgs (30d)'}
                                   </div>
                                 </div>
@@ -1451,7 +1453,7 @@ export function EscritorioView({
                                     e.stopPropagation();
                                     handleToggleMesa(c.slug, 'ocupar_mesa');
                                   }}
-                                  className="shrink-0 rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300 hover:bg-emerald-500/25"
+                                  className="shrink-0 rounded border border-ok/40 bg-ok-bg px-2 py-0.5 text-[10px] font-semibold text-ok hover:opacity-90"
                                   title="Colocar este projeto em uma mesa do escritório"
                                 >
                                   + Mesa

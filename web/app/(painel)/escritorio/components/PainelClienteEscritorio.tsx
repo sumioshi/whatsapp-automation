@@ -388,62 +388,62 @@ export function PainelClienteEscritorio({
       style={{ zIndex: 55 }}
     >
       {/* Topo com Sprite + Nome + Status */}
-      <div className="flex items-start gap-3 border-b border-line bg-elevated px-4 py-3.5">
+      <div className="flex items-start gap-3 border-b border-line bg-surface-2 px-4 py-3.5">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-line bg-[#161822]">
           <CharSprite charIndex={palette} size={36} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <h2 className="truncate text-[14px] font-semibold leading-tight text-fg">
+            <h2 className="truncate text-[14.5px] font-bold leading-tight text-fg">
               {cliente.nome}
             </h2>
             <button
               type="button"
               onClick={onClose}
               title="Fechar painel (Esc)"
-              className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded text-fg-faint hover:bg-surface hover:text-fg"
+              className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded text-fg-dim hover:bg-elevated hover:text-fg"
             >
               ✕
             </button>
           </div>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <span className="rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] font-medium text-fg-dim">
+            <span className="rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-fg-dim">
               {cliente.tipo === 'dm' ? 'DM' : 'Grupo'}
             </span>
             {cliente.aguardando ? (
               <span
-                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-bold ${
                   ehUrgente
-                    ? 'bg-red-500/20 text-red-300'
-                    : 'bg-amber-500/20 text-amber-300'
+                    ? 'border-danger/30 bg-danger-bg text-danger'
+                    : 'border-warn-mark/40 bg-warn-bg text-warn'
                 }`}
               >
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${
-                    ehUrgente ? 'bg-red-400' : 'bg-amber-400'
+                    ehUrgente ? 'bg-red-500' : 'bg-amber-500'
                   }`}
                 />
                 Aguardando {cliente.waitingLabel ?? ''}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span className="inline-flex items-center gap-1 rounded border border-ok/30 bg-ok-bg px-1.5 py-0.5 text-[10px] font-bold text-ok">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 Em dia
               </span>
             )}
             {autonomo && (
-              <span className="rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300">
+              <span className="rounded border border-accent-line bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold text-info">
                 Autônomo
               </span>
             )}
             {presenca?.status === 'typing' && (
-              <span className="inline-flex items-center gap-1 rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300">
+              <span className="inline-flex items-center gap-1 rounded border border-accent-line bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold text-info">
                 Digitando…
               </span>
             )}
             {presenca?.status === 'recording' && (
-              <span className="inline-flex items-center gap-1 rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300">
+              <span className="inline-flex items-center gap-1 rounded border border-accent-line bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold text-info">
                 Gravando áudio…
               </span>
             )}
@@ -451,21 +451,21 @@ export function PainelClienteEscritorio({
 
           {cliente.repoNome && (
             <p className="mt-1 text-[11px] font-mono text-fg-dim">
-              📦 repo: <strong>{cliente.repoNome}</strong>
+              📦 repo: <strong className="text-fg">{cliente.repoNome}</strong>
               {cliente.github ? ` (${cliente.github})` : ''}
             </p>
           )}
-          {seatLabel && <p className="mt-0.5 text-[11px] text-fg-faint">🪑 {seatLabel}</p>}
+          {seatLabel && <p className="mt-0.5 text-[11px] font-medium text-fg-dim">🪑 {seatLabel}</p>}
         </div>
       </div>
 
       {/* Ações rápidas */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2.5">
         {cliente.emDesenvolvimento && (
           <button
             type="button"
             onClick={onWalkTo}
-            className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-2.5 py-1.5 text-[12px] font-medium text-fg-dim transition-colors hover:text-fg"
+            className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-2.5 py-1.5 text-[12px] font-semibold text-fg transition-colors hover:border-line-2"
             title="Caminhar com seu personagem até a mesa deste projeto"
           >
             <span>🚶</span>
@@ -475,7 +475,7 @@ export function PainelClienteEscritorio({
 
         <Link
           href={`/g/${encodeURIComponent(linkConversaAtiva)}`}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-accent-ink transition-opacity hover:opacity-90"
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-accent-ink transition-opacity hover:opacity-90"
         >
           {contatoCanalAtivo
             ? `Abrir DM: ${contatoCanalAtivo.nome.split(' ')[0]} →`
@@ -487,7 +487,7 @@ export function PainelClienteEscritorio({
             type="button"
             disabled={marcandoResolvido}
             onClick={handleMarcarResolvido}
-            className="inline-flex items-center gap-1 rounded-md border border-line bg-elevated px-2.5 py-1.5 text-[11px] font-medium text-fg-dim hover:text-fg disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-md border border-line bg-elevated px-2.5 py-1.5 text-[11px] font-semibold text-fg hover:border-line-2 disabled:opacity-50"
             title="Marcar conversa como resolvida até agora"
           >
             ✓ Resolvido
@@ -509,10 +509,10 @@ export function PainelClienteEscritorio({
                 setAlterandoMesa(false);
               }
             }}
-            className={`inline-flex w-full items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-50 ${
+            className={`inline-flex w-full items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
               cliente.emDesenvolvimento
-                ? 'border-line bg-elevated text-fg-faint hover:border-red-500/40 hover:text-red-300'
-                : 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                ? 'border-line bg-elevated text-fg-dim hover:border-danger/40 hover:bg-danger-bg hover:text-danger'
+                : 'border-ok/40 bg-ok-bg text-ok hover:opacity-90'
             }`}
           >
             {cliente.emDesenvolvimento
@@ -523,14 +523,14 @@ export function PainelClienteEscritorio({
       </div>
 
       {/* Seletor de Abas: WhatsApp & CRM vs Agente Orca (Remote / Local) */}
-      <div className="grid grid-cols-2 gap-1.5 border-b border-line bg-elevated/60 px-4 py-2">
+      <div className="grid grid-cols-2 gap-1.5 border-b border-line bg-surface-2 px-4 py-2">
         <button
           type="button"
           onClick={() => setAbaAtiva('whatsapp')}
           className={`flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
             abaAtiva === 'whatsapp'
               ? 'border-accent bg-accent text-accent-ink shadow-sm'
-              : 'border-line bg-surface text-fg-dim hover:text-fg'
+              : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
           }`}
         >
           <span>💬</span>
@@ -542,33 +542,33 @@ export function PainelClienteEscritorio({
           onClick={() => setAbaAtiva('orca')}
           className={`flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
             abaAtiva === 'orca'
-              ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-200 shadow-sm'
-              : 'border-line bg-surface text-fg-dim hover:text-fg'
+              ? 'border-ok bg-ok-bg text-ok shadow-sm'
+              : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
           }`}
         >
           <span>🐋</span>
           <span>Agente Orca</span>
           {orcaInfo ? (
             orcaInfo.status === 'working' ? (
-              <span className="inline-flex items-center gap-1 rounded bg-emerald-500/30 px-1.5 py-0.2 text-[9px] font-bold text-emerald-200">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+              <span className="inline-flex items-center gap-1 rounded border border-ok/30 bg-ok-bg px-1.5 py-0.2 text-[9px] font-bold text-ok">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
                 Codando
               </span>
             ) : orcaInfo.status === 'monitoring' ? (
-              <span className="inline-flex items-center gap-1 rounded bg-blue-500/30 px-1.5 py-0.2 text-[9px] font-bold text-blue-200">
+              <span className="inline-flex items-center gap-1 rounded border border-accent-line bg-accent-soft px-1.5 py-0.2 text-[9px] font-bold text-info">
                 👁️ Plantão
               </span>
             ) : orcaInfo.liveTerminalCount > 0 ? (
-              <span className="rounded bg-emerald-500/20 px-1.5 py-0.2 font-mono text-[9px] text-emerald-300">
+              <span className="rounded border border-ok/30 bg-ok-bg px-1.5 py-0.2 font-mono text-[9px] font-semibold text-ok">
                 {orcaInfo.liveTerminalCount} term
               </span>
             ) : (
-              <span className="rounded bg-surface px-1 py-0.2 text-[9px] text-fg-faint">
+              <span className="rounded border border-line bg-elevated px-1.5 py-0.2 text-[9px] font-medium text-fg-dim">
                 Pronto
               </span>
             )
           ) : (
-            <span className="rounded bg-surface px-1 py-0.2 text-[9px] text-fg-faint">
+            <span className="rounded border border-line bg-elevated px-1.5 py-0.2 text-[9px] font-medium text-fg-dim">
               {orcaAvailable ? 'Sem repo' : 'Offline'}
             </span>
           )}
@@ -580,20 +580,20 @@ export function PainelClienteEscritorio({
           <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
             {/* Cabeçalho do Worktree Orca */}
             {orcaInfo ? (
-              <div className="rounded-lg border border-line bg-elevated p-3">
+              <div className="rounded-lg border border-line bg-surface-2 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[12px]">🐋</span>
-                      <span className="truncate text-[12px] font-semibold text-fg">
+                      <span className="truncate text-[12.5px] font-bold text-fg">
                         {orcaInfo.repoLabel}
                       </span>
-                      <span className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-fg-dim">
+                      <span className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] font-medium text-fg-dim">
                         🌿 {orcaInfo.branch}
                       </span>
                     </div>
                     <p
-                      className="mt-1 truncate font-mono text-[10px] text-fg-faint"
+                      className="mt-1 truncate font-mono text-[10.5px] text-fg-dim"
                       title={orcaInfo.worktreePath}
                     >
                       {orcaInfo.worktreePath}
@@ -606,7 +606,7 @@ export function PainelClienteEscritorio({
                         type="button"
                         onClick={() => handleAcaoOrca('focar_orca')}
                         title="Focar este terminal no app Orca"
-                        className="rounded border border-line bg-surface px-2 py-1 text-[10px] font-medium text-fg-dim hover:border-accent hover:text-fg"
+                        className="rounded border border-line bg-surface px-2 py-1 text-[10px] font-semibold text-fg hover:border-accent"
                       >
                         ↗ App Orca
                       </button>
@@ -618,7 +618,7 @@ export function PainelClienteEscritorio({
                         carregarScreenTerminal();
                       }}
                       title="Atualizar estado e tela do agente"
-                      className="rounded border border-line bg-surface px-2 py-1 text-[10px] font-medium text-fg-dim hover:text-fg"
+                      className="rounded border border-line bg-surface px-2 py-1 text-[10px] font-semibold text-fg hover:border-line-2"
                     >
                       {carregandoScreen ? '⏳' : '🔄'}
                     </button>
@@ -638,23 +638,23 @@ export function PainelClienteEscritorio({
                             setIndiceAgenteOrca(idx);
                             setScreenTailLocal(null);
                           }}
-                          className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-medium transition-colors ${
+                          className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-semibold transition-colors ${
                             ativo
-                              ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-200'
+                              ? 'border-ok bg-ok-bg text-ok'
                               : 'border-line bg-surface text-fg-dim hover:text-fg'
                           }`}
                         >
                           <span
                             className={`h-1.5 w-1.5 rounded-full ${
                               ag.state === 'working'
-                                ? 'animate-pulse bg-emerald-400'
+                                ? 'animate-pulse bg-emerald-500'
                                 : ag.workingMode === 'monitoring'
-                                  ? 'bg-blue-400'
+                                  ? 'bg-blue-500'
                                   : 'bg-zinc-400'
                             }`}
                           />
                           <span className="uppercase">{ag.agentType}</span>
-                          <span className="font-mono text-[9px] opacity-75">#{idx + 1}</span>
+                          <span className="font-mono text-[9px] opacity-80">#{idx + 1}</span>
                         </button>
                       );
                     })}
@@ -667,12 +667,12 @@ export function PainelClienteEscritorio({
                     {agenteSelecionado ? (
                       <>
                         <span
-                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold uppercase ${
+                          className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-bold uppercase ${
                             agenteSelecionado.state === 'working'
-                              ? 'bg-emerald-500/20 text-emerald-300'
+                              ? 'border-ok/30 bg-ok-bg text-ok'
                               : agenteSelecionado.workingMode === 'monitoring'
-                                ? 'bg-blue-500/20 text-blue-300'
-                                : 'bg-surface text-fg-dim'
+                                ? 'border-accent-line bg-accent-soft text-info'
+                                : 'border-line bg-surface text-fg-dim'
                           }`}
                         >
                           🤖 {agenteSelecionado.agentType} ·{' '}
@@ -683,13 +683,15 @@ export function PainelClienteEscritorio({
                               : 'Aguardando prompt'}
                         </span>
                         {agenteSelecionado.toolName && (
-                          <span className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] text-amber-300">
+                          <span className="rounded border border-warn-mark/40 bg-warn-bg px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-warn">
                             ⚙️ {agenteSelecionado.toolName}
                           </span>
                         )}
                       </>
                     ) : (
-                      <span className="text-fg-faint">Nenhum terminal de agente aberto</span>
+                      <span className="font-medium text-fg-dim">
+                        Nenhum terminal de agente aberto
+                      </span>
                     )}
                   </div>
 
@@ -698,7 +700,7 @@ export function PainelClienteEscritorio({
                       <button
                         type="button"
                         onClick={() => handleAcaoOrca('interromper')}
-                        className="rounded border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-300 hover:bg-red-500/25"
+                        className="rounded border border-danger/40 bg-danger-bg px-2 py-0.5 text-[10px] font-semibold text-danger hover:opacity-90"
                       >
                         ⏹ Parar
                       </button>
@@ -707,9 +709,9 @@ export function PainelClienteEscritorio({
                       <button
                         type="button"
                         onClick={() => setMostrarTerminalOrca((v) => !v)}
-                        className={`rounded border px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                        className={`rounded border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
                           mostrarTerminalOrca
-                            ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
+                            ? 'border-ok bg-ok-bg text-ok'
                             : 'border-line bg-surface text-fg-dim hover:text-fg'
                         }`}
                       >
@@ -720,11 +722,11 @@ export function PainelClienteEscritorio({
                 </div>
               </div>
             ) : (
-              <div className="rounded-lg border border-line bg-elevated p-4 text-center text-[12px] text-fg-dim">
+              <div className="rounded-lg border border-line bg-surface-2 p-4 text-center text-[12px] text-fg-dim">
                 <p className="font-semibold text-fg">
                   🐋 Nenhum worktree Orca vinculado a &ldquo;{cliente.nome}&rdquo;
                 </p>
-                <p className="mt-1 text-[11px] text-fg-faint">
+                <p className="mt-1 text-[11px] text-fg-dim">
                   {orcaAvailable
                     ? 'Vincule um repositório local no Orca para conversar com o agente deste projeto diretamente daqui.'
                     : 'O Orca Desktop local não está acessível neste momento.'}
@@ -734,8 +736,8 @@ export function PainelClienteEscritorio({
 
             {/* Caso o projeto tenha worktree mas nenhum terminal aberto: botões de Launch */}
             {orcaInfo && orcaInfo.liveTerminalCount === 0 && (
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
-                <div className="text-[11px] font-semibold text-emerald-200">
+              <div className="rounded-lg border border-ok/30 bg-ok-bg p-3">
+                <div className="text-[11px] font-bold text-ok">
                   🚀 Iniciar novo agente neste projeto
                 </div>
                 <p className="mt-0.5 text-[11px] text-fg-dim">
@@ -747,7 +749,7 @@ export function PainelClienteEscritorio({
                     type="button"
                     disabled={enviandoPromptOrca}
                     onClick={() => handleAcaoOrca('iniciar_agente', 'claude')}
-                    className="rounded border border-line bg-surface px-2 py-1.5 text-[11px] font-semibold text-fg hover:border-emerald-500/50 hover:bg-elevated disabled:opacity-50"
+                    className="rounded border border-line bg-surface px-2 py-1.5 text-[11px] font-semibold text-fg hover:border-ok hover:bg-elevated disabled:opacity-50"
                   >
                     🤖 Claude
                   </button>
@@ -755,7 +757,7 @@ export function PainelClienteEscritorio({
                     type="button"
                     disabled={enviandoPromptOrca}
                     onClick={() => handleAcaoOrca('iniciar_agente', 'codex')}
-                    className="rounded border border-line bg-surface px-2 py-1.5 text-[11px] font-semibold text-fg hover:border-emerald-500/50 hover:bg-elevated disabled:opacity-50"
+                    className="rounded border border-line bg-surface px-2 py-1.5 text-[11px] font-semibold text-fg hover:border-ok hover:bg-elevated disabled:opacity-50"
                   >
                     ⚡ Codex
                   </button>
@@ -763,7 +765,7 @@ export function PainelClienteEscritorio({
                     type="button"
                     disabled={enviandoPromptOrca}
                     onClick={() => handleAcaoOrca('iniciar_agente', 'antigravity')}
-                    className="rounded border border-line bg-surface px-2 py-1.5 text-[11px] font-semibold text-fg hover:border-emerald-500/50 hover:bg-elevated disabled:opacity-50"
+                    className="rounded border border-line bg-surface px-2 py-1.5 text-[11px] font-semibold text-fg hover:border-ok hover:bg-elevated disabled:opacity-50"
                   >
                     🌌 Antigravity
                   </button>
@@ -778,12 +780,12 @@ export function PainelClienteEscritorio({
                   <>
                     {/* Último comando do operador */}
                     {agenteSelecionado.prompt && (
-                      <div className="ml-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-[12px] text-fg">
-                        <div className="mb-1 flex items-center justify-between text-[10px] text-blue-300">
-                          <span className="font-semibold">👤 Seu último comando no Orca</span>
+                      <div className="ml-4 rounded-lg border border-accent-line bg-accent-soft p-3 text-[12px] text-fg">
+                        <div className="mb-1 flex items-center justify-between text-[10px] font-semibold text-info">
+                          <span>👤 Seu último comando no Orca</span>
                           <span className="font-mono opacity-80">Prompt</span>
                         </div>
-                        <p className="whitespace-pre-wrap break-words leading-relaxed">
+                        <p className="whitespace-pre-wrap break-words leading-relaxed text-fg">
                           {agenteSelecionado.prompt}
                         </p>
                       </div>
@@ -791,15 +793,15 @@ export function PainelClienteEscritorio({
 
                     {/* Subagentes em paralelo, se houver */}
                     {agenteSelecionado.subagents.length > 0 && (
-                      <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 p-2.5 text-[11px]">
-                        <div className="font-semibold text-purple-300">
+                      <div className="rounded-lg border border-line-2 bg-surface-2 p-2.5 text-[11px]">
+                        <div className="font-semibold text-fg">
                           🛸 Subagentes ativos ({agenteSelecionado.subagents.length})
                         </div>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {agenteSelecionado.subagents.map((sub) => (
                             <span
                               key={sub.id}
-                              className="rounded border border-purple-500/30 bg-surface px-1.5 py-0.5 font-mono text-[10px] text-purple-200"
+                              className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] font-medium text-fg-dim"
                             >
                               {sub.agentType || 'subagent'} · {sub.state}
                             </span>
@@ -810,12 +812,12 @@ export function PainelClienteEscritorio({
 
                     {/* Última resposta do Assistente no Orca */}
                     {agenteSelecionado.lastAssistantMessage ? (
-                      <div className="mr-2 rounded-lg border border-emerald-500/30 bg-elevated p-3 text-[12px] text-fg">
-                        <div className="mb-1.5 flex items-center justify-between text-[10px] text-emerald-300">
-                          <span className="font-semibold uppercase">
+                      <div className="mr-2 rounded-lg border border-line-2 bg-surface-2 p-3 text-[12px] text-fg">
+                        <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold text-ok">
+                          <span className="uppercase">
                             🤖 {agenteSelecionado.agentType} ({orcaInfo?.repoLabel})
                           </span>
-                          <span className="font-mono text-fg-faint">
+                          <span className="font-mono font-medium text-fg-dim">
                             {agenteSelecionado.state === 'working'
                               ? '⚡ Gerando / Codando…'
                               : 'Última resposta'}
@@ -826,7 +828,7 @@ export function PainelClienteEscritorio({
                         </div>
                       </div>
                     ) : (
-                      <div className="rounded-lg border border-line bg-elevated p-3 text-[11px] text-fg-faint">
+                      <div className="rounded-lg border border-line bg-surface-2 p-3 text-[11px] font-medium text-fg-dim">
                         Sem mensagem estruturada recente — exibindo saída do terminal abaixo:
                       </div>
                     )}
@@ -866,8 +868,8 @@ export function PainelClienteEscritorio({
 
             {/* Sub-worktrees / branches filhos abertos no Orca */}
             {orcaInfo && orcaInfo.childWorktrees.length > 0 && (
-              <div className="rounded-lg border border-line bg-elevated p-3">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
+              <div className="rounded-lg border border-line bg-surface-2 p-3">
+                <div className="text-[10.5px] font-bold uppercase tracking-wider text-fg-dim">
                   🌿 Worktrees Paralelos no Orca ({orcaInfo.childWorktrees.length})
                 </div>
                 <div className="mt-2 space-y-1.5">
@@ -878,12 +880,12 @@ export function PainelClienteEscritorio({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate font-semibold text-fg">{cw.displayName}</span>
-                        <span className="shrink-0 rounded bg-elevated px-1.5 py-0.2 font-mono text-[9px] text-fg-dim">
+                        <span className="shrink-0 rounded bg-elevated px-1.5 py-0.2 font-mono text-[9.5px] font-medium text-fg-dim">
                           {cw.branch} · {cw.status}
                         </span>
                       </div>
                       {cw.lastAssistantMessage && (
-                        <p className="mt-1 line-clamp-2 text-[10px] text-fg-faint">
+                        <p className="mt-1 line-clamp-2 text-[10.5px] text-fg-dim">
                           {cw.lastAssistantMessage}
                         </p>
                       )}
@@ -898,7 +900,7 @@ export function PainelClienteEscritorio({
           {orcaInfo && (
             <form
               onSubmit={handleEnviarPromptOrca}
-              className="border-t border-line bg-elevated px-4 py-3"
+              className="border-t border-line bg-surface-2 px-4 py-3"
             >
               <div className="mb-2 flex flex-wrap gap-1">
                 <button
@@ -908,7 +910,7 @@ export function PainelClienteEscritorio({
                       `Leia as últimas mensagens do grupo ${cliente.slug} via MCP whatsapp-collector e me diga o que o cliente pediu e o que precisamos fazer.`,
                     )
                   }
-                  className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] text-fg-dim hover:border-emerald-500/40 hover:text-fg"
+                  className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] font-medium text-fg-dim hover:border-ok hover:text-fg"
                 >
                   🔍 Checar grupo WPP
                 </button>
@@ -917,7 +919,7 @@ export function PainelClienteEscritorio({
                   onClick={() =>
                     setPromptOrca('Qual o status atual desta tarefa e o que falta implementar?')
                   }
-                  className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] text-fg-dim hover:border-emerald-500/40 hover:text-fg"
+                  className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] font-medium text-fg-dim hover:border-ok hover:text-fg"
                 >
                   📋 O que falta?
                 </button>
@@ -926,14 +928,14 @@ export function PainelClienteEscritorio({
                   onClick={() =>
                     setPromptOrca('Rode o build e os testes para garantir que está tudo passando.')
                   }
-                  className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] text-fg-dim hover:border-emerald-500/40 hover:text-fg"
+                  className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] font-medium text-fg-dim hover:border-ok hover:text-fg"
                 >
                   🧪 Rodar testes e build
                 </button>
               </div>
 
               {feedbackOrca && (
-                <div className="mb-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200">
+                <div className="mb-2 rounded border border-ok/40 bg-ok-bg px-2.5 py-1 text-[11px] font-semibold text-ok">
                   {feedbackOrca}
                 </div>
               )}
@@ -954,10 +956,10 @@ export function PainelClienteEscritorio({
                       ? `Mandar comando para ${agenteSelecionado?.agentType || 'o agente'} em ${orcaInfo.repoLabel}... (⌘+Enter envia)`
                       : `Digite o prompt para iniciar um agente em ${orcaInfo.repoLabel}...`
                   }
-                  className="w-full resize-none rounded-md border border-line bg-surface px-2.5 py-1.5 text-[12px] text-fg placeholder:text-fg-faint focus:border-emerald-500/60 focus:outline-none"
+                  className="w-full resize-none rounded-md border border-line bg-surface px-2.5 py-1.5 text-[12px] text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none"
                 />
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] text-fg-faint">
+                  <span className="text-[10.5px] font-medium text-fg-dim">
                     {terminalHandleAtivo
                       ? `Terminal: ${terminalHandleAtivo.slice(0, 13)}…`
                       : 'Abre novo terminal Claude no Orca'}
@@ -965,7 +967,7 @@ export function PainelClienteEscritorio({
                   <button
                     type="submit"
                     disabled={enviandoPromptOrca || !promptOrca.trim()}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500 px-3 py-1.5 text-[11px] font-semibold text-slate-950 transition-opacity hover:opacity-90 disabled:opacity-40"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold text-white transition-opacity hover:bg-emerald-500 disabled:opacity-40"
                   >
                     {enviandoPromptOrca ? 'Enviando…' : '🐋 Enviar pro Agente ↵'}
                   </button>
@@ -978,15 +980,15 @@ export function PainelClienteEscritorio({
       /* Corpo rolável: Aba WhatsApp & CRM */
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-3">
         {/* Contatos do Projeto & Conversas Fora do Grupo (DMs Monitoradas) */}
-        <div className="rounded-lg border border-line bg-elevated p-3">
+        <div className="rounded-lg border border-line bg-surface-2 p-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-faint">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-fg-dim">
               👥 Contatos &amp; Chats ({cliente.contatosVinculados?.length ?? 0})
             </span>
             <button
               type="button"
               onClick={() => setMostrarFormContato((v) => !v)}
-              className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] font-medium text-fg-dim hover:text-fg"
+              className="rounded border border-line bg-surface px-2 py-0.5 text-[10px] font-semibold text-fg-dim hover:text-fg"
             >
               {mostrarFormContato ? 'Cancelar' : '+ Vincular'}
             </button>
@@ -1051,15 +1053,15 @@ export function PainelClienteEscritorio({
                 onClick={() => selecionarCanal(null)}
                 className={`flex cursor-pointer items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-[11px] transition-colors ${
                   canalInterno === null
-                    ? 'border-accent bg-accent-soft text-fg'
-                    : 'border-line bg-surface/60 text-fg-dim hover:bg-surface hover:text-fg'
+                    ? 'border-accent bg-selected font-semibold text-fg'
+                    : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
                 }`}
               >
                 <div className="flex min-w-0 items-center gap-1.5">
                   <span>👥</span>
                   <span className="truncate font-semibold">Grupo: {cliente.nome}</span>
                 </div>
-                <span className="shrink-0 font-mono text-[10px] text-fg-faint">
+                <span className="shrink-0 font-mono text-[10px] font-medium text-fg-dim">
                   {cliente.atividadeLabel ?? `${cliente.mensagens}m`}
                 </span>
               </div>
@@ -1085,10 +1087,10 @@ export function PainelClienteEscritorio({
                     temDm ? 'cursor-pointer' : ''
                   } ${
                     selecionado
-                      ? 'border-accent bg-accent-soft text-fg'
+                      ? 'border-accent bg-selected text-fg'
                       : ct.aguardando
-                        ? 'border-amber-500/40 bg-amber-500/10 text-fg hover:bg-amber-500/15'
-                        : 'border-line bg-surface/60 text-fg-dim hover:bg-surface hover:text-fg'
+                        ? 'border-warn-mark/40 bg-warn-bg text-fg'
+                        : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-1.5">
@@ -1096,7 +1098,7 @@ export function PainelClienteEscritorio({
                       <span>{temDm ? '💬' : '👤'}</span>
                       <span className="truncate font-semibold text-fg">{ct.nome}</span>
                       {ct.papel && (
-                        <span className="shrink-0 rounded border border-line bg-elevated px-1.5 py-0.2 text-[9px] text-fg-faint">
+                        <span className="shrink-0 rounded border border-line bg-elevated px-1.5 py-0.2 text-[9.5px] font-medium text-fg-dim">
                           {ct.papel}
                         </span>
                       )}
@@ -1105,25 +1107,25 @@ export function PainelClienteEscritorio({
                     <div className="flex shrink-0 items-center gap-1.5">
                       {ct.aguardando ? (
                         <span
-                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold ${
+                          className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9.5px] font-bold ${
                             dmUrgente
-                              ? 'bg-red-500/25 text-red-300'
-                              : 'bg-amber-500/25 text-amber-300'
+                              ? 'border-danger/30 bg-danger-bg text-danger'
+                              : 'border-warn-mark/40 bg-warn-bg text-warn'
                           }`}
                         >
                           <span
                             className={`h-1.5 w-1.5 rounded-full ${
-                              dmUrgente ? 'bg-red-400' : 'bg-amber-400'
+                              dmUrgente ? 'bg-red-500' : 'bg-amber-500'
                             }`}
                           />
                           {ct.waitingLabel ?? 'Aguardando'}
                         </span>
                       ) : temDm ? (
-                        <span className="font-mono text-[10px] text-fg-faint">
+                        <span className="font-mono text-[10px] font-medium text-fg-dim">
                           {ct.atividadeLabel ? `DM · ${ct.atividadeLabel}` : `DM · ${ct.mensagensDm}m`}
                         </span>
                       ) : (
-                        <span className="text-[10px] text-fg-faint">No grupo</span>
+                        <span className="text-[10px] font-medium text-fg-dim">No grupo</span>
                       )}
 
                       {temDm && ct.dmSlug && (
@@ -1131,7 +1133,7 @@ export function PainelClienteEscritorio({
                           href={`/g/${encodeURIComponent(ct.dmSlug)}`}
                           onClick={(e) => e.stopPropagation()}
                           title={`Abrir chat individual de ${ct.nome}`}
-                          className="rounded border border-line bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-fg-dim hover:border-accent hover:text-fg"
+                          className="rounded border border-line bg-elevated px-1.5 py-0.5 text-[10px] font-semibold text-fg-dim hover:border-accent hover:text-fg"
                         >
                           ↗
                         </Link>
@@ -1145,7 +1147,7 @@ export function PainelClienteEscritorio({
                             handleRemoverContato(ct.nome);
                           }}
                           title="Remover vínculo"
-                          className="rounded px-1 text-[10px] text-fg-faint hover:text-red-300"
+                          className="rounded px-1 text-[10px] text-fg-dim hover:text-danger"
                         >
                           ✕
                         </button>
@@ -1154,7 +1156,7 @@ export function PainelClienteEscritorio({
                   </div>
 
                   {temDm && ct.ultimaPreview && (
-                    <p className="mt-1 truncate pl-5 text-[10px] text-fg-faint">
+                    <p className="mt-1 truncate pl-5 text-[10.5px] text-fg-dim">
                       {ct.ultimaPreview}
                     </p>
                   )}
@@ -1165,11 +1167,11 @@ export function PainelClienteEscritorio({
         </div>
 
         {/* Resumo de contrato / uso 30d */}
-        <div className="rounded-lg border border-line bg-elevated p-3">
-          <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-fg-faint">
+        <div className="rounded-lg border border-line bg-surface-2 p-3">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-fg-dim">
             <span>Contrato &amp; Uso (30d)</span>
             {valorMensal != null && (
-              <span className="font-mono text-[12px] font-semibold text-fg">
+              <span className="font-mono text-[12px] font-bold text-fg">
                 {BRL.format(valorMensal)}/mês
               </span>
             )}
@@ -1179,7 +1181,7 @@ export function PainelClienteEscritorio({
             <MedidorUso valor={cliente.msgsCliente30d} limite={cliente.limite} compacto />
           </div>
 
-          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-fg-dim">
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium text-fg-dim">
             <span>
               Total histórico: <strong className="font-mono text-fg">{cliente.mensagens}</strong>{' '}
               msgs
@@ -1196,7 +1198,7 @@ export function PainelClienteEscritorio({
               {cliente.etiquetas.map((et) => (
                 <span
                   key={et}
-                  className="rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] font-medium text-fg-dim"
+                  className="rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-fg-dim"
                 >
                   {et}
                 </span>
@@ -1207,11 +1209,11 @@ export function PainelClienteEscritorio({
 
         {/* Sinais do dia se houver */}
         {cliente.sinais.length > 0 && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-300">
+          <div className="rounded-lg border border-warn-mark/40 bg-warn-bg p-3">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-warn">
               Sinais de Atenção ({cliente.sinais.length})
             </div>
-            <ul className="mt-1.5 space-y-1 text-[12px] text-fg">
+            <ul className="mt-1.5 space-y-1 text-[12px] font-medium text-fg">
               {cliente.sinais.map((s) => (
                 <li key={s} className="leading-snug">
                   • {s}
@@ -1222,8 +1224,8 @@ export function PainelClienteEscritorio({
         )}
 
         {/* Notas rápidas do cliente */}
-        <div className="rounded-lg border border-line bg-elevated p-3">
-          <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-fg-faint">
+        <div className="rounded-lg border border-line bg-surface-2 p-3">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-fg-dim">
             <span>Nota interna (CRM)</span>
             {nota !== notaInicial && (
               <button
@@ -1241,14 +1243,14 @@ export function PainelClienteEscritorio({
             onChange={(e) => setNota(e.target.value)}
             rows={2}
             placeholder="Anotações sobre contrato, combinado ou pendência..."
-            className="mt-1.5 w-full resize-none rounded border border-line bg-surface px-2 py-1.5 text-[12px] text-fg placeholder:text-fg-faint focus:outline-none"
+            className="mt-1.5 w-full resize-none rounded border border-line bg-surface px-2 py-1.5 text-[12px] text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none"
           />
         </div>
 
         {/* Últimas mensagens do WhatsApp */}
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="truncate text-[11px] font-medium uppercase tracking-wider text-fg-faint">
+            <span className="truncate text-[11px] font-bold uppercase tracking-wider text-fg-dim">
               {contatoCanalAtivo
                 ? `💬 Mensagens DM: ${contatoCanalAtivo.nome}`
                 : '👥 Últimas mensagens no Grupo'}
@@ -1257,21 +1259,23 @@ export function PainelClienteEscritorio({
               <button
                 type="button"
                 onClick={() => selecionarCanal(null)}
-                className="shrink-0 rounded border border-line bg-elevated px-1.5 py-0.5 text-[10px] text-fg-dim hover:text-fg"
+                className="shrink-0 rounded border border-line bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-fg-dim hover:text-fg"
               >
                 ← Voltar ao grupo
               </button>
             ) : (
-              <span className="shrink-0 font-mono text-[10px] text-fg-faint">Somente leitura</span>
+              <span className="shrink-0 font-mono text-[10px] font-medium text-fg-dim">
+                Somente leitura
+              </span>
             )}
           </div>
 
           {carregandoMsgs ? (
-            <div className="rounded-lg border border-line bg-elevated p-4 text-center text-[12px] text-fg-faint">
+            <div className="rounded-lg border border-line bg-surface-2 p-4 text-center text-[12px] font-medium text-fg-dim">
               Carregando histórico…
             </div>
           ) : mensagens.length === 0 ? (
-            <div className="rounded-lg border border-line bg-elevated p-4 text-center text-[12px] text-fg-faint">
+            <div className="rounded-lg border border-line bg-surface-2 p-4 text-center text-[12px] font-medium text-fg-dim">
               Nenhuma mensagem recente.
             </div>
           ) : (
@@ -1283,12 +1287,12 @@ export function PainelClienteEscritorio({
                     key={m.id}
                     className={`rounded-lg border px-3 py-2 text-[12px] ${
                       ehMinha
-                        ? 'ml-4 border-blue-500/25 bg-blue-500/10 text-fg'
-                        : 'mr-4 border-line bg-elevated text-fg'
+                        ? 'ml-4 border-accent-line bg-accent-soft text-fg'
+                        : 'mr-4 border-line bg-surface-2 text-fg'
                     }`}
                   >
-                    <div className="mb-0.5 flex items-center justify-between gap-2 text-[10px] text-fg-faint">
-                      <span className="truncate font-semibold text-fg-dim">
+                    <div className="mb-0.5 flex items-center justify-between gap-2 text-[10.5px] text-fg-dim">
+                      <span className="truncate font-bold text-fg">
                         {ehMinha ? 'Você' : m.senderName || 'Cliente'}
                       </span>
                       <div className="flex shrink-0 items-center gap-1.5">
@@ -1302,20 +1306,20 @@ export function PainelClienteEscritorio({
                               setAbaAtiva('orca');
                             }}
                             title="Encaminhar esta mensagem do cliente para o Agente no Orca"
-                            className="rounded border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.2 text-[9px] font-semibold text-emerald-300 hover:bg-emerald-500/25"
+                            className="rounded border border-ok/40 bg-ok-bg px-1.5 py-0.5 text-[9.5px] font-bold text-ok hover:opacity-90"
                           >
                             🐋 Mandar pro Agente
                           </button>
                         )}
-                        <span className="font-mono">{instanteLongo(m.timestamp)}</span>
+                        <span className="font-mono font-medium">{instanteLongo(m.timestamp)}</span>
                       </div>
                     </div>
                     {m.quotedText && (
-                      <div className="mb-1 truncate border-l-2 border-line pl-2 text-[11px] italic text-fg-faint">
+                      <div className="mb-1 truncate border-l-2 border-line-2 pl-2 text-[11px] italic text-fg-dim">
                         {m.quotedText}
                       </div>
                     )}
-                    <p className="whitespace-pre-wrap break-words leading-relaxed">
+                    <p className="whitespace-pre-wrap break-words leading-relaxed text-fg">
                       {m.type !== 'text' && !m.text
                         ? `[${m.type}]`
                         : m.type !== 'text'
