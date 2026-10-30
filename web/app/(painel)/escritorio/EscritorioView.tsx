@@ -269,6 +269,9 @@ export function EscritorioView({
     [],
   );
 
+  // Estável: o popover registra listeners de teclado/clique a partir dele.
+  const fecharOrcaStatus = useCallback(() => setMostrarOrcaStatus(false), []);
+
   const refreshOrca = useCallback(async () => {
     try {
       const res = await fetch('/api/escritorio/orca?info=1', { cache: 'no-store' });
@@ -1372,8 +1375,8 @@ export function EscritorioView({
                   <OrcaStatusPanel
                     snapshot={orcaSnapshot}
                     info={orcaInfo}
-                    onClose={() => setMostrarOrcaStatus(false)}
-                    onRefresh={() => void refreshOrca()}
+                    onClose={fecharOrcaStatus}
+                    onRefresh={refreshOrca}
                   />
                 )}
               </div>

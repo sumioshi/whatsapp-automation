@@ -83,9 +83,12 @@ export function OrcaStatusPanel({ snapshot, info, onClose, onRefresh }: OrcaStat
   // Foco inicial no título; Esc e clique fora fecham.
   useEffect(() => {
     tituloRef.current?.focus();
+    // Captura: o Esc fecha só o popover e não chega ao atalho global da tela
+    // (que fecharia a gaveta junto).
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        e.stopPropagation();
+        e.stopImmediatePropagation();
+        e.preventDefault();
         onClose();
       }
     };
@@ -97,10 +100,10 @@ export function OrcaStatusPanel({ snapshot, info, onClose, onRefresh }: OrcaStat
         onClose();
       }
     };
-    window.addEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
     document.addEventListener('mousedown', onPointer);
     return () => {
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
       document.removeEventListener('mousedown', onPointer);
     };
   }, [onClose]);
