@@ -9,6 +9,7 @@ import {
   BUTTON_RADIUS_ZOOM_FACTOR,
   CHARACTER_SITTING_OFFSET_PX,
   CHARACTER_Z_SORT_OFFSET,
+  REACAO_ALERTA_DURATION_SEC,
   DELETE_BUTTON_BG,
   FALLBACK_FLOOR_COLOR,
   GHOST_BORDER_HOVER_FILL,
@@ -49,7 +50,7 @@ import type {
 import { CharacterState, TILE_SIZE, TileType } from '../types';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles';
 import { renderAiofficeArchitecture } from './aiofficeArchitecture';
-import { getCharacterSprite } from './characters';
+import { getCharacterSprite, offsetPuloPx } from './characters';
 import { renderMatrixEffect } from './matrixEffect';
 import { renderWorldAtmosphereAndTraffic, renderWorldScenery } from './worldScenery';
 
@@ -138,9 +139,12 @@ export function renderScene(
     const cached = getCachedSprite(spriteData, zoom);
     // Sitting offset: shift character down when seated so they visually sit in the chair
     const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
-    // Anchor at bottom-center of character — round to integer device pixels
+    // Anchor at bottom-center of character — round to integer device pixels.
+    // Reaction jump only shifts the drawing, never the tile position.
     const drawX = Math.round(offsetX + ch.x * zoom - cached.width / 2);
-    const drawY = Math.round(offsetY + (ch.y + sittingOffset) * zoom - cached.height);
+    const drawY = Math.round(
+      offsetY + (ch.y + sittingOffset + offsetPuloPx(ch)) * zoom - cached.height,
+    );
 
     // Sort characters by bottom of their tile (not center) so they render
     // in front of same-row furniture (e.g. chairs) but behind furniture
@@ -593,6 +597,46 @@ export function renderBubbles(
     ctx.save();
     if (alpha < 1.0) ctx.globalAlpha = alpha;
     ctx.drawImage(cached, bubbleX, bubbleY);
+    ctx.restore();
+  }
+  renderReacaoMensagem(ctx, characters, offsetX, offsetY, zoom);
+}
+
+/**
+ * Marcador "!" vermelho acima da cabeça enquanto a reação a mensagem nova
+ * dura; acompanha o pulo e some com um fade curto no fim.
+ */
+function renderReacaoMensagem(
+  ctx: CanvasRenderingContext2D,
+  characters: Character[],
+  offsetX: number,
+  offsetY: number,
+  zoom: number,
+): void {
+  for (const ch of characters) {
+    const r = ch.reacaoMensagem;
+    if (!r || ch.matrixEffect === 'despawn') continue;
+
+    const restante = REACAO_ALERTA_DURATION_SEC - r.timer;
+    const alpha = restante < BUBBLE_FADE_DURATION_SEC ? Math.max(0, restante / BUBBLE_FADE_DURATION_SEC) : 1;
+    const sittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
+    const topo = ch.y + sittingOff + offsetPuloPx(ch) - BUBBLE_VERTICAL_OFFSET_PX;
+    const cx = Math.round(offsetX + ch.x * zoom);
+    const baseY = Math.round(offsetY + topo * zoom);
+
+    // "!" em pixel-art: haste 2×5 e ponto 2×2, com contorno escuro de 1 px
+    const px = Math.max(1, Math.round(zoom));
+    const haste = { x: cx - px, y: baseY - 9 * px, w: 2 * px, h: 5 * px };
+    const ponto = { x: cx - px, y: baseY - 3 * px, w: 2 * px, h: 2 * px };
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = 'rgba(20, 8, 10, 0.9)';
+    ctx.fillRect(haste.x - px, haste.y - px, haste.w + 2 * px, haste.h + 2 * px);
+    ctx.fillRect(ponto.x - px, ponto.y - px, ponto.w + 2 * px, ponto.h + 2 * px);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(haste.x, haste.y, haste.w, haste.h);
+    ctx.fillRect(ponto.x, ponto.y, ponto.w, ponto.h);
     ctx.restore();
   }
 }

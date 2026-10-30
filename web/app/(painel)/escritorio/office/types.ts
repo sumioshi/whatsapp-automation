@@ -203,4 +203,9 @@ export interface Character {
   autoRun: boolean;
   /** Floating tool name speech bubble shown when a tool executes; auto-dismisses */
   toolBubble: { text: string; timer: number } | null;
+  /**
+   * Reação a mensagem nova: `timer` conta de 0 até o fim do alerta; `pular`
+   * desligado quando o usuário prefere menos movimento (fica só o "!").
+   */
+  reacaoMensagem: { timer: number; pular: boolean } | null;
 }

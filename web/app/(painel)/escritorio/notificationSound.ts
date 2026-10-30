@@ -85,6 +85,44 @@ export async function playKeyClickSound(): Promise<void> {
   }
 }
 
+/**
+ * Mensagem nova de cliente: três notas curtas e baixas (G5 → C6 → E6, ~200 ms),
+ * distinta do chime de transição (`playDoneSound`) pra tocar a cada mensagem
+ * sem cansar.
+ */
+export async function playIncomingMessageSound(): Promise<void> {
+  if (!soundEnabled) return;
+  try {
+    if (!audioCtx) {
+      audioCtx = new AudioContext();
+    }
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+    }
+    const notas = [783.99, 1046.5, 1318.51]; // G5, C6, E6
+    notas.forEach((freq, idx) => {
+      if (!audioCtx) return;
+      const t = audioCtx.currentTime + idx * 0.055;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+
+      gain.gain.setValueAtTime(0.06, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(t);
+      osc.stop(t + 0.09);
+    });
+  } catch {
+    // ignore
+  }
+}
+
 /** Alerta retrô 8-bit de prioridade alta (arpejo clássico) */
 export async function playUrgentAlertSound(): Promise<void> {
   if (!soundEnabled) return;

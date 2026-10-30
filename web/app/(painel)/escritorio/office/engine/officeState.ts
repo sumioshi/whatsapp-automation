@@ -10,6 +10,7 @@ import {
   INACTIVE_SEAT_TIMER_MIN_SEC,
   INACTIVE_SEAT_TIMER_RANGE_SEC,
   PALETTE_COUNT,
+  REACAO_ALERTA_DURATION_SEC,
   TOOL_BUBBLE_DURATION_SEC,
   WAITING_BUBBLE_DURATION_SEC,
 } from '../../constants';
@@ -43,6 +44,15 @@ export const PLAYER_ID = -9998;
 /** Palettes reserved for leader and player — AI agents never receive these */
 const LEADER_PALETTE = 0;
 const PLAYER_PALETTE = 5;
+
+/** `prefers-reduced-motion` do usuário; fora do browser (testes) vale false. */
+function prefereMenosMovimento(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
 
 export class OfficeState {
   layout: OfficeLayout;
@@ -845,6 +855,17 @@ export class OfficeState {
     if (ch) ch.toolBubble = { text, timer: TOOL_BUBBLE_DURATION_SEC };
   }
 
+  /**
+   * Reação a mensagem nova de cliente: o NPC dá dois quiques e mostra um "!"
+   * acima da cabeça por alguns segundos. Não mexe no estado (sentado continua
+   * sentado, pulo só vertical). Com `prefers-reduced-motion`, só o "!".
+   */
+  reagirMensagem(id: number): void {
+    const ch = this.characters.get(id);
+    if (!ch || ch.matrixEffect === 'despawn') return;
+    ch.reacaoMensagem = { timer: 0, pular: !prefereMenosMovimento() };
+  }
+
   update(dt: number): void {
     const toDelete: number[] = [];
     for (const ch of this.characters.values()) {
@@ -889,6 +910,12 @@ export class OfficeState {
       if (ch.toolBubble) {
         ch.toolBubble.timer -= dt;
         if (ch.toolBubble.timer <= 0) ch.toolBubble = null;
+      }
+
+      // Tick reaction to incoming message (jump + "!" marker)
+      if (ch.reacaoMensagem) {
+        ch.reacaoMensagem.timer += dt;
+        if (ch.reacaoMensagem.timer >= REACAO_ALERTA_DURATION_SEC) ch.reacaoMensagem = null;
       }
     }
     // Remove characters that finished despawn

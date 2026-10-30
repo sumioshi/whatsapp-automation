@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { PresenceView } from '@/lib/presence';
 import { CHARACTER_SITTING_OFFSET_PX } from '../constants';
+import { offsetPuloPx } from '../office/engine/characters';
 import type { OfficeState } from '../office/engine/officeState';
 import { CharacterState, TILE_SIZE } from '../office/types';
 
@@ -16,6 +17,8 @@ export interface ChatBubbleInfo {
   waitingMs?: number;
   urgente?: boolean;
   presenca?: PresenceView;
+  /** Mensagem recém-chegada: balão em destaque até `ate` (epoch ms), depois volta ao normal */
+  flash?: { autor?: string; texto: string; ate: number };
 }
 
 interface ChatBubblesOverlayProps {
@@ -67,9 +70,19 @@ export function ChatBubblesOverlay({
 
   const selectedId = officeState.selectedAgentId;
   const hoveredId = officeState.hoveredAgentId;
+  const agora = Date.now();
+  const flashAtivo = (b: ChatBubbleInfo) => Boolean(b.flash && b.flash.ate > agora);
+
+  // Um único anúncio pro leitor de tela com as mensagens recém-chegadas (não um por NPC)
+  const anuncios = Object.values(bubbles)
+    .filter(flashAtivo)
+    .map((b) => `${b.nome}: ${b.flash?.autor ? `${b.flash.autor}: ` : ''}${b.flash?.texto}`);
 
   return (
     <>
+      <div aria-live="polite" className="sr-only">
+        {anuncios.join('. ')}
+      </div>
       {Object.entries(bubbles).map(([idStr, b]) => {
         const id = Number(idStr);
         const ch = officeState.characters.get(id);
@@ -77,7 +90,8 @@ export function ChatBubblesOverlay({
 
         const isTyping = b.presenca?.status === 'typing';
         const isRecording = b.presenca?.status === 'recording';
-        const hasText = Boolean(b.texto && b.texto.trim().length > 0);
+        const isFlash = flashAtivo(b);
+        const hasText = isFlash || Boolean(b.texto && b.texto.trim().length > 0);
         const isSelected = selectedId === id;
         const isHovered = hoveredId === id;
         const isAguardando = Boolean(b.aguardando);
@@ -86,8 +100,9 @@ export function ChatBubblesOverlay({
         // 1. Cliente está aguardando resposta (balão vermelho de alerta fica visível até responder!)
         // 2. Cliente está digitando ou gravando áudio agora
         // 3. Cliente está selecionado (clicado) ou com cursor em cima (hover)
+        // 4. Acabou de chegar mensagem (flash em destaque por alguns segundos)
         const deveExibir =
-          (isAguardando || isTyping || isRecording || isSelected || isHovered) &&
+          (isAguardando || isTyping || isRecording || isSelected || isHovered || isFlash) &&
           (isTyping || isRecording || hasText);
 
         if (!deveExibir) return null;
@@ -95,13 +110,14 @@ export function ChatBubblesOverlay({
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
         // Posicionado logo acima do nome do personagem
-        const screenY = (deviceOffsetY + (ch.y + sittingOffset - 24) * zoom) / dpr - (isMobile ? 36 : 46);
+        const screenY = (deviceOffsetY + (ch.y + sittingOffset + offsetPuloPx(ch) - 24) * zoom) / dpr - (isMobile ? 36 : 46);
 
-        const isUrgente = b.urgente ?? false;
+        const isUrgente = isFlash || (b.urgente ?? false);
+        const autor = isFlash ? b.flash?.autor : b.autor;
 
         // Limita o texto do balão
         const maxLen = isMobile ? 32 : 55;
-        let preview = b.texto ?? '';
+        let preview = (isFlash ? b.flash?.texto : b.texto) ?? '';
         if (preview.length > maxLen) {
           preview = `${preview.slice(0, maxLen).trim()}…`;
         }
@@ -135,7 +151,8 @@ export function ChatBubblesOverlay({
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              animation: 'fadeIn 0.2s ease-out',
+              // Mensagem recém-chegada entra com um pop curto; o resto só aparece
+              animation: isFlash ? 'pop-in 220ms var(--ease-out-quint) both' : 'fadeIn 0.2s ease-out',
             }}
           >
             {/* Caixa do Balão Pixel-Art */}
@@ -147,15 +164,19 @@ export function ChatBubblesOverlay({
                   : isSelected
                     ? 'rgba(24, 30, 48, 0.97)'
                     : 'rgba(15, 18, 28, 0.94)',
-                border: isUrgente
-                  ? '1.5px solid #f87171'
+                border: isFlash
+                  ? '2px solid #fca5a5'
+                  : isUrgente
+                    ? '1.5px solid #f87171'
                   : isSelected
                     ? '1.5px solid #60a5fa'
                     : '1px solid rgba(255, 255, 255, 0.22)',
                 borderRadius: 4,
                 padding: '3px 8px',
-                boxShadow: isUrgente
-                  ? '0 0 10px rgba(239, 68, 68, 0.4), 0 3px 8px rgba(0,0,0,0.6)'
+                boxShadow: isFlash
+                  ? '0 0 0 2px rgba(239, 68, 68, 0.35), 0 0 16px rgba(239, 68, 68, 0.55), 0 3px 8px rgba(0,0,0,0.6)'
+                  : isUrgente
+                    ? '0 0 10px rgba(239, 68, 68, 0.4), 0 3px 8px rgba(0,0,0,0.6)'
                   : '0 3px 8px rgba(0,0,0,0.5)',
                 maxWidth: isMobile ? 180 : 260,
                 display: 'flex',
@@ -175,7 +196,7 @@ export function ChatBubblesOverlay({
                 </span>
               ) : (
                 <div className="flex flex-col text-left">
-                  {b.autor && (
+                  {autor && (
                     <span
                       style={{
                         fontSize: '9px',
@@ -184,7 +205,7 @@ export function ChatBubblesOverlay({
                         lineHeight: 1.1,
                       }}
                     >
-                      {b.autor}
+                      {autor}
                     </span>
                   )}
                   <span

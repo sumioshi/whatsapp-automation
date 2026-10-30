@@ -1,4 +1,6 @@
 import {
+  REACAO_PULO_ALTURA_PX,
+  REACAO_PULO_DURATION_SEC,
   RUN_FRAME_DURATION_SEC,
   RUN_SPEED_PX_PER_SEC,
   SEAT_REST_MAX_SEC,
@@ -89,7 +91,19 @@ export function createCharacter(
     isPlayerControlled: false,
     autoRun: false,
     toolBubble: null,
+    reacaoMensagem: null,
   };
+}
+
+/**
+ * Deslocamento vertical (px do mundo, negativo = pra cima) do pulo de reação
+ * a mensagem nova: dois quiques em arco, parados pra quem prefere menos movimento.
+ */
+export function offsetPuloPx(ch: Character): number {
+  const r = ch.reacaoMensagem;
+  if (!r || !r.pular || r.timer >= REACAO_PULO_DURATION_SEC) return 0;
+  const fase = (r.timer / REACAO_PULO_DURATION_SEC) * 2; // 2 quiques
+  return -Math.abs(Math.sin(fase * Math.PI)) * REACAO_PULO_ALTURA_PX;
 }
 
 export function updateCharacter(
