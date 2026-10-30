@@ -112,3 +112,6 @@ bloco); **`citacao`/`citacao_de`** (reply — o texto citado e quem mandou).
 - Gerenciador: **npm** (NUNCA pnpm — quebra o node_modules). Subir tudo local: `npm run dev`.
 - Testes: `npm test` (vitest). Deploy da nuvem: `railway up --service coletor --detach`
   (merge na main NÃO redeploya sozinho).
+- Escritório 2D (`/escritorio`): planta `50×36` multi-salas (`scripts/gerar-escritorio-modern-loft.cjs`),
+  bundle de sprites em `web/public/assets/office-sprites-bundle.json` (`scripts/bake-aioffice-sprites.cjs`)
+  e ponte com agentes do Orca (`npm run orca-bridge` para sincronizar o Orca local com o painel na nuvem).

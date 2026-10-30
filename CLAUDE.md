@@ -286,3 +286,22 @@ Três camadas mantêm o projeto em dia:
 - **Vigia no radar do coletor:** uma vez por dia checa a `master` do Baileys e o dist-tag do npm e
   manda resumo no self-chat do operador. Config em `radar.config.json`: `upstreamAtivo`
   (default true) e `upstreamIntervaloH` (default 24). Estado em `.radar-status.json` → `upstream`.
+
+## Escritório 2D (`/escritorio`) e Ponte Orca
+
+`/escritorio` (`web/app/(painel)/escritorio/`) exibe os projetos/clientes num escritório pixel-art
+multi-salas (`50×36` tiles, 28 baias fixas `chair-ws-1..28`, layout default gerado por
+`scripts/gerar-escritorio-modern-loft.cjs` e sprites em `web/public/assets/office-sprites-bundle.json`)
+e em modo Organograma:
+
+- **Alerta vermelho imediato em tempo real:** a tela assina `GET /api/events?todos=1&ocultar=coletor`
+  via SSE. Qualquer mensagem de cliente sem resposta (no grupo OU em DM vinculada: `aguardando || dmsAguardando > 0`)
+  deixa o ponto, o rótulo e o balão do NPC **imediatamente vermelhos e pulsantes**, sem esperar o SLA de 4 h.
+- **Avatar do operador (`Você`, `PLAYER_ID = -2`):** anda com `WASD`/Setas (`Shift` corre) ou clique no chão;
+  `LEADER_ID = -1` é a Recepção fixa.
+- **Contatos e DMs por projeto:** `web/lib/escritorio-estado.ts` agrega participantes do grupo +
+  contatos vinculados em `links.json` e cruza com chats `dm-*`.
+- **Ponte Orca (`web/lib/orca-bridge.ts`, `/api/escritorio/orca`):** na gaveta do cliente, a aba
+  **Agente Orca** mostra os terminais/agentes abertos naquele repositório no Orca (`onorca.dev`),
+  lê a tela TUI ao vivo e envia prompts. Localmente chama a CLI do Orca direto; para alimentar o
+  painel na nuvem (Railway), rode `npm run orca-bridge` (`scripts/orca-bridge-daemon.cjs --watch`) no Mac.
