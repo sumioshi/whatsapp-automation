@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  colunasParaTela,
   filtrarWatchValido,
   hashTela,
+  larguraVisual,
   intervaloRelay,
   LIMPAR_TELA_XTERM,
   mapearTeclasParaCli,
@@ -41,6 +43,20 @@ describe('montarFrameXterm', () => {
   it('não deixa quebra de linha embutida desalinhar as linhas', () => {
     const frame = montarFrameXterm(['a\nb']);
     expect(frame).not.toContain('\n');
+  });
+});
+
+describe('larguraVisual / colunasParaTela', () => {
+  it('conta emoji e CJK como duas células e ignora seletores de variação', () => {
+    expect(larguraVisual('abc')).toBe(3);
+    expect(larguraVisual('🖥️')).toBe(2);
+    expect(larguraVisual('日本')).toBe(4);
+  });
+
+  it('usa a maior linha quando ela passa das colunas disponíveis', () => {
+    expect(colunasParaTela(['curta', 'x'.repeat(120)], 80)).toBe(120);
+    expect(colunasParaTela(['curta'], 80)).toBe(80);
+    expect(colunasParaTela([], 0)).toBe(1);
   });
 });
 

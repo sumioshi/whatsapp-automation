@@ -41,6 +41,31 @@ export function montarFrameXterm(tail: string[]): string {
   return `${LIMPAR_TELA_XTERM}${linhas.join('\r\n')}`;
 }
 
+// Faixas que ocupam duas células no terminal (CJK, emoji, símbolos largos) e
+// marcas combinantes/seletores de variação, que não ocupam nenhuma.
+const LARGO = /[ᄀ-ᅟ⺀-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦\u{1f300}-\u{1faff}\u{20000}-\u{3fffd}]/u;
+const INVISIVEL = /[̀-ͯ​-‍︀-️]/u;
+
+/** Largura em células de uma linha, como o terminal a renderiza. */
+export function larguraVisual(linha: string): number {
+  let n = 0;
+  for (const ch of linha) {
+    if (INVISIVEL.test(ch)) continue;
+    n += LARGO.test(ch) ? 2 : 1;
+  }
+  return n;
+}
+
+/**
+ * Colunas que o xterm precisa ter para nenhuma linha da tela quebrar: a tela
+ * do Orca vem de um terminal largo e quebrá-la na gaveta estreita embaralha a
+ * TUI; melhor manter a largura real e rolar na horizontal.
+ */
+export function colunasParaTela(tail: string[], colunasDisponiveis: number): number {
+  const maior = tail.reduce((m, l) => Math.max(m, larguraVisual(l)), 0);
+  return Math.max(Math.max(1, colunasDisponiveis), maior);
+}
+
 export interface PlanoEnvioTecla {
   tipo: 'texto' | 'interrupt';
   /** Argumentos para `orca terminal send --terminal <handle> ...` (sem o handle). */
