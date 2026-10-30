@@ -76,7 +76,8 @@ export interface OrcaHostInfo {
 export interface OrcaEnvironmentInfo {
   id: string;
   label: string;
-  [extra: string]: unknown;
+  kind: string | null;
+  connected: boolean | null;
 }
 
 /** Linha compacta de worktree, para o vínculo manual slug -> pasta na UI. */
@@ -306,13 +307,19 @@ interface OrcaMeta {
 let metaCache: { ts: number; data: OrcaMeta } | null = null;
 const META_CACHE_TTL_MS = 30_000;
 
+// Só o que a tela precisa: o registro do ambiente pode trazer URL e credencial do
+// pareamento, e o snapshot viaja para a nuvem e para o navegador.
 function normalizeEnvironment(raw: unknown): OrcaEnvironmentInfo | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
   const id = String(r.id ?? r.environmentId ?? r.name ?? '').trim();
   if (!id) return null;
-  const label = String(r.name ?? r.label ?? id);
-  return { ...r, id, label };
+  return {
+    id,
+    label: String(r.name ?? r.label ?? id),
+    kind: typeof r.kind === 'string' ? r.kind : null,
+    connected: typeof r.connected === 'boolean' ? r.connected : null,
+  };
 }
 
 async function readOrcaMeta(forceFresh = false): Promise<OrcaMeta> {
@@ -359,6 +366,13 @@ async function readOrcaMeta(forceFresh = false): Promise<OrcaMeta> {
 
 // Cache rápido em memória para chamadas ao CLI local (evita múltiplos spawns simultâneos)
 let localSnapshotCache: { ts: number; data: OrcaSnapshot } | null = null;
+// Todos os caminhos de worktree vistos no último `worktree ps` (sem o teto da lista compacta).
+let knownWorktreePaths = new Set<string>();
+
+async function worktreePathConhecido(path: string): Promise<boolean> {
+  if (knownWorktreePaths.size === 0) await readLocalOrcaSnapshot();
+  return knownWorktreePaths.has(path);
+}
 const LOCAL_CACHE_TTL_MS = 2500;
 const ALL_WORKTREES_LIMIT = 200;
 
@@ -390,6 +404,7 @@ export async function readLocalOrcaSnapshot(forceFresh = false): Promise<OrcaSna
 
   const worktrees = psRes.result.worktrees;
   const terminals = termRes?.result?.terminals ?? [];
+  knownWorktreePaths = new Set(worktrees.map((w) => w.path));
 
   // Mapa paneKey ("tabId:leafId") -> terminal
   const termByPaneKey = new Map<string, RawOrcaTerminal>();
@@ -778,6 +793,15 @@ export async function executeLocalOrcaCommand(
           error: 'worktreePath obrigatório para iniciar agente.',
         };
       }
+      // O caminho vira argumento da CLI: só worktrees que o Orca conhece.
+      if (!(await worktreePathConhecido(cmd.worktreePath))) {
+        return {
+          id: cmd.id,
+          ok: false,
+          completedAt: nowIso,
+          error: 'worktreePath não é um worktree registrado no Orca desta máquina.',
+        };
+      }
       const agentId = cmd.agentType || 'claude';
       const args = [
         'agent',
@@ -933,20 +957,45 @@ export async function saveSyncedOrcaSnapshot(snapshot: OrcaSnapshot): Promise<vo
 }
 
 /**
- * Comandos que carregam segredo (pairing code) nunca vão para o arquivo da fila: ficam
- * só na memória deste processo até o relay buscá-los no próximo `sync_push`.
+ * Comandos cujo payload não pode ir para o arquivo da fila (pairing code, teclas
+ * digitadas no terminal) ficam só na memória deste processo até o relay buscá-los no
+ * próximo `sync_push`. Teclas chegam em lotes de dezenas de ms, por isso o teto é alto.
  */
 const volatilePending: OrcaPendingCommand[] = [];
+const VOLATILE_MAX = 400;
 
 export function enqueueVolatileOrcaCommand(cmd: OrcaPendingCommand): OrcaPendingCommand {
   volatilePending.push(cmd);
-  if (volatilePending.length > 10) volatilePending.splice(0, volatilePending.length - 10);
+  if (volatilePending.length > VOLATILE_MAX) {
+    volatilePending.splice(0, volatilePending.length - VOLATILE_MAX);
+  }
   return cmd;
 }
 
 /** Ações cujo payload não pode ser persistido em disco. */
 export function isSecretOrcaAction(acao: OrcaPendingCommand['acao']): boolean {
-  return acao === 'parear_ambiente';
+  return acao === 'parear_ambiente' || acao === 'enviar_teclas';
+}
+
+/**
+ * Comando parado na fila além disso não executa mais: o Mac pode ter ficado horas
+ * offline e um prompt ou tecla velha não deve disparar quando ele religa.
+ */
+export const COMANDO_VALIDADE_MS = 3 * 60_000;
+
+export function comandoExpirado(cmd: OrcaPendingCommand, agora = Date.now()): boolean {
+  const ts = Date.parse(cmd.createdAt);
+  return !Number.isFinite(ts) || agora - ts > COMANDO_VALIDADE_MS;
+}
+
+// Leitura-modificação-gravação da fila é serializada: dois pedidos simultâneos
+// (teclas em lote e o sync_push) não podem se sobrescrever.
+let filaLock: Promise<unknown> = Promise.resolve();
+
+function comFilaSerializada<T>(fn: () => Promise<T>): Promise<T> {
+  const resultado = filaLock.then(fn, fn);
+  filaLock = resultado.catch(() => undefined);
+  return resultado;
 }
 
 export async function readRemoteQueue(): Promise<OrcaRemoteQueueFile> {
@@ -962,25 +1011,45 @@ export async function readRemoteQueue(): Promise<OrcaRemoteQueueFile> {
   }
 }
 
-export async function enqueueRemoteOrcaCommand(
-  cmd: OrcaPendingCommand,
-): Promise<OrcaPendingCommand> {
-  const queue = await readRemoteQueue();
-  queue.pending.push(cmd);
-  // Mantém no máximo 30 pendentes
-  if (queue.pending.length > 30) {
-    queue.pending = queue.pending.slice(-30);
-  }
-  await writeJsonAtomic(ORCA_QUEUE_FILE(), queue);
-  return cmd;
+export function enqueueRemoteOrcaCommand(cmd: OrcaPendingCommand): Promise<OrcaPendingCommand> {
+  return comFilaSerializada(async () => {
+    const queue = await readRemoteQueue();
+    queue.pending.push(cmd);
+    // Mantém no máximo 30 pendentes
+    if (queue.pending.length > 30) {
+      queue.pending = queue.pending.slice(-30);
+    }
+    await writeJsonAtomic(ORCA_QUEUE_FILE(), queue);
+    return cmd;
+  });
 }
 
-export async function consumePendingAndSaveResults(
+/**
+ * Entrega os comandos pendentes (arquivo + voláteis) ao relay e grava os resultados que
+ * ele trouxe. Comando expirado não é entregue: vira resultado `expirado` na hora.
+ */
+export function consumePendingAndSaveResults(
   completedResults?: OrcaCommandResult[],
 ): Promise<OrcaPendingCommand[]> {
-  const queue = await readRemoteQueue();
-  if (Array.isArray(completedResults) && completedResults.length > 0) {
-    for (const r of completedResults) {
+  return comFilaSerializada(async () => {
+    const queue = await readRemoteQueue();
+    const agora = Date.now();
+    const candidatos = [...queue.pending, ...volatilePending.splice(0)];
+    const toExecute: OrcaPendingCommand[] = [];
+    const resultados: OrcaCommandResult[] = Array.isArray(completedResults) ? [...completedResults] : [];
+    for (const cmd of candidatos) {
+      if (comandoExpirado(cmd, agora)) {
+        resultados.push({
+          id: cmd.id,
+          ok: false,
+          completedAt: new Date(agora).toISOString(),
+          error: 'expirado',
+        });
+      } else {
+        toExecute.push(cmd);
+      }
+    }
+    for (const r of resultados) {
       queue.results[r.id] = r;
     }
     // Limpa resultados antigos mantendo os últimos 50
@@ -990,11 +1059,10 @@ export async function consumePendingAndSaveResults(
         delete queue.results[k];
       }
     }
-  }
-  const toExecute = [...queue.pending, ...volatilePending.splice(0)];
-  queue.pending = [];
-  await writeJsonAtomic(ORCA_QUEUE_FILE(), queue);
-  return toExecute;
+    queue.pending = [];
+    await writeJsonAtomic(ORCA_QUEUE_FILE(), queue);
+    return toExecute;
+  });
 }
 
 function emptyOrcaSnapshot(): OrcaSnapshot {
