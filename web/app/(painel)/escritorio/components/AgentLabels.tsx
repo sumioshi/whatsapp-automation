@@ -145,7 +145,7 @@ export function AgentLabels({
             tabIndex={canClick ? 0 : undefined}
             aria-label={
               canClick
-                ? `${rawLabel}${meta?.subLabel ? `, aguardando há ${meta.subLabel}` : ''}`
+                ? `${rawLabel}${meta?.subLabel ? `, aguardando ${meta.subLabel}` : ''}`
                 : undefined
             }
             onClick={
