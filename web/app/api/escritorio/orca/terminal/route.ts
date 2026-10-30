@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { origemDoProprioSite } from '@/lib/http-origem';
 import {
   getOrcaBin,
   readLocalTerminalScreen,
@@ -28,8 +29,7 @@ export async function GET(req: Request) {
   // Só o próprio painel abre o stream: cada conexão custa um spawn da CLI por
   // segundo, e o painel local roda sem autenticação. `sec-fetch-site` ausente
   // (cliente não navegador, ex.: curl) passa.
-  const origemPedido = req.headers.get('sec-fetch-site');
-  if (origemPedido && origemPedido !== 'same-origin' && origemPedido !== 'none') {
+  if (!origemDoProprioSite(req.headers)) {
     return NextResponse.json({ error: 'Pedido de outro site recusado' }, { status: 403 });
   }
 
