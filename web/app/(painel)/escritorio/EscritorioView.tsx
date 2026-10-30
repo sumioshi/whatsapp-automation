@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ClienteEscritorio, DmDisponivelEscritorio } from '@/lib/escritorio-estado';
+import { FreioPorChat, interpretarEventoMensagem } from '@/lib/escritorio-notificacao';
 import type { OrcaSnapshot } from '@/lib/orca-bridge';
 import type { PresenceView } from '@/lib/presence';
 import { AMBIENT_STATIONS, type AmbientStation, getAmbientMusic } from './ambientMusic';
@@ -30,6 +31,7 @@ import {
 import {
   isSoundEnabled,
   playDoneSound,
+  playIncomingMessageSound,
   playKeyClickSound,
   playUrgentAlertSound,
   setSoundEnabled,
@@ -56,6 +58,20 @@ type FiltroEscopo = 'em_dev' | 'todos';
 type FiltroStatus = 'todos' | 'urgentes' | 'aguardando' | 'em_dia';
 
 const TOTAL_MESAS_ESCRITORIO = 28;
+
+/** Quanto tempo o balão de mensagem recém-chegada fica em destaque */
+const FLASH_BALAO_MS = 6_000;
+
+interface FlashBalao {
+  autor?: string;
+  texto: string;
+  ate: number;
+}
+
+/** Cliente com mensagem sem resposta, no grupo ou em DM vinculada */
+function temAguardando(c: ClienteEscritorio): boolean {
+  return c.aguardando || (c.dmsAguardando ?? 0) > 0;
+}
 
 function hashSlug(slug: string): number {
   let h = 2166136261;
@@ -105,6 +121,36 @@ export function EscritorioView({
 
   // Balões de fala flutuantes sobre os NPCs
   const [mostrarBaloes, setMostrarBaloes] = useState(true);
+
+  // Mensagem recém-chegada por slug de projeto: balão em destaque por alguns segundos,
+  // preenchido na hora pelo SSE (sem esperar o refresh do estado)
+  const [flashes, setFlashes] = useState<Record<string, FlashBalao>>({});
+  const flashTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const freioSomRef = useRef(new FreioPorChat());
+  // Último handler de mensagem nova, pra assinatura SSE não precisar reassinar a cada render
+  const aoReceberMensagemRef = useRef<(payload: unknown) => void>(() => {});
+  const clientesRef = useRef<ClienteEscritorio[]>(clientesIniciais);
+  useEffect(() => {
+    clientesRef.current = clientes;
+  }, [clientes]);
+  useEffect(() => {
+    const timers = flashTimersRef.current;
+    return () => {
+      for (const t of timers.values()) clearTimeout(t);
+      timers.clear();
+    };
+  }, []);
+
+  // Som só sai depois de um gesto do usuário (política dos navegadores): destrava uma vez
+  useEffect(() => {
+    const destravar = () => unlockAudio();
+    window.addEventListener('pointerdown', destravar, { once: true });
+    window.addEventListener('keydown', destravar, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', destravar);
+      window.removeEventListener('keydown', destravar);
+    };
+  }, []);
 
   // Decoração de Natal & Luzes Aconchegantes + Rádio Ambiente Lo-Fi / Campo / Natal
   const [natalAtivo, setNatalAtivo] = useState(true);
@@ -256,7 +302,12 @@ export function EscritorioView({
 
     try {
       es = new EventSource('/api/events?todos=1&ocultar=coletor');
-      es.addEventListener('message', () => {
+      es.addEventListener('message', (ev) => {
+        try {
+          aoReceberMensagemRef.current(JSON.parse((ev as MessageEvent).data));
+        } catch {
+          // payload fora do padrão: o refresh abaixo ainda atualiza o estado
+        }
         triggerInstantRefresh();
       });
       es.addEventListener('presence', (ev) => {
@@ -325,6 +376,48 @@ export function EscritorioView({
     slugToIdRef.current.set(slug, id);
     return id;
   }, []);
+
+  // Mensagem nova de cliente (grupo ou DM vinculada): balão em destaque, NPC reage e som toca,
+  // tudo na hora do evento. O refresh do estado cuida do vermelho e da ordenação em seguida.
+  const aoReceberMensagem = useCallback(
+    (payload: unknown) => {
+      const msg = interpretarEventoMensagem(payload, clientesRef.current);
+      if (!msg) return;
+      const { slugProjeto } = msg;
+      const ate = Date.now() + FLASH_BALAO_MS;
+
+      setFlashes((prev) => ({ ...prev, [slugProjeto]: { autor: msg.autor, texto: msg.previa, ate } }));
+      const timers = flashTimersRef.current;
+      const anterior = timers.get(slugProjeto);
+      if (anterior) clearTimeout(anterior);
+      timers.set(
+        slugProjeto,
+        setTimeout(() => {
+          timers.delete(slugProjeto);
+          setFlashes((prev) => {
+            if (prev[slugProjeto]?.ate !== ate) return prev;
+            const { [slugProjeto]: _removido, ...resto } = prev;
+            return resto;
+          });
+        }, FLASH_BALAO_MS),
+      );
+
+      getOfficeState().reagirMensagem(getIdForSlug(slugProjeto));
+
+      if (isSoundEnabled() && freioSomRef.current.permitir(slugProjeto)) {
+        const cli = clientesRef.current.find((c) => c.slug === slugProjeto);
+        if (cli && (cli.band === 'hot' || cli.band === 'warm')) {
+          void playUrgentAlertSound();
+        } else {
+          void playIncomingMessageSound();
+        }
+      }
+    },
+    [getIdForSlug, getOfficeState],
+  );
+  useEffect(() => {
+    aoReceberMensagemRef.current = aoReceberMensagem;
+  }, [aoReceberMensagem]);
 
   // Filtra e ordena clientes visíveis nas mesas do escritório
   const clientesVisiveis = useMemo(() => {
@@ -476,13 +569,13 @@ export function EscritorioView({
     [getOfficeState],
   );
 
-  // Controle de som retrô quando um cliente entra em aguardando ou urgência
+  // Controle de som retrô quando um cliente entra em aguardando (no grupo ou em DM vinculada)
   const prevAguardandoSlugsRef = useRef<Set<string>>(
-    new Set(clientesIniciais.filter((c) => c.aguardando).map((c) => c.slug)),
+    new Set(clientesIniciais.filter(temAguardando).map((c) => c.slug)),
   );
 
   useEffect(() => {
-    const currentSet = new Set(clientes.filter((c) => c.aguardando).map((c) => c.slug));
+    const currentSet = new Set(clientes.filter(temAguardando).map((c) => c.slug));
     let novoAguardando = false;
     let novoUrgente = false;
     for (const slug of currentSet) {
@@ -829,10 +922,11 @@ export function EscritorioView({
         waitingMs: c.aguardando ? c.waitingMs : (dmPendente?.waitingMs ?? 0),
         urgente: isUrgente,
         presenca: pres,
+        flash: flashes[c.slug],
       };
     }
     return result;
-  }, [clientesVisiveis, presencas, getIdForSlug]);
+  }, [clientesVisiveis, presencas, getIdForSlug, flashes]);
 
   const handleSelectAgent = useCallback(
     (id: number | null) => {
