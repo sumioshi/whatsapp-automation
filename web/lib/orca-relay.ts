@@ -1,7 +1,8 @@
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { cloudEnabled, cloudPost } from './cloud';
+import { type CloudDestino, cloudDestinoDoEnv, cloudPostTo } from './cloud';
 import {
   executeLocalOrcaCommand,
   getOrcaBin,
@@ -11,39 +12,68 @@ import {
   readLocalTerminalScreen,
 } from './orca-bridge';
 
-const LOCK_FILE = join(tmpdir(), 'wac-orca-remote-relay.lock');
 const LOCK_STALE_MS = 12_000;
 
 let relayStarted = false;
 const screenCache = new Map<string, { ts: number; tail: string[]; draft?: string | null }>();
 
-async function acquireOrRefreshLock(pid: number): Promise<boolean> {
+/** Um destino do relay: o coletor na nuvem que recebe o snapshot (e devolve comandos). */
+export type OrcaRelayDestino = CloudDestino & { rotulo?: string };
+
+/**
+ * Lock POR DESTINO: processos que sincronizam com coletores diferentes (business e
+ * pessoal, por exemplo) não disputam o mesmo arquivo. Nome derivado da URL.
+ */
+export function orcaRelayLockFile(destino: CloudDestino): string {
+  const hash = createHash('sha1').update(destino.url.replace(/\/+$/, '')).digest('hex').slice(0, 8);
+  return join(tmpdir(), `wac-orca-relay-${hash}.lock`);
+}
+
+/**
+ * Tenta ficar com o lock do destino. Lock de outro processo ainda fresco = recusa.
+ * Lock livre, velho ou já nosso = aceita. Só grava quando está tomando (livre/velho):
+ * a renovação é separada (`renewOrcaRelayLock`) e acontece apenas em ciclo bem-sucedido,
+ * para um dono travado não segurar o lock além de LOCK_STALE_MS.
+ */
+export async function acquireOrcaRelayLock(lockFile: string, pid: number): Promise<boolean> {
   const now = Date.now();
   try {
-    const raw = await readFile(LOCK_FILE, 'utf8');
+    const raw = await readFile(lockFile, 'utf8');
     const parsed = JSON.parse(raw) as { pid?: number; ts?: number };
-    if (parsed.pid && parsed.pid !== pid && parsed.ts && now - parsed.ts < LOCK_STALE_MS) {
-      return false;
-    }
+    if (parsed.pid === pid) return true;
+    if (parsed.pid && parsed.ts && now - parsed.ts < LOCK_STALE_MS) return false;
   } catch {
     // lock não existe ou inválido
   }
-
   try {
-    await writeFile(LOCK_FILE, JSON.stringify({ pid, ts: now }), 'utf8');
+    await writeFile(lockFile, JSON.stringify({ pid, ts: now }), 'utf8');
     return true;
   } catch {
     return false;
   }
 }
 
+export async function renewOrcaRelayLock(lockFile: string, pid: number): Promise<void> {
+  try {
+    await writeFile(lockFile, JSON.stringify({ pid, ts: Date.now() }), 'utf8');
+  } catch {
+    // sem lock renovado, outro processo assume depois de LOCK_STALE_MS — comportamento desejado
+  }
+}
+
+/**
+ * Um ciclo: lê o Orca local, publica no destino e executa os comandos que voltaram.
+ * Sem `destino`, usa o trio `WAC_CLOUD_*`. Lança quando o push falha (quem chama decide
+ * se renova o lock).
+ */
 export async function runSingleOrcaRelayCycle(
   pendingResults: OrcaCommandResult[] = [],
+  destino: CloudDestino | null = cloudDestinoDoEnv(),
 ): Promise<OrcaCommandResult[]> {
-  if (!cloudEnabled() || !getOrcaBin()) return [];
+  if (!destino || !getOrcaBin()) return [];
 
   const snapshot = await readLocalOrcaSnapshot(true);
-  if (!snapshot) return [];
+  if (!snapshot) throw new Error('CLI do Orca não devolveu snapshot');
 
   const now = Date.now();
   // Anexa screenTail dos terminais ativos (com cache de 6s por terminal para leveza)
@@ -72,7 +102,7 @@ export async function runSingleOrcaRelayCycle(
     }),
   );
 
-  const res = await cloudPost('/api/escritorio/orca', {
+  const res = await cloudPostTo(destino, '/api/escritorio/orca', {
     acao: 'sync_push',
     snapshot,
     commandResults: pendingResults,
@@ -97,37 +127,93 @@ export async function runSingleOrcaRelayCycle(
   return results;
 }
 
+export interface OrcaRelayCycleInfo {
+  destino: OrcaRelayDestino;
+  /** false = outro processo está sincronizando este destino. */
+  lock: boolean;
+  executed: number;
+}
+
+export interface OrcaRelayLoopOptions {
+  /** Destinos a alimentar; default = o trio `WAC_CLOUD_*` (lido a cada ciclo). */
+  destinos?: OrcaRelayDestino[];
+  /** Chamado a cada ciclo que falhou (o hospedeiro decide se loga). */
+  onError?: (err: unknown, destino: OrcaRelayDestino) => void;
+  /** Chamado a cada ciclo concluído. */
+  onCycle?: (info: OrcaRelayCycleInfo) => void;
+  /** `false` mantém o processo vivo só pelo timer (daemon dedicado). */
+  unref?: boolean;
+}
+
 /**
  * Inicia em background o loop de sincronização Mac -> Nuvem Railway.
- * Seguro para ser chamado em múltiplos processos (usa lockfile em /tmp).
+ * Seguro para ser chamado em múltiplos processos (lockfile em tmpdir, um por destino).
  */
-export function startOrcaRemoteRelayLoop(intervalMs = 4500): void {
+export function startOrcaRemoteRelayLoop(
+  intervalMs = 4500,
+  opts: OrcaRelayLoopOptions = {},
+): void {
   if (relayStarted) return;
   if (!getOrcaBin()) return;
   relayStarted = true;
 
   const myPid = process.pid;
-  let queuedResults: OrcaCommandResult[] = [];
+  // Resultados de comandos executados que ainda não voltaram para o destino de origem.
+  const queuedResults = new Map<string, OrcaCommandResult[]>();
   let running = false;
 
-  const tick = async () => {
-    if (running) return;
-    if (!cloudEnabled()) return;
-    running = true;
-    try {
-      const hasLock = await acquireOrRefreshLock(myPid);
-      if (!hasLock) return;
+  const destinosDoCiclo = (): OrcaRelayDestino[] => {
+    if (opts.destinos && opts.destinos.length > 0) return opts.destinos;
+    const env = cloudDestinoDoEnv();
+    return env ? [env] : [];
+  };
 
-      const newResults = await runSingleOrcaRelayCycle(queuedResults);
-      queuedResults = [];
+  const cicloDoDestino = async (destino: OrcaRelayDestino) => {
+    const lockFile = orcaRelayLockFile(destino);
+    try {
+      const hasLock = await acquireOrcaRelayLock(lockFile, myPid);
+      if (!hasLock) {
+        opts.onCycle?.({ destino, lock: false, executed: 0 });
+        return;
+      }
+
+      const pendentes = queuedResults.get(destino.url) ?? [];
+      queuedResults.set(destino.url, []);
+      let newResults: OrcaCommandResult[];
+      try {
+        newResults = await runSingleOrcaRelayCycle(pendentes, destino);
+      } catch (err) {
+        // O push falhou: os resultados voltam para a fila e o lock NÃO é renovado.
+        queuedResults.set(destino.url, pendentes);
+        throw err;
+      }
+      await renewOrcaRelayLock(lockFile, myPid);
 
       // Se acabamos de executar comandos vindos da nuvem, fazemos um push imediato
       // com os resultados e a tela atualizada para resposta < 1s no navegador!
       if (newResults.length > 0) {
-        await runSingleOrcaRelayCycle(newResults);
+        try {
+          await runSingleOrcaRelayCycle(newResults, destino);
+        } catch (err) {
+          queuedResults.set(destino.url, newResults);
+          throw err;
+        }
       }
-    } catch {
+      opts.onCycle?.({ destino, lock: true, executed: newResults.length });
+    } catch (err) {
       // Silencioso em background para nunca afetar o processo hospedeiro
+      opts.onError?.(err, destino);
+    }
+  };
+
+  const tick = async () => {
+    if (running) return;
+    const destinos = destinosDoCiclo();
+    if (destinos.length === 0) return;
+    running = true;
+    try {
+      // Destinos em paralelo: um coletor lento ou fora do ar não atrasa o outro.
+      await Promise.all(destinos.map((destino) => cicloDoDestino(destino)));
     } finally {
       running = false;
     }
@@ -135,7 +221,7 @@ export function startOrcaRemoteRelayLoop(intervalMs = 4500): void {
 
   setTimeout(() => void tick(), 800);
   const timer = setInterval(() => void tick(), intervalMs);
-  if (typeof timer.unref === 'function') {
+  if (opts.unref !== false && typeof timer.unref === 'function') {
     timer.unref();
   }
 }

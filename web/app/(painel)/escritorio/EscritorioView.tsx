@@ -12,6 +12,12 @@ import { AreaLabelsOverlay } from './components/AreaLabelsOverlay';
 import { CenaLoaderEscritorio } from './components/CenaLoaderEscritorio';
 import { CharSprite } from './components/CharSprite';
 import { ChatBubblesOverlay, type ChatBubbleInfo } from './components/ChatBubblesOverlay';
+import {
+  idadeSnapshotMs,
+  OrcaStatusPanel,
+  type OrcaStatusInfo,
+  tomStatusOrca,
+} from './components/OrcaStatusPanel';
 import { OrganogramaClientesView } from './components/OrganogramaClientesView';
 import { PainelClienteEscritorio } from './components/PainelClienteEscritorio';
 import { PlayerAvatarModal } from './components/PlayerAvatarModal';
@@ -112,6 +118,8 @@ export function EscritorioView({
   const [canalDrawerSelecionado, setCanalDrawerSelecionado] = useState<string | null>(null);
   const [abaDrawerInicial, setAbaDrawerInicial] = useState<'whatsapp' | 'orca'>('whatsapp');
   const [orcaSnapshot, setOrcaSnapshot] = useState<OrcaSnapshot | null>(null);
+  const [orcaInfo, setOrcaInfo] = useState<OrcaStatusInfo | null>(null);
+  const [mostrarOrcaStatus, setMostrarOrcaStatus] = useState(false);
   const [expandedProjetos, setExpandedProjetos] = useState<Record<string, boolean>>({});
   const [expandirTodosContatos, setExpandirTodosContatos] = useState(false);
 
@@ -263,11 +271,20 @@ export function EscritorioView({
 
   const refreshOrca = useCallback(async () => {
     try {
-      const res = await fetch('/api/escritorio/orca', { cache: 'no-store' });
+      const res = await fetch('/api/escritorio/orca?info=1', { cache: 'no-store' });
       if (!res.ok) return;
-      const data = (await res.json()) as { snapshot?: OrcaSnapshot };
+      const data = (await res.json()) as {
+        snapshot?: OrcaSnapshot;
+        ageMs?: number;
+        relayOk?: boolean;
+      };
       if (data?.snapshot) {
         setOrcaSnapshot(data.snapshot);
+        setOrcaInfo({
+          ageMs: typeof data.ageMs === 'number' ? data.ageMs : 0,
+          relayOk: Boolean(data.relayOk),
+          recebidoEm: Date.now(),
+        });
       }
     } catch {
       // mantém último snapshot
@@ -1318,16 +1335,50 @@ export function EscritorioView({
             {TOTAL_MESAS_ESCRITORIO} mesas
           </span>
 
-          {orcaSnapshot?.available && (
-            <span
-              className="hidden h-8 items-center gap-1.5 rounded-lg border border-ok/40 bg-ok-bg px-2.5 text-[11px] font-semibold tabular-nums text-ok xl:inline-flex"
-              title={`Conectado ao Orca (${orcaSnapshot.source === 'local-cli' ? 'CLI Local' : 'Remote Sync'}) · ${orcaSnapshot.allWorktreesCount} worktrees`}
-            >
-              <span aria-hidden="true">🐋</span>
-              <span>Orca</span>
-              <strong className="font-mono">{orcaSnapshot.activeAgentsCount} ativos</strong>
-            </span>
-          )}
+          {(() => {
+            const tom = tomStatusOrca(orcaSnapshot, idadeSnapshotMs(orcaInfo));
+            const classeTom =
+              tom === 'ok'
+                ? 'border-ok/40 bg-ok-bg text-ok'
+                : tom === 'warn'
+                  ? 'border-warn/40 bg-warn-bg text-warn'
+                  : 'border-line bg-elevated text-fg-dim';
+            const titulo =
+              tom === 'off'
+                ? 'Orca offline: sem CLI local nem snapshot sincronizado. Clique para detalhes.'
+                : tom === 'warn'
+                  ? 'Snapshot remoto do Orca parado há mais de 1 min. Clique para detalhes.'
+                  : `Conectado ao Orca (${orcaSnapshot?.source === 'local-cli' ? 'CLI local' : `remoto via ${orcaSnapshot?.hostLabel ?? 'Mac'}`}) · ${orcaSnapshot?.allWorktreesCount ?? 0} worktrees. Clique para detalhes.`;
+            return (
+              <div className="relative hidden xl:block">
+                <button
+                  type="button"
+                  data-orca-status-trigger
+                  aria-expanded={mostrarOrcaStatus}
+                  aria-haspopup="dialog"
+                  onClick={() => setMostrarOrcaStatus((v) => !v)}
+                  title={titulo}
+                  className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-semibold tabular-nums transition-all hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${classeTom}`}
+                >
+                  <span aria-hidden="true">🐋</span>
+                  <span>Orca</span>
+                  {tom === 'off' ? (
+                    <span>offline</span>
+                  ) : (
+                    <strong className="font-mono">{orcaSnapshot?.activeAgentsCount ?? 0} ativos</strong>
+                  )}
+                </button>
+                {mostrarOrcaStatus && (
+                  <OrcaStatusPanel
+                    snapshot={orcaSnapshot}
+                    info={orcaInfo}
+                    onClose={() => setMostrarOrcaStatus(false)}
+                    onRefresh={() => void refreshOrca()}
+                  />
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Zona Direita: Busca + Camadas do Mapa + Ambiente/Áudio + Ações */}
@@ -2312,6 +2363,7 @@ export function EscritorioView({
             dmsDisponiveis={dmsDisponiveis}
             orcaInfo={orcaSnapshot?.bySlug?.[selectedEntry.cliente.slug] ?? null}
             orcaAvailable={Boolean(orcaSnapshot?.available)}
+            orcaWorktrees={orcaSnapshot?.allWorktrees ?? []}
             onRefreshOrca={refreshOrca}
             abaInicial={abaDrawerInicial}
             onClose={() => {
