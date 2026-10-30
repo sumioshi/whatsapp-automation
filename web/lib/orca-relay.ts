@@ -8,6 +8,7 @@ import {
   getOrcaBin,
   type OrcaCommandResult,
   type OrcaPendingCommand,
+  type OrcaSnapshot,
   readLocalOrcaSnapshot,
   readLocalTerminalScreen,
 } from './orca-bridge';
@@ -17,11 +18,18 @@ const LOCK_STALE_MS = 12_000;
 
 let relayStarted = false;
 const screenCache = new Map<string, { ts: number; tail: string[]; draft?: string | null }>();
-// Handles com stream aberto na nuvem (vem no retorno do sync_push): sem cache e ciclo curto.
-let terminaisAssistidos = new Set<string>();
+// Handles com stream aberto na nuvem (vem no retorno do sync_push), POR DESTINO: o que
+// um coletor assiste não some quando o outro responde sem watch.
+const terminaisAssistidos = new Map<string, string[]>();
 
+export function registrarTerminaisAssistidos(destinoUrl: string, handles: string[]): void {
+  if (handles.length === 0) terminaisAssistidos.delete(destinoUrl);
+  else terminaisAssistidos.set(destinoUrl, handles);
+}
+
+/** União dos terminais assistidos em todos os destinos. */
 export function terminaisAssistidosAgora(): string[] {
-  return [...terminaisAssistidos];
+  return [...new Set([...terminaisAssistidos.values()].flat())];
 }
 
 /** Um destino do relay: o coletor na nuvem que recebe o snapshot (e devolve comandos). */
@@ -68,29 +76,17 @@ export async function renewOrcaRelayLock(lockFile: string, pid: number): Promise
   }
 }
 
-/**
- * Um ciclo: lê o Orca local, publica no destino e executa os comandos que voltaram.
- * Sem `destino`, usa o trio `WAC_CLOUD_*`. Lança quando o push falha (quem chama decide
- * se renova o lock).
- */
-export async function runSingleOrcaRelayCycle(
-  pendingResults: OrcaCommandResult[] = [],
-  destino: CloudDestino | null = cloudDestinoDoEnv(),
-): Promise<OrcaCommandResult[]> {
-  if (!destino || !getOrcaBin()) return [];
-
-  const snapshot = await readLocalOrcaSnapshot(true);
-  if (!snapshot) throw new Error('CLI do Orca não devolveu snapshot');
-
+/** Anexa screenTail dos terminais ativos (cache de 6 s por terminal; terminal assistido sempre fresco). */
+async function anexarTelas(snapshot: OrcaSnapshot): Promise<void> {
   const now = Date.now();
-  // Anexa screenTail dos terminais ativos (com cache de 6s por terminal para leveza)
+  const assistidos = new Set(terminaisAssistidosAgora());
   const activeSlugs = Object.values(snapshot.bySlug).filter((p) => p.liveTerminalCount > 0);
   await Promise.all(
     activeSlugs.map(async (proj) => {
       for (const ag of proj.agents) {
         if (!ag.terminalHandle) continue;
         const cached = screenCache.get(ag.terminalHandle);
-        if (cached && now - cached.ts < 6000 && !terminaisAssistidos.has(ag.terminalHandle)) {
+        if (cached && now - cached.ts < 6000 && !assistidos.has(ag.terminalHandle)) {
           ag.screenTail = cached.tail;
           ag.draft = cached.draft;
           continue;
@@ -108,6 +104,29 @@ export async function runSingleOrcaRelayCycle(
       }
     }),
   );
+}
+
+/** Snapshot fresco da CLI já com as telas anexadas; lança se a CLI não respondeu. */
+export async function lerSnapshotParaRelay(): Promise<OrcaSnapshot> {
+  const snapshot = await readLocalOrcaSnapshot(true);
+  if (!snapshot) throw new Error('CLI do Orca não devolveu snapshot');
+  await anexarTelas(snapshot);
+  return snapshot;
+}
+
+/**
+ * Um ciclo: publica o snapshot no destino e executa os comandos que voltaram.
+ * Sem `destino`, usa o trio `WAC_CLOUD_*`; sem `snapshotPronto`, lê a CLI na hora.
+ * Lança quando o push falha (quem chama decide se renova o lock).
+ */
+export async function runSingleOrcaRelayCycle(
+  pendingResults: OrcaCommandResult[] = [],
+  destino: CloudDestino | null = cloudDestinoDoEnv(),
+  snapshotPronto?: OrcaSnapshot,
+): Promise<OrcaCommandResult[]> {
+  if (!destino || !getOrcaBin()) return [];
+
+  const snapshot = snapshotPronto ?? (await lerSnapshotParaRelay());
 
   const res = await cloudPostTo(destino, '/api/escritorio/orca', {
     acao: 'sync_push',
@@ -120,7 +139,7 @@ export async function runSingleOrcaRelayCycle(
     pendingCommands?: OrcaPendingCommand[];
     watch?: string[];
   };
-  terminaisAssistidos = new Set(Array.isArray(data?.watch) ? data.watch : []);
+  registrarTerminaisAssistidos(destino.url, Array.isArray(data?.watch) ? data.watch : []);
 
   const cmds = Array.isArray(data?.pendingCommands) ? data.pendingCommands : [];
   if (cmds.length === 0) return [];
@@ -177,7 +196,12 @@ export function startOrcaRemoteRelayLoop(
     return env ? [env] : [];
   };
 
-  const cicloDoDestino = async (destino: OrcaRelayDestino) => {
+  const guardarResultados = (destino: OrcaRelayDestino, results: OrcaCommandResult[]) => {
+    if (results.length === 0) return;
+    queuedResults.set(destino.url, [...(queuedResults.get(destino.url) ?? []), ...results]);
+  };
+
+  const cicloDoDestino = async (destino: OrcaRelayDestino, snapshot: OrcaSnapshot | null) => {
     const lockFile = orcaRelayLockFile(destino);
     try {
       const hasLock = await acquireOrcaRelayLock(lockFile, myPid);
@@ -185,26 +209,28 @@ export function startOrcaRemoteRelayLoop(
         opts.onCycle?.({ destino, lock: false, executed: 0 });
         return;
       }
+      if (!snapshot) throw new Error('CLI do Orca não devolveu snapshot');
 
       const pendentes = queuedResults.get(destino.url) ?? [];
       queuedResults.set(destino.url, []);
       let newResults: OrcaCommandResult[];
       try {
-        newResults = await runSingleOrcaRelayCycle(pendentes, destino);
+        newResults = await runSingleOrcaRelayCycle(pendentes, destino, snapshot);
       } catch (err) {
         // O push falhou: os resultados voltam para a fila e o lock NÃO é renovado.
-        queuedResults.set(destino.url, pendentes);
+        guardarResultados(destino, pendentes);
         throw err;
       }
       await renewOrcaRelayLock(lockFile, myPid);
 
       // Se acabamos de executar comandos vindos da nuvem, fazemos um push imediato
       // com os resultados e a tela atualizada para resposta < 1s no navegador!
+      // O que esse segundo push devolver (comando enfileirado no meio) sai no próximo ciclo.
       if (newResults.length > 0) {
         try {
-          await runSingleOrcaRelayCycle(newResults, destino);
+          guardarResultados(destino, await runSingleOrcaRelayCycle(newResults, destino));
         } catch (err) {
-          queuedResults.set(destino.url, newResults);
+          guardarResultados(destino, newResults);
           throw err;
         }
       }
@@ -221,8 +247,10 @@ export function startOrcaRemoteRelayLoop(
     if (destinos.length === 0) return;
     running = true;
     try {
+      // Uma leitura da CLI por passada, compartilhada pelos destinos.
+      const snapshot = await lerSnapshotParaRelay().catch(() => null);
       // Destinos em paralelo: um coletor lento ou fora do ar não atrasa o outro.
-      await Promise.all(destinos.map((destino) => cicloDoDestino(destino)));
+      await Promise.all(destinos.map((destino) => cicloDoDestino(destino, snapshot)));
     } finally {
       running = false;
     }
@@ -230,10 +258,16 @@ export function startOrcaRemoteRelayLoop(
 
   // Reagenda a cada passada: o intervalo encurta enquanto algum terminal está
   // sendo assistido pelo stream da nuvem e volta ao normal quando ninguém olha.
+  // Erro em qualquer callback nunca interrompe o reagendamento.
   const agendar = (ms: number) => {
     const timer = setTimeout(async () => {
-      await tick();
-      agendar(intervaloRelay(terminaisAssistidos.size, intervalMs));
+      try {
+        await tick();
+      } catch {
+        // callbacks do hospedeiro podem lançar; o loop segue
+      } finally {
+        agendar(intervaloRelay(terminaisAssistidosAgora().length, intervalMs));
+      }
     }, ms);
     if (opts.unref !== false && typeof timer.unref === 'function') {
       timer.unref();
