@@ -8,9 +8,11 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const estado = await carregarEstadoEscritorio();
+    const url = new URL(req.url);
+    const forceFresh = url.searchParams.get('fresh') === '1';
+    const estado = await carregarEstadoEscritorio(forceFresh);
     return NextResponse.json(estado);
   } catch (err) {
     return NextResponse.json(

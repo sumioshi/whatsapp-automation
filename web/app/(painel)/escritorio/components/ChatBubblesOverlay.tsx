@@ -80,15 +80,14 @@ export function ChatBubblesOverlay({
         const hasText = Boolean(b.texto && b.texto.trim().length > 0);
         const isSelected = selectedId === id;
         const isHovered = hoveredId === id;
-        const isRecente = Boolean(b.aguardando && b.waitingMs !== undefined && b.waitingMs < 180000);
+        const isAguardando = Boolean(b.aguardando);
 
-        // Exibe o balão apenas se houver interação ativa ou relevância imediata:
-        // 1. Cliente está digitando ou gravando áudio agora
-        // 2. Cliente está selecionado (clicado)
-        // 3. Cliente está com o cursor em cima (hover)
-        // 4. Mensagem novíssima recebida há menos de 3 minutos
+        // Exibe o balão sempre que:
+        // 1. Cliente está aguardando resposta (balão vermelho de alerta fica visível até responder!)
+        // 2. Cliente está digitando ou gravando áudio agora
+        // 3. Cliente está selecionado (clicado) ou com cursor em cima (hover)
         const deveExibir =
-          (isTyping || isRecording || isSelected || isHovered || isRecente) &&
+          (isAguardando || isTyping || isRecording || isSelected || isHovered) &&
           (isTyping || isRecording || hasText);
 
         if (!deveExibir) return null;

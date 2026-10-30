@@ -158,12 +158,13 @@ export function EscritorioView({
     editor.handleToggleEditMode,
   );
 
-  useLeaderKeyboard(getOfficeState, !editor.isEditMode && aba === 'mapa');
+  useLeaderKeyboard(getOfficeState, editor.isEditMode || aba !== 'mapa');
 
-  // Atualização periódica do estado real dos clientes
-  const refreshEstado = useCallback(async () => {
+  // Atualização periódica e via tempo real (SSE) do estado dos clientes
+  const refreshEstado = useCallback(async (forceFresh = false) => {
     try {
-      const res = await fetch('/api/escritorio/estado', { cache: 'no-store' });
+      const url = forceFresh ? '/api/escritorio/estado?fresh=1' : '/api/escritorio/estado';
+      const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) return;
       const data = (await res.json()) as {
         clientes?: ClienteEscritorio[];
@@ -173,7 +174,9 @@ export function EscritorioView({
         dmsDisponiveis?: DmDisponivelEscritorio[];
       };
       if (Array.isArray(data.clientes)) setClientes(data.clientes);
-      if (data.presencas) setPresencas(data.presencas);
+      if (data.presencas && Object.keys(data.presencas).length > 0) {
+        setPresencas((prev) => ({ ...prev, ...data.presencas }));
+      }
       if (data.autonomo) setAutonomo(data.autonomo);
       if (data.notas) setNotas(data.notas);
       if (Array.isArray(data.dmsDisponiveis)) setDmsDisponiveis(data.dmsDisponiveis);
@@ -226,16 +229,88 @@ export function EscritorioView({
   useEffect(() => {
     // Se a página abriu com cache frio (0 clientes iniciais) ou sem lista de DMs, busca imediatamente
     if (clientesIniciais.length === 0 || dmsDisponiveis.length === 0) {
-      void refreshEstado();
+      void refreshEstado(true);
     }
     void refreshOrca();
-    const timer = setInterval(refreshEstado, 8000);
+    const timer = setInterval(() => void refreshEstado(false), 6000);
     const orcaTimer = setInterval(refreshOrca, 6000);
     return () => {
       clearInterval(timer);
       clearInterval(orcaTimer);
     };
   }, [clientesIniciais.length, dmsDisponiveis.length, refreshEstado, refreshOrca]);
+
+  // Assinatura SSE em tempo real (/api/events) para atualizar instantaneamente quando chegar mensagem ou presença no WhatsApp
+  useEffect(() => {
+    let es: EventSource | null = null;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const triggerInstantRefresh = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        void refreshEstado(true);
+      }, 150);
+    };
+
+    try {
+      es = new EventSource('/api/events?todos=1&ocultar=coletor');
+      es.addEventListener('message', () => {
+        triggerInstantRefresh();
+      });
+      es.addEventListener('presence', (ev) => {
+        try {
+          const payload = JSON.parse((ev as MessageEvent).data) as {
+            groupSlug?: string;
+            slug?: string;
+            status?: 'typing' | 'recording' | 'online' | 'offline';
+            state?: string;
+            participantName?: string;
+            participante?: string | null;
+            lastSeen?: number | null;
+          };
+          const slug = payload?.groupSlug ?? payload?.slug;
+          const rawStatus =
+            payload?.status ??
+            (payload?.state === 'composing'
+              ? 'typing'
+              : payload?.state === 'recording'
+                ? 'recording'
+                : payload?.state === 'available'
+                  ? 'online'
+                  : 'offline');
+          if (slug && rawStatus) {
+            setPresencas((prev) => ({
+              ...prev,
+              [slug]: {
+                status: rawStatus,
+                lastSeen: payload.lastSeen ?? Date.now(),
+                participante: payload.participante ?? payload.participantName ?? null,
+              },
+            }));
+          }
+        } catch {
+          // ignore
+        }
+      });
+      es.addEventListener('presence-snapshot', (ev) => {
+        try {
+          const snapshot = JSON.parse((ev as MessageEvent).data) as Record<string, PresenceView>;
+          if (snapshot && typeof snapshot === 'object') {
+            setPresencas(snapshot);
+          }
+        } catch {
+          // ignore
+        }
+      });
+    } catch {
+      // fallback para polling
+    }
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      es?.close();
+    };
+  }, [refreshEstado]);
 
   // Mapeia cada slug para um ID numérico estável na sessão
   const slugToIdRef = useRef<Map<string, number>>(new Map());
@@ -446,8 +521,9 @@ export function EscritorioView({
 
       const pres = presencas[c.slug];
       const isTyping = pres?.status === 'typing' || pres?.status === 'recording';
-      const isDanger = c.aguardando && (c.band === 'hot' || c.band === 'warm');
-      const isWarn = c.aguardando && !isDanger;
+      const temMensagemSemResposta = c.aguardando || (c.dmsAguardando ?? 0) > 0;
+      // Qualquer mensagem sem resposta do cliente deixa o NPC imediatamente VERMELHO e pulsante
+      const isDanger = temMensagemSemResposta;
 
       let dotColor = '#22c55e'; // em dia = verde
       let pulse = false;
@@ -457,13 +533,18 @@ export function EscritorioView({
       } else if (isDanger) {
         dotColor = '#ef4444';
         pulse = true;
-      } else if (isWarn || c.aguardando) {
-        dotColor = '#f59e0b';
       }
+
+      const dmPendente = (c.contatosVinculados ?? []).find((ct) => ct.aguardando);
+      const subLabel = c.aguardando
+        ? c.waitingLabel ?? 'sem resposta'
+        : dmPendente
+          ? `DM: ${dmPendente.waitingLabel ?? 'sem resposta'}`
+          : undefined;
 
       meta[id] = {
         nome: c.nome,
-        subLabel: c.aguardando && c.waitingLabel ? c.waitingLabel : undefined,
+        subLabel,
         dotColor,
         pulse,
         urgente: isDanger,
@@ -627,14 +708,9 @@ export function EscritorioView({
       if (isTyping) {
         os.setAgentTool(id, 'Write');
         os.clearPermissionBubble(id);
-      } else if (cliente.aguardando) {
+      } else if (cliente.aguardando || (cliente.dmsAguardando ?? 0) > 0) {
         os.setAgentTool(id, 'Write');
-        if (cliente.band === 'hot' || cliente.band === 'warm') {
-          os.showPermissionBubble(id);
-        } else {
-          ch.bubbleType = 'waiting';
-          ch.bubbleTimer = 10;
-        }
+        os.showPermissionBubble(id);
       } else {
         os.setAgentTool(id, 'Read');
         os.clearPermissionBubble(id);
@@ -668,14 +744,14 @@ export function EscritorioView({
       const ch = os.characters.get(idSorteado);
       if (!ch || !ch.seatId) return;
 
-      // Posições amplas na Cafeteria, Deck Leste e Hall da Praça de Natal Sul
+      // Posições na Copa & Café, Lounge de Ping-Pong/Arcade e Promenade Central
       const loungeSpots = [
+        { col: 3, row: 4 },
+        { col: 6, row: 6 },
+        { col: 39, row: 5 },
         { col: 41, row: 5 },
-        { col: 38, row: 5 },
-        { col: 43, row: 3 },
         { col: 46, row: 4 },
-        { col: 23, row: 30 },
-        { col: 24, row: 30 },
+        { col: 24, row: 32 },
       ];
       const spot = loungeSpots[Math.floor(Math.random() * loungeSpots.length)];
       const pathIda = findPath(ch.tileCol, ch.tileRow, spot.col, spot.row, os.tileMap, os.blockedTiles);
@@ -725,13 +801,21 @@ export function EscritorioView({
     for (const c of clientesVisiveis) {
       const id = getIdForSlug(c.slug);
       const pres = presencas[c.slug];
-      const isUrgente = c.aguardando && (c.band === 'hot' || c.band === 'warm');
+      const dmPendente = (c.contatosVinculados ?? []).find((ct) => ct.aguardando);
+      const temMensagemSemResposta = c.aguardando || Boolean(dmPendente);
+      // Toda mensagem aguardando resposta fica vermelha imediatamente no balão do NPC
+      const isUrgente = temMensagemSemResposta;
       let autor: string | undefined;
-      let texto: string | null = c.ultimaPreview;
-      if (c.ultimaPreview && c.ultimaPreview.includes(': ')) {
-        const parts = c.ultimaPreview.split(': ');
+      const rawPreview = c.aguardando
+        ? c.ultimaPreview
+        : dmPendente?.ultimaPreview ?? c.ultimaPreview;
+      let texto: string | null = rawPreview;
+      if (rawPreview && rawPreview.includes(': ')) {
+        const parts = rawPreview.split(': ');
         autor = parts[0];
         texto = parts.slice(1).join(': ');
+      } else if (dmPendente && !c.aguardando) {
+        autor = `${dmPendente.nome} (DM)`;
       }
       result[id] = {
         id,
@@ -739,8 +823,8 @@ export function EscritorioView({
         nome: c.nome,
         autor,
         texto,
-        aguardando: c.aguardando,
-        waitingMs: c.waitingMs,
+        aguardando: temMensagemSemResposta,
+        waitingMs: c.aguardando ? c.waitingMs : (dmPendente?.waitingMs ?? 0),
         urgente: isUrgente,
         presenca: pres,
       };

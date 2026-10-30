@@ -1,271 +1,306 @@
-const fs = require('fs');
-const path = require('path');
+#!/usr/bin/env node
+/**
+ * Gera a planta arquitetônica V4 inspirada no AIOffice (50 × 36 tiles):
+ * - 8 salas arquitetônicas com paredes norte 3D (2 tiles de altura), rodapés, janelas, quadros kanban,
+ *   relógios, posters, pinturas emolduradas, placas de identificação e tapetes com franja:
+ *   1. Copa & Café (ladrilho bistrô, máquina de espresso, geladeira inox, vending machine, pia, micro-ondas, mesas bistrô)
+ *   2. Lavabo / WC (azulejo branco, cabines, pias e espelhos)
+ *   3. Recepção & Hub (piso em placas de mármore, 2 elevadores sociais, balcão de recepção, bancos de espera)
+ *   4. Lounge & Games (piso de madeira carvalho, mesa de Ping-Pong, 2 fliperamas Arcade, Smart TV, sofá, poltronas e puffs)
+ *   5. Estúdio SaaS & AI (Baias 1–7 + recanto colaborativo)
+ *   6. Estúdio Operações (Baias 8–14 + recanto colaborativo)
+ *   7. Estúdio Saúde & Edu (Baias 15–21 + mesa de reunião)
+ *   8. Estúdio FinTech & Web (Baias 22–28 + lounge colaborativo)
+ */
+const fs = require('node:fs');
+const path = require('node:path');
 
-const COLS = 48;
-const ROWS = 32;
+const COLS = 50;
+const ROWS = 36;
 
-// Tile types: WALL=0, FLOOR_1=1, FLOOR_2=2, FLOOR_3=3, FLOOR_4=4, FLOOR_5=5, FLOOR_6=6, FLOOR_7=7
+const VOID = 8;
 const WALL = 0;
-const FLOOR_CIRCULACAO = 2; // Slate tech escuro sofisticado na circulação e corredores
-const FLOOR_BOULEVARD = 1;  // Ardósia lisa clara na passarela central
-const FLOOR_DEV_WOOD = 4;   // Parquet carvalho escandinavo nas ilhas de baias
-const FLOOR_REUNIAO = 3;    // Carpete executivo petróleo na sala de reuniões
-const FLOOR_COPA = 6;       // Cerâmica acolhedora menta/bistrô no lounge
+const MARBLE = 1;
+const WOOD = 2;
+const CARPET = 3;
+const TILE_CHECK = 5;
+const TILE_WHITE = 6;
 
-// Paleta HSB elegante e desaturada (sem mostarda estridente)
-const COR_PAREDE = { h: 218, s: 28, b: -68, c: 10 };
-const COR_CIRCULACAO = { h: 212, s: 22, b: -12, c: 10 }; // Slate tech suave
-const COR_BOULEVARD = { h: 215, s: 18, b: 10, c: 6 };     // Ardósia clara
-const COR_DEV_WOOD = { h: 32, s: 24, b: 4, c: 6 };        // Carvalho suave
-const COR_REUNIAO = { h: 220, s: 28, b: -8, c: 8 };       // Petróleo executivo
-const COR_COPA = { h: 168, s: 22, b: 6, c: 6 };           // Menta acolhedora
-
-const tiles = new Array(COLS * ROWS).fill(FLOOR_CIRCULACAO);
-const tileColors = new Array(COLS * ROWS).fill(COR_CIRCULACAO);
-
-function setTile(col, row, type, color) {
-  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return;
-  const idx = row * COLS + col;
-  tiles[idx] = type;
-  tileColors[idx] = color;
+const bundlePath = path.join(__dirname, '..', 'web', 'public', 'assets', 'office-sprites-bundle.json');
+const bundle = JSON.parse(fs.readFileSync(bundlePath, 'utf8'));
+const bgRowsByType = new Map();
+for (const entry of bundle.catalog) {
+  bgRowsByType.set(entry.id, entry.backgroundTiles || 0);
 }
 
-// 1. Preenchimento de base por zonas
-for (let r = 0; r < ROWS; r++) {
-  for (let c = 0; c < COLS; c++) {
-    if (r < 7) {
-      if (c < 14) {
-        // Sala de Reunião & Contratos (Noroeste)
-        setTile(c, r, FLOOR_REUNIAO, COR_REUNIAO);
-      } else if (c > 33) {
-        // Cafeteria & Lounge Barista (Nordeste)
-        setTile(c, r, FLOOR_COPA, COR_COPA);
-      } else {
-        // Recepção Central & Diretoria
-        setTile(c, r, FLOOR_BOULEVARD, COR_BOULEVARD);
-      }
-    } else {
-      // Área de Desenvolvimento Aberto (Rows 8..31)
-      if (c >= 21 && c <= 26) {
-        // Boulevard Central (passarela ampla)
-        setTile(c, r, FLOOR_BOULEVARD, COR_BOULEVARD);
-      } else {
-        // Circulação geral em slate tech
-        setTile(c, r, FLOOR_CIRCULACAO, COR_CIRCULACAO);
-      }
+const tiles = new Array(COLS * ROWS).fill(MARBLE);
+const tileColors = new Array(COLS * ROWS).fill(null);
+
+function setTile(c, r, t, color = null) {
+  if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return;
+  tiles[r * COLS + c] = t;
+  tileColors[r * COLS + c] = color;
+}
+
+function fillRect(c0, r0, w, h, t, color = null) {
+  for (let r = r0; r < r0 + h; r++) {
+    for (let c = c0; c < c0 + w; c++) {
+      setTile(c, r, t, color);
     }
   }
 }
 
-// 2. Paredes de perímetro (com Portaria Sul, Porta do Deck Leste e Passarela do Riacho Oeste)
-for (let c = 0; c < COLS; c++) {
-  setTile(c, 0, WALL, COR_PAREDE);
-  const ehEntradaPrincipalSul = c >= 22 && c <= 25;
-  if (ehEntradaPrincipalSul) {
-    setTile(c, ROWS - 1, FLOOR_BOULEVARD, COR_BOULEVARD);
-  } else {
-    setTile(c, ROWS - 1, WALL, COR_PAREDE);
-  }
-}
-for (let r = 0; r < ROWS; r++) {
-  const ehPassarelaRiachoOeste = r >= 16 && r <= 17;
-  if (ehPassarelaRiachoOeste) {
-    setTile(0, r, FLOOR_CIRCULACAO, COR_CIRCULACAO);
-  } else {
-    setTile(0, r, WALL, COR_PAREDE);
-  }
+// 1. Base piso de mármore em todo o edifício
+fillRect(1, 2, 48, 33, MARBLE);
+fillRect(1, 2, 12, 6, TILE_CHECK);
+fillRect(13, 2, 6, 6, TILE_WHITE);
+fillRect(32, 2, 17, 6, WOOD);
 
-  const ehPortaDeckCafeLeste = r >= 4 && r <= 5;
-  if (ehPortaDeckCafeLeste) {
-    setTile(COLS - 1, r, FLOOR_COPA, COR_COPA);
-  } else {
-    setTile(COLS - 1, r, WALL, COR_PAREDE);
-  }
-}
+// 2. Paredes perimetrais externas (Oeste col 0, Leste col 49, Norte rows 0..1, Sul row 35)
+fillRect(0, 0, 1, ROWS, WALL);
+fillRect(COLS - 1, 0, 1, ROWS, WALL);
+fillRect(0, 0, COLS, 2, WALL);
+fillRect(0, ROWS - 1, 23, 1, WALL);
+fillRect(27, ROWS - 1, 23, 1, WALL); // Entrada Sul aberta nas cols 23..26
 
-// 3. Parede divisória superior (row 7) com portas amplas
-for (let c = 1; c < COLS - 1; c++) {
-  const ehPortaReuniao = c >= 7 && c <= 8;
-  const ehPortaRecepcao = c >= 22 && c <= 25;
-  const ehPortaCopa = c >= 39 && c <= 40;
-  if (!ehPortaReuniao && !ehPortaRecepcao && !ehPortaCopa) {
-    setTile(c, 7, WALL, COR_PAREDE);
-  }
-}
+// 3. Divisórias verticais e parede sul das 4 Salas Superiores (rows 0..8)
+fillRect(13, 0, 1, 8, WALL);
+fillRect(19, 0, 1, 8, WALL);
+fillRect(32, 0, 1, 8, WALL);
 
-// Paredes verticais das salas superiores
-for (let r = 1; r < 7; r++) {
-  setTile(14, r, WALL, COR_PAREDE); // Divisória Reunião / Recepção
-  setTile(33, r, WALL, COR_PAREDE); // Divisória Recepção / Copa
-}
+// Parede sul das salas superiores (row 8) com portas para o Boulevard:
+// Portas: Copa (cols 5..7), Lavabo (cols 15..16), Recepção (cols 23..26), Lounge (cols 38..40)
+fillRect(1, 8, 4, 1, WALL);
+fillRect(8, 8, 7, 1, WALL);
+fillRect(17, 8, 6, 1, WALL);
+fillRect(27, 8, 11, 1, WALL);
+fillRect(41, 8, 8, 1, WALL);
 
-// 4. Móveis do escritório
+// 4. Paredes Norte 3D (2 tiles de altura) dos 4 Estúdios de Projetos
+// Estúdio 1 (Noroeste, rows 11..12, cols 1..22) — Porta em cols 10..12
+fillRect(1, 11, 9, 2, WALL);
+fillRect(13, 11, 10, 2, WALL);
+
+// Estúdio 2 (Nordeste, rows 11..12, cols 27..48) — Porta em cols 36..38
+fillRect(27, 11, 9, 2, WALL);
+fillRect(39, 11, 10, 2, WALL);
+
+// Estúdio 3 (Sudoeste, rows 23..24, cols 1..22) — Porta em cols 10..12
+fillRect(1, 23, 9, 2, WALL);
+fillRect(13, 23, 10, 2, WALL);
+
+// Estúdio 4 (Sudeste, rows 23..24, cols 27..48) — Porta em cols 36..38
+fillRect(27, 23, 9, 2, WALL);
+fillRect(39, 23, 10, 2, WALL);
+
 const furniture = [];
-
-function addFurniture(uid, type, col, row, color = null) {
-  const item = { uid, type, col, row };
-  if (color) item.color = color;
-  furniture.push(item);
+function addFloor(uid, type, col, floorRow) {
+  const bg = bgRowsByType.get(type) || 0;
+  furniture.push({ uid, type, col, row: floorRow - bg });
+}
+function addWall(uid, type, col, wallTopRow) {
+  furniture.push({ uid, type, col, row: wallTopRow });
 }
 
-// --- SALA DE REUNIÕES & CONTRATOS (col 1..13, row 1..6) ---
-addFurniture('conf-table-1', 'ASSET_27_A', 6, 2);
-addFurniture('conf-table-2', 'ASSET_27_A', 8, 2);
-addFurniture('conf-chair-1', 'ASSET_32', 5, 2);
-addFurniture('conf-chair-2', 'ASSET_32', 5, 3);
-addFurniture('conf-chair-3', 'ASSET_32', 5, 4);
-addFurniture('conf-chair-4', 'ASSET_32', 10, 2);
-addFurniture('conf-chair-5', 'ASSET_32', 10, 3);
-addFurniture('conf-chair-6', 'ASSET_32', 10, 4);
-addFurniture('conf-whiteboard', 'whiteboard', 6, 1);
-addFurniture('conf-books-1', 'bookshelf', 2, 1);
-addFurniture('conf-books-2', 'bookshelf', 3, 1);
-addFurniture('conf-plant-1', 'ASSET_140', 1, 6);
-addFurniture('conf-plant-2', 'ASSET_141', 13, 6);
+// ============================================================================
+// SALA 1: COPA & COFFEE LAB (cols 1..12, rows 0..8)
+// ============================================================================
+addWall('copa-shelf', 'AIO_SHELF_WALL', 2, 0);
+addWall('copa-poster', 'AIO_POSTER_COFFEE', 9, 0);
+addWall('copa-clock', 'AIO_CLOCK', 11, 0);
 
-// --- RECEPÇÃO & DIRETORIA (col 15..32, row 1..6) ---
-addFurniture('recep-desk-1', 'ASSET_4', 21, 2);
-addFurniture('recep-desk-2', 'ASSET_4', 24, 2);
-addFurniture('recep-chair', 'ASSET_35', 23, 1);
-addFurniture('recep-laptop', 'ASSET_108', 23, 2);
-addFurniture('recep-plant-l', 'ASSET_142', 16, 1);
-addFurniture('recep-plant-r', 'ASSET_142', 31, 1);
-addFurniture('recep-sofa-l', 'ASSET_NEW_108', 16, 4);
-addFurniture('recep-sofa-r', 'ASSET_NEW_109', 29, 4);
-addFurniture('recep-table-mid', 'ASSET_50_0_0', 23, 4);
-addFurniture('recep-mat', 'ASSET_150', 23, 5);
+addFloor('copa-fridge', 'AIO_FRIDGE', 1, 2);
+addFloor('copa-cnt-1', 'AIO_COUNTER_DRAWERS', 2, 2);
+addFloor('copa-coffee', 'AIO_COFFEE_MACHINE', 3, 2);
+addFloor('copa-sink', 'AIO_COUNTER_SINK', 4, 2);
+addFloor('copa-micro', 'AIO_MICROWAVE', 5, 2);
+addFloor('copa-cnt-2', 'AIO_COUNTER_PLAIN', 6, 2);
+addFloor('copa-vending', 'AIO_VENDING', 8, 2);
+addFloor('copa-cooler', 'AIO_WATER_COOLER', 10, 2);
+addFloor('copa-plant-1', 'AIO_PLANT_MONSTERA', 11, 2);
 
-// --- CAFETERIA, COFFEE LAB & LOUNGE (col 34..46, row 1..6) ---
-addFurniture('cafe-counter-1', 'ASSET_15', 35, 1);
-addFurniture('cafe-counter-2', 'ASSET_15', 38, 1);
-addFurniture('cafe-maker', 'ASSET_55', 36, 1);
-addFurniture('cafe-mug-1', 'ASSET_51', 37, 1);
-addFurniture('cafe-mug-2', 'ASSET_51', 39, 1);
-addFurniture('cafe-water', 'ASSET_7', 41, 1);
-addFurniture('cafe-vending', 'cooler', 43, 1);
-addFurniture('cafe-plant-corner', 'ASSET_140', 45, 1);
-addFurniture('cafe-sofa-top', 'ASSET_NEW_108', 36, 4);
-addFurniture('cafe-table-lounge', 'ASSET_NEW_112', 39, 4);
-addFurniture('cafe-sofa-bot', 'ASSET_NEW_109', 42, 4);
-addFurniture('cafe-stool-1', 'ASSET_49', 35, 3);
-addFurniture('cafe-stool-2', 'ASSET_49', 38, 3);
+// Mesas de bistrô na Copa
+addFloor('copa-tbl-1', 'AIO_CAFE_TABLE', 3, 5);
+addFloor('copa-ch-1a', 'AIO_CAFE_CHAIR_RIGHT', 2, 5);
+addFloor('copa-ch-1b', 'AIO_CAFE_CHAIR_LEFT', 4, 5);
 
-// --- 28 BAIAS ESPAÇADAS E PERFEITAMENTE SIMÉTRICAS ---
-// Cada baia:
-// - Mesa ASSET_NEW_106 (largura 3, altura 2)
-//   - row é a linha de trás (background / caminhável)
-//   - row + 1 é a linha do tampo da mesa (bloqueada)
-// - Cadeira ASSET_35 (largura 1, altura 1) posicionada em: (col + 1, row)
-// - Computador ASSET_108 (laptop on) ou ASSET_90 no tampo em: (col + 1, row + 1)
-// - Ilha de piso de madeira (FLOOR_DEV_WOOD) desenhada ao redor de cada mesa
+addFloor('copa-tbl-2', 'AIO_CAFE_TABLE', 9, 5);
+addFloor('copa-ch-2a', 'AIO_CAFE_CHAIR_RIGHT', 8, 5);
+addFloor('copa-ch-2b', 'AIO_CAFE_CHAIR_LEFT', 10, 5);
+addFloor('copa-plant-2', 'AIO_PLANT_FERN', 1, 7);
 
-const BAIAS_CONFIG = [
-  // ALA OESTE: Squad SaaS & AI Core (Baias 1 a 14)
-  // Fileira 1 (row 10)
-  { num: 1,  col: 4,  row: 10 },
-  { num: 2,  col: 10, row: 10 },
-  { num: 3,  col: 16, row: 10 },
+// ============================================================================
+// SALA 2: LAVABO / WC (cols 13..18, rows 0..8)
+// ============================================================================
+addWall('wc-mirror-1', 'AIO_MIRROR', 14, 0);
+addWall('wc-mirror-2', 'AIO_MIRROR', 17, 0);
+addFloor('wc-sink-1', 'AIO_BATH_SINK', 14, 2);
+addFloor('wc-sink-2', 'AIO_BATH_SINK', 17, 2);
+addFloor('wc-stall-1', 'AIO_TOILET_STALL', 14, 5);
+addFloor('wc-plant', 'AIO_PLANT_SUCCULENT', 18, 7);
 
-  // Fileira 2 (row 15)
-  { num: 4,  col: 4,  row: 15 },
-  { num: 5,  col: 10, row: 15 },
-  { num: 6,  col: 16, row: 15 },
+// ============================================================================
+// SALA 3: RECEPÇÃO & HUB (cols 19..31, rows 0..8)
+// ============================================================================
+addWall('rec-elev-1', 'AIO_ELEVATOR', 20, 0);
+addWall('rec-painting', 'AIO_PAINTING_0', 27, 0);
+addWall('rec-elev-2', 'AIO_ELEVATOR', 29, 0);
 
-  // Fileira 3 (row 20)
-  { num: 7,  col: 4,  row: 20 },
-  { num: 8,  col: 10, row: 20 },
-  { num: 9,  col: 16, row: 20 },
+addFloor('rec-palm-1', 'AIO_PLANT_PALM', 20, 2);
+addFloor('rec-desk', 'AIO_RECEPTION_DESK', 24, 4);
+addFloor('chair-reception-npc', 'AIO_CHAIR_FRONT_BLACK', 25, 3);
+addFloor('rec-bench-1', 'AIO_BENCH', 20, 6);
+addFloor('rec-bench-2', 'AIO_BENCH', 29, 6);
+addFloor('rec-palm-2', 'AIO_PLANT_FICUS', 31, 2);
 
-  // Fileira 4 (row 25)
-  { num: 10, col: 4,  row: 25 },
-  { num: 11, col: 10, row: 25 },
-  { num: 12, col: 16, row: 25 },
+// ============================================================================
+// SALA 4: LOUNGE, DESCOMPRESSÃO & GAMES (cols 32..48, rows 0..8)
+// ============================================================================
+addWall('lng-tv', 'AIO_TV', 35, 0);
+addWall('lng-win-1', 'AIO_WINDOW', 42, 0);
+addWall('lng-poster-1', 'AIO_POSTER_ROCKET', 45, 0);
+addWall('lng-poster-2', 'AIO_POSTER_CAT', 47, 0);
 
-  // Fileira Especial / Foco Executivo (row 29)
-  { num: 13, col: 6,  row: 29 },
-  { num: 14, col: 14, row: 29 },
+// Nook do Sofá & TV
+addFloor('lng-bonsai', 'AIO_PLANT_BONSAI', 33, 2);
+addFloor('lng-sofa', 'AIO_SOFA_DOWN', 34, 3);
+addFloor('lng-ctbl', 'AIO_COFFEE_TABLE', 34, 5);
+addFloor('lng-arm-l', 'AIO_ARMCHAIR_RIGHT', 33, 5);
+addFloor('lng-arm-r', 'AIO_ARMCHAIR_LEFT', 37, 5);
+addFloor('lng-bean-1', 'AIO_BEANBAG_YELLOW', 35, 7);
+addFloor('lng-lamp', 'AIO_FLOOR_LAMP', 38, 2);
 
-  // ALA LESTE: Squad Operações & Automação (Baias 15 a 28)
-  // Fileira 1 (row 10)
-  { num: 15, col: 29, row: 10 },
-  { num: 16, col: 35, row: 10 },
-  { num: 17, col: 41, row: 10 },
+// Arena de Ping-Pong & Fliperamas Arcade
+addFloor('lng-pingpong', 'AIO_PINGPONG', 42, 4);
+addFloor('lng-arcade-1', 'AIO_ARCADE', 46, 2);
+addFloor('lng-arcade-2', 'AIO_ARCADE', 47, 2);
+addFloor('lng-bean-2', 'AIO_BEANBAG_RED', 46, 6);
+addFloor('lng-bean-3', 'AIO_BEANBAG_BLUE', 47, 7);
+addFloor('lng-plant', 'AIO_PLANT_MONSTERA', 48, 2);
 
-  // Fileira 2 (row 15)
-  { num: 18, col: 29, row: 15 },
-  { num: 19, col: 35, row: 15 },
-  { num: 20, col: 41, row: 15 },
+// ============================================================================
+// BOULEVARD CENTRAL & PROMENADE (rows 9..10 & cols 23..26)
+// ============================================================================
+addFloor('blv-plant-1', 'AIO_PLANT_FICUS', 12, 9);
+addFloor('blv-plant-2', 'AIO_PLANT_MONSTERA', 18, 9);
+addFloor('blv-plant-3', 'AIO_PLANT_MONSTERA', 31, 9);
+addFloor('blv-plant-4', 'AIO_PLANT_PALM', 48, 9);
+addFloor('prom-plant-1', 'AIO_PLANT_FLOWER', 23, 16);
+addFloor('prom-plant-2', 'AIO_PLANT_FLOWER', 26, 16);
+addFloor('prom-plant-3', 'AIO_PLANT_FERN', 23, 28);
+addFloor('prom-plant-4', 'AIO_PLANT_FERN', 26, 28);
 
-  // Fileira 3 (row 20)
-  { num: 21, col: 29, row: 20 },
-  { num: 22, col: 35, row: 20 },
-  { num: 23, col: 41, row: 20 },
+// ============================================================================
+// 4 ESTÚDIOS DE PROJETOS — 28 ESTAÇÕES DE TRABALHO (chair-ws-1 .. chair-ws-28)
+// ============================================================================
+let wsIndex = 1;
 
-  // Fileira 4 (row 25)
-  { num: 24, col: 29, row: 25 },
-  { num: 25, col: 35, row: 25 },
-  { num: 26, col: 41, row: 25 },
-
-  // Fileira Especial / Foco Executivo (row 29)
-  { num: 27, col: 31, row: 29 },
-  { num: 28, col: 39, row: 29 },
-];
-
-for (const b of BAIAS_CONFIG) {
-  // Pinta o chão da área da baia com madeira escandinava acolhedora (3x3 tiles)
-  for (let r = b.row; r <= b.row + 2 && r < ROWS - 1; r++) {
-    for (let c = b.col; c <= b.col + 2 && c < COLS - 1; c++) {
-      setTile(c, r, FLOOR_DEV_WOOD, COR_DEV_WOOD);
-    }
-  }
-
-  const deskUid = `desk-ws-${b.num}`;
-  const chairUid = `chair-ws-${b.num}`;
-  const pcUid = `pc-ws-${b.num}`;
-
-  // Mesa executiva (largura 3, altura 2)
-  addFurniture(deskUid, 'ASSET_NEW_106', b.col, b.row, { h: -10, s: 42, b: -48, c: 6 });
-
-  // CADEIRA GIRATÓRIA: na linha b.row (walkable), exatamente no centro da mesa!
-  // O personagem senta aqui virado para BAIXO (Direction.DOWN) de frente para o monitor!
-  addFurniture(chairUid, 'ASSET_35', b.col + 1, b.row);
-
-  // Computador com café sobre o tampo da mesa (b.row + 1)
-  addFurniture(pcUid, 'ASSET_90', b.col + 1, b.row + 1);
+function addWorkstation(col, deskFloorRow, deskType, chairType) {
+  const idx = wsIndex++;
+  addFloor(`desk-ws-${idx}`, deskType, col, deskFloorRow);
+  addFloor(`chair-ws-${idx}`, chairType, col, deskFloorRow + 1);
 }
 
-// 5. Decoração paisagística elegante
-const DECORACOES = [
-  // Vasos altos no Boulevard Central (divisórias verdes elegantes e hall de entrada sul)
-  { type: 'ASSET_140', col: 22, row: 10 },
-  { type: 'ASSET_141', col: 25, row: 14 },
-  { type: 'ASSET_142', col: 22, row: 19 },
-  { type: 'ASSET_140', col: 25, row: 24 },
-  { type: 'ASSET_142', col: 21, row: 30 },
-  { type: 'ASSET_142', col: 26, row: 30 },
+// --- ESTÚDIO 1 (Noroeste, cols 1..22, rows 11..22): SaaS & AI Core (Baias 1–7) ---
+addWall('est1-wb', 'AIO_WHITEBOARD', 2, 11);
+addWall('est1-win-1', 'AIO_WINDOW', 14, 11);
+addWall('est1-paint', 'AIO_PAINTING_0', 17, 11);
+addWall('est1-poster', 'AIO_POSTER_CODE', 20, 11);
+addWall('est1-clock', 'AIO_CLOCK', 21, 11);
 
-  // Estantes de livros embutidas nas paredes laterais
-  { type: 'bookshelf', col: 1, row: 11 },
-  { type: 'bookshelf', col: 1, row: 16 },
-  { type: 'bookshelf', col: 1, row: 21 },
-  { type: 'ASSET_140', col: 1, row: 26 },
+addFloor('est1-shelf', 'AIO_BOOKSHELF_0', 1, 13);
+addFloor('est1-plant-n', 'AIO_PLANT_MONSTERA', 21, 13);
 
-  { type: 'bookshelf', col: 46, row: 11 },
-  { type: 'bookshelf', col: 46, row: 16 },
-  { type: 'bookshelf', col: 46, row: 21 },
-  { type: 'ASSET_140', col: 46, row: 26 },
-
-  // Tapetes nobres na passarela do Boulevard
-  { type: 'ASSET_150', col: 23, row: 12 },
-  { type: 'ASSET_150', col: 23, row: 21 },
-];
-
-DECORACOES.forEach((d, idx) => {
-  addFurniture(`decor-${idx}`, d.type, d.col, d.row);
+const est1Desks = ['AIO_DESK_WOOD_0', 'AIO_DESK_WOOD_1', 'AIO_DESK_WOOD_2', 'AIO_DESK_WOOD_0'];
+[2, 6, 10, 14].forEach((c, i) => {
+  addWorkstation(c, 15, est1Desks[i], 'AIO_CHAIR_BACK_BLACK');
+});
+[3, 8, 13].forEach((c, i) => {
+  addWorkstation(c, 19, est1Desks[i], 'AIO_CHAIR_BACK_BLUE');
 });
 
+// Recanto colaborativo Estúdio 1 (cols 18..21)
+addFloor('est1-printer', 'AIO_PRINTER', 21, 15);
+addFloor('est1-binder', 'AIO_BINDER_SHELF', 21, 17);
+addFloor('est1-bean-1', 'AIO_BEANBAG_RED', 19, 19);
+addFloor('est1-bean-2', 'AIO_BEANBAG_YELLOW', 20, 20);
+addFloor('est1-lamp', 'AIO_FLOOR_LAMP', 21, 21);
+
+// --- ESTÚDIO 2 (Nordeste, cols 27..48, rows 11..22): Operações & Automação (Baias 8–14) ---
+addWall('est2-wb', 'AIO_WHITEBOARD', 28, 11);
+addWall('est2-win-1', 'AIO_WINDOW', 40, 11);
+addWall('est2-paint', 'AIO_PAINTING_1', 43, 11);
+addWall('est2-poster', 'AIO_POSTER_SHIP', 46, 11);
+addWall('est2-clock', 'AIO_CLOCK', 47, 11);
+
+addFloor('est2-shelf', 'AIO_BOOKSHELF_1', 27, 13);
+addFloor('est2-plant-n', 'AIO_PLANT_PALM', 47, 13);
+
+const est2Desks = ['AIO_DESK_WHITE_0', 'AIO_DESK_WHITE_1', 'AIO_DESK_WHITE_0', 'AIO_DESK_WHITE_1'];
+[28, 32, 36, 40].forEach((c, i) => {
+  addWorkstation(c, 15, est2Desks[i], 'AIO_CHAIR_BACK_BLUE');
+});
+[29, 34, 39].forEach((c, i) => {
+  addWorkstation(c, 19, est2Desks[i], 'AIO_CHAIR_BACK_BLACK');
+});
+
+// Recanto colaborativo Estúdio 2 (cols 44..47)
+addFloor('est2-filing', 'AIO_FILING_CABINET', 47, 15);
+addFloor('est2-ctbl', 'AIO_CAFE_TABLE', 45, 19);
+addFloor('est2-stool-1', 'AIO_STOOL', 44, 19);
+addFloor('est2-stool-2', 'AIO_STOOL', 46, 19);
+addFloor('est2-lamp', 'AIO_FLOOR_LAMP', 47, 21);
+
+// --- ESTÚDIO 3 (Sudoeste, cols 1..22, rows 23..34): Saúde, Clínicas & Educação (Baias 15–21) ---
+addWall('est3-wb', 'AIO_WHITEBOARD', 2, 23);
+addWall('est3-win-1', 'AIO_WINDOW', 14, 23);
+addWall('est3-paint', 'AIO_PAINTING_0', 17, 23);
+addWall('est3-poster', 'AIO_POSTER_CAT', 20, 23);
+addWall('est3-clock', 'AIO_CLOCK', 21, 23);
+
+addFloor('est3-shelf', 'AIO_BOOKSHELF_0', 1, 25);
+addFloor('est3-plant-n', 'AIO_PLANT_FICUS', 21, 25);
+
+[2, 6, 10, 14].forEach((c, i) => {
+  addWorkstation(c, 27, est1Desks[i], 'AIO_CHAIR_BACK_GREEN');
+});
+[3, 8, 13].forEach((c, i) => {
+  addWorkstation(c, 31, est1Desks[i], 'AIO_CHAIR_BACK_BLACK');
+});
+
+// Recanto de Reunião Estúdio 3 (cols 18..21)
+addFloor('est3-mtbl', 'AIO_MEETING_TABLE', 18, 29);
+addFloor('est3-stool-1', 'AIO_STOOL', 18, 28);
+addFloor('est3-stool-2', 'AIO_STOOL', 20, 28);
+addFloor('est3-lamp', 'AIO_FLOOR_LAMP', 21, 33);
+
+// --- ESTÚDIO 4 (Sudeste, cols 27..48, rows 23..34): FinTech, iGaming & Web (Baias 22–28) ---
+addWall('est4-wb', 'AIO_WHITEBOARD', 28, 23);
+addWall('est4-win-1', 'AIO_WINDOW', 40, 23);
+addWall('est4-paint', 'AIO_PAINTING_1', 43, 23);
+addWall('est4-poster', 'AIO_POSTER_ROCKET', 46, 23);
+addWall('est4-clock', 'AIO_CLOCK', 47, 23);
+
+addFloor('est4-shelf', 'AIO_BOOKSHELF_1', 27, 25);
+addFloor('est4-plant-n', 'AIO_PLANT_BONSAI', 47, 25);
+
+const est4Desks = ['AIO_DESK_DARK_0', 'AIO_DESK_WOOD_1', 'AIO_DESK_DARK_0', 'AIO_DESK_WOOD_2'];
+[28, 32, 36, 40].forEach((c, i) => {
+  addWorkstation(c, 27, est4Desks[i], 'AIO_CHAIR_BACK_RED');
+});
+[29, 34, 39].forEach((c, i) => {
+  addWorkstation(c, 31, est4Desks[i], 'AIO_CHAIR_BACK_BLACK');
+});
+
+// Recanto Lounge Estúdio 4 (cols 44..47)
+addFloor('est4-ctbl', 'AIO_COFFEE_TABLE', 45, 29);
+addFloor('est4-arm', 'AIO_ARMCHAIR_LEFT', 47, 29);
+addFloor('est4-bean-1', 'AIO_BEANBAG_GREEN', 44, 31);
+addFloor('est4-bean-2', 'AIO_BEANBAG_BLUE', 46, 31);
+addFloor('est4-lamp', 'AIO_FLOOR_LAMP', 47, 33);
+
 const layout = {
-  version: 3,
+  version: 4,
   cols: COLS,
   rows: ROWS,
   tiles,
@@ -273,8 +308,18 @@ const layout = {
   furniture,
 };
 
-const targetPath = path.resolve(__dirname, '../web/public/assets/default-layout.json');
-fs.writeFileSync(targetPath, JSON.stringify(layout, null, 2), 'utf8');
-console.log(`Layout 48x32 salvo com sucesso em: ${targetPath}`);
-console.log(`Total de móveis: ${furniture.length}`);
-console.log(`Baias criadas: ${BAIAS_CONFIG.length}`);
+const targets = [
+  path.join(__dirname, '..', 'web', 'public', 'assets', 'default-layout.json'),
+  path.join(__dirname, '..', '.escritorio-layout.json'),
+  path.join(__dirname, '..', 'web', '.escritorio-layout.json'),
+];
+
+for (const t of targets) {
+  try {
+    fs.writeFileSync(t, JSON.stringify(layout, null, 2));
+    console.log('Saved V4 layout to', t);
+  } catch {
+    // ignore
+  }
+}
+console.log(`Total workstations generated: ${wsIndex - 1}`);

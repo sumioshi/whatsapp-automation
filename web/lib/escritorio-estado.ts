@@ -360,8 +360,8 @@ export interface EstadoEscritorioPayload {
   updatedAt: string;
 }
 
-const CACHE_FRESH_MS = 15_000;
-const CACHE_STALE_MS = 300_000;
+const CACHE_FRESH_MS = 3_000;
+const CACHE_STALE_MS = 60_000;
 
 let estadoCache: { atualizadoEm: number; payload: EstadoEscritorioPayload } | null = null;
 let refreshInFlight: Promise<EstadoEscritorioPayload> | null = null;
@@ -721,10 +721,12 @@ async function computarEstadoEscritorio(): Promise<EstadoEscritorioPayload> {
   return payload;
 }
 
-export async function carregarEstadoEscritorio(): Promise<EstadoEscritorioPayload> {
+export async function carregarEstadoEscritorio(
+  forceFresh = false,
+): Promise<EstadoEscritorioPayload> {
   const agora = Date.now();
 
-  if (estadoCache) {
+  if (!forceFresh && estadoCache) {
     const idade = agora - estadoCache.atualizadoEm;
     if (idade < CACHE_FRESH_MS) {
       return estadoCache.payload;
@@ -737,6 +739,13 @@ export async function carregarEstadoEscritorio(): Promise<EstadoEscritorioPayloa
       }
       return estadoCache.payload;
     }
+  }
+
+  if (forceFresh) {
+    refreshInFlight = computarEstadoEscritorio().finally(() => {
+      refreshInFlight = null;
+    });
+    return refreshInFlight;
   }
 
   if (!refreshInFlight) {

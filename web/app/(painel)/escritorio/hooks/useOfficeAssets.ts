@@ -61,9 +61,9 @@ export function useOfficeAssets(
           const rawLayout = (data?.layout ?? data) as OfficeLayout;
           if (
             rawLayout &&
-            (rawLayout.version ?? 1) >= 3 &&
+            (rawLayout.version ?? 1) >= 4 &&
             Array.isArray(rawLayout.tiles) &&
-            rawLayout.cols >= 48
+            rawLayout.cols >= 50
           ) {
             const migrated = migrateLayoutColors(rawLayout);
             cachedLayout = migrated;

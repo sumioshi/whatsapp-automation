@@ -2,22 +2,48 @@ import { useEffect } from 'react';
 
 import type { OfficeState } from '../office/engine/officeState';
 
-const TRACKED_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift']);
+const KEY_NORMALIZE: Record<string, string> = {
+  ArrowUp: 'ArrowUp',
+  ArrowDown: 'ArrowDown',
+  ArrowLeft: 'ArrowLeft',
+  ArrowRight: 'ArrowRight',
+  w: 'ArrowUp',
+  W: 'ArrowUp',
+  s: 'ArrowDown',
+  S: 'ArrowDown',
+  a: 'ArrowLeft',
+  A: 'ArrowLeft',
+  d: 'ArrowRight',
+  D: 'ArrowRight',
+  Shift: 'Shift',
+};
 
-export function useLeaderKeyboard(getOfficeState: () => OfficeState, isEditMode: boolean): void {
+function isTypingInField(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (target.isContentEditable) return true;
+  return false;
+}
+
+export function useLeaderKeyboard(getOfficeState: () => OfficeState, isDisabled: boolean): void {
   useEffect(() => {
-    if (isEditMode) return;
+    if (isDisabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (TRACKED_KEYS.has(e.key)) {
-        if (e.key !== 'Shift') e.preventDefault();
-        getOfficeState().leaderKeysDown.add(e.key);
+      if (isTypingInField(e.target)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const mapped = KEY_NORMALIZE[e.key];
+      if (mapped) {
+        if (mapped !== 'Shift') e.preventDefault();
+        getOfficeState().leaderKeysDown.add(mapped);
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (TRACKED_KEYS.has(e.key)) {
-        getOfficeState().leaderKeysDown.delete(e.key);
+      const mapped = KEY_NORMALIZE[e.key];
+      if (mapped) {
+        getOfficeState().leaderKeysDown.delete(mapped);
       }
     };
 
@@ -34,5 +60,5 @@ export function useLeaderKeyboard(getOfficeState: () => OfficeState, isEditMode:
       window.removeEventListener('blur', handleBlur);
       getOfficeState().leaderKeysDown.clear();
     };
-  }, [getOfficeState, isEditMode]);
+  }, [getOfficeState, isDisabled]);
 }

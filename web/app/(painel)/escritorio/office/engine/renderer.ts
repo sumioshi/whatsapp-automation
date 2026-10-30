@@ -48,9 +48,10 @@ import type {
 } from '../types';
 import { CharacterState, TILE_SIZE, TileType } from '../types';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles';
-import { renderWorldScenery } from './worldScenery';
+import { renderAiofficeArchitecture } from './aiofficeArchitecture';
 import { getCharacterSprite } from './characters';
 import { renderMatrixEffect } from './matrixEffect';
+import { renderWorldAtmosphereAndTraffic, renderWorldScenery } from './worldScenery';
 
 // ── Render functions ────────────────────────────────────────────
 
@@ -671,14 +672,25 @@ export function renderFrame(
   const offsetX = Math.floor((canvasWidth - mapW) / 2) + Math.round(panX);
   const offsetY = Math.floor((canvasHeight - mapH) / 2) + Math.round(panY);
 
-  // Draw living exterior world scenery (countryside, river, town, avenue with cars, Christmas lights)
-  renderWorldScenery(ctx, canvasWidth, canvasHeight, offsetX, offsetY, zoom, cols, rows, {
-    faseIluminacao: faseIluminacao ?? 'dia',
-    natalAtivo: natalAtivo ?? true,
-  });
+  // Draw living exterior world scenery (Cofounder sunlit meadow, sky horizon, cumulus clouds, skyline & AIOffice props)
+  renderWorldScenery(
+    ctx,
+    cols,
+    rows,
+    offsetX,
+    offsetY,
+    zoom,
+    faseIluminacao ?? 'dia',
+    natalAtivo ?? true,
+  );
 
-  // Draw tiles (floor + wall base color)
-  renderTileGrid(ctx, tileMap, offsetX, offsetY, zoom, tileColors, layoutCols);
+  // Draw seamless AIOffice multi-room architecture (marble, wood, bistro tiles, fringed rugs, 3D walls & plaques)
+  const useAiofficeArch = cols === 50 && rows === 36;
+  if (useAiofficeArch) {
+    renderAiofficeArchitecture(ctx, cols, rows, offsetX, offsetY, zoom);
+  } else {
+    renderTileGrid(ctx, tileMap, offsetX, offsetY, zoom, tileColors, layoutCols);
+  }
 
   // Seat indicators (below furniture/characters, on top of floor)
   if (selection) {
@@ -694,14 +706,27 @@ export function renderFrame(
     );
   }
 
-  // Build wall instances for z-sorting with furniture and characters
-  const wallInstances = hasWallSprites() ? getWallInstances(tileMap, tileColors, layoutCols) : [];
+  // Build wall instances only for legacy layouts
+  const wallInstances =
+    !useAiofficeArch && hasWallSprites() ? getWallInstances(tileMap, tileColors, layoutCols) : [];
   const allFurniture = wallInstances.length > 0 ? [...wallInstances, ...furniture] : furniture;
 
-  // Draw walls + furniture + characters (z-sorted)
+  // Draw furniture + characters (z-sorted)
   const selectedId = selection?.selectedAgentId ?? null;
   const hoveredId = selection?.hoveredAgentId ?? null;
   renderScene(ctx, allFurniture, characters, offsetX, offsetY, zoom, selectedId, hoveredId);
+
+  // 2D Shaders: God-Rays (diagonal sunbeams), cloud shadows, warm lamp halos & pollen/fireflies
+  renderWorldAtmosphereAndTraffic(
+    ctx,
+    cols,
+    rows,
+    offsetX,
+    offsetY,
+    zoom,
+    faseIluminacao ?? 'dia',
+    natalAtivo ?? true,
+  );
 
   // Iluminação ambiente dinâmica (dia / entardecer / noite)
   if (faseIluminacao && faseIluminacao !== 'dia') {

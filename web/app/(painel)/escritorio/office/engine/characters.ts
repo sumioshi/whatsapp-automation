@@ -344,7 +344,7 @@ const ARROW_KEY_DIR: Record<string, { dir: Direction; dc: number; dr: number }> 
   ArrowRight: { dir: Direction.RIGHT, dc: 1, dr: 0 },
 };
 
-/** Update a player-controlled leader character using arrow keys */
+/** Update a player-controlled leader character using WASD / arrow keys */
 export function updateLeaderCharacter(
   ch: Character,
   dt: number,
@@ -358,7 +358,7 @@ export function updateLeaderCharacter(
 
   ch.frameTimer += dt;
 
-  // Cancel auto-path when arrow key pressed
+  // Cancel auto-path when WASD / arrow key pressed
   const hasArrowKey = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].some((k) =>
     keysDown.has(k),
   );
@@ -366,6 +366,25 @@ export function updateLeaderCharacter(
     ch.path.length = Math.min(ch.path.length, 1);
     ch.autoRun = false;
   }
+
+  const tryQueueKeyStep = (): boolean => {
+    for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
+      if (keysDown.has(key)) {
+        const mapping = ARROW_KEY_DIR[key];
+        const nextCol = ch.tileCol + mapping.dc;
+        const nextRow = ch.tileRow + mapping.dr;
+        ch.dir = mapping.dir;
+        if (isWalkable(nextCol, nextRow, tileMap, blockedTiles)) {
+          ch.path = [{ col: nextCol, row: nextRow }];
+          ch.moveProgress = 0;
+          ch.state = CharacterState.WALK;
+          return true;
+        }
+        break;
+      }
+    }
+    return false;
+  };
 
   if (ch.state === CharacterState.WALK) {
     // Walk/run animation
@@ -375,14 +394,16 @@ export function updateLeaderCharacter(
     }
 
     if (ch.path.length === 0) {
-      // Arrived — snap to tile center
-      const center = tileCenter(ch.tileCol, ch.tileRow);
-      ch.x = center.x;
-      ch.y = center.y;
-      ch.state = CharacterState.IDLE;
-      ch.frame = 0;
-      ch.frameTimer = 0;
-      ch.autoRun = false;
+      if (!tryQueueKeyStep()) {
+        // Arrived — snap to tile center
+        const center = tileCenter(ch.tileCol, ch.tileRow);
+        ch.x = center.x;
+        ch.y = center.y;
+        ch.state = CharacterState.IDLE;
+        ch.frame = 0;
+        ch.frameTimer = 0;
+        ch.autoRun = false;
+      }
     } else {
       // Move toward next tile
       const nextTile = ch.path[0];
@@ -400,28 +421,19 @@ export function updateLeaderCharacter(
         ch.y = toCenter.y;
         ch.path.shift();
         ch.moveProgress = 0;
+        if (ch.path.length === 0) {
+          tryQueueKeyStep();
+        }
       }
       return;
     }
   }
 
-  // IDLE — check for arrow key input to start walking
-  if (ch.state === CharacterState.IDLE) {
-    for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
-      if (keysDown.has(key)) {
-        const mapping = ARROW_KEY_DIR[key];
-        const nextCol = ch.tileCol + mapping.dc;
-        const nextRow = ch.tileRow + mapping.dr;
-        ch.dir = mapping.dir;
-        if (isWalkable(nextCol, nextRow, tileMap, blockedTiles)) {
-          ch.path = [{ col: nextCol, row: nextRow }];
-          ch.moveProgress = 0;
-          ch.state = CharacterState.WALK;
-          ch.frame = 0;
-          ch.frameTimer = 0;
-        }
-        break;
-      }
+  // IDLE or TYPE — check for WASD / arrow key input to start walking
+  if (ch.state === CharacterState.IDLE || ch.state === CharacterState.TYPE) {
+    if (tryQueueKeyStep()) {
+      ch.frame = 0;
+      ch.frameTimer = 0;
     }
   }
 }

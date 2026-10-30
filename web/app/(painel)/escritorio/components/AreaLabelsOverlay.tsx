@@ -13,16 +13,11 @@ interface AreaZone {
 }
 
 const DEFAULT_ZONES: AreaZone[] = [
-  { id: 'reuniao', label: '📋 Sala de Contratos & Reuniões', col: 7.5, row: 1.5, color: '#fbbf24' },
-  { id: 'recepcao', label: '🏛️ Recepção & Diretoria', col: 24, row: 1.5, color: '#c084fc' },
-  { id: 'lounge', label: '☕ Cafeteria, Coffee Lab & Lounge', col: 40, row: 1.5, color: '#34d399' },
-  { id: 'ala-oeste', label: '💻 Ala SaaS & AI Core (Baias 1–14)', col: 11, row: 8.8, color: '#60a5fa' },
-  { id: 'ala-leste', label: '🚀 Ala Operações & Automação (Baias 15–28)', col: 36, row: 8.8, color: '#38bdf8' },
-  // Exterior world zones
-  { id: 'vila-norte', label: '🏘️ Vila Tech & Vale Norte', col: 24, row: -5.2, color: '#a7f3d0' },
-  { id: 'riacho-oeste', label: '🌊 Riacho & Ponte do Bosque', col: -8, row: 15.2, color: '#7dd3fc' },
-  { id: 'deck-leste', label: '☂️ Deck Bistrô & Jardim Leste', col: 50.2, row: 5.5, color: '#fcd34d' },
-  { id: 'praca-sul', label: '🎄 Praça de Entrada & Avenida Sul', col: 24, row: 34.2, color: '#fda4af' },
+  // Exterior world zones (as salas internas já possuem placas nativas nas paredes norte estilo AIOffice)
+  { id: 'vila-norte', label: '☀️ Horizonte & Parque Norte', col: 25, row: -4.2, color: '#fef08a' },
+  { id: 'riacho-oeste', label: '🌊 Riacho & Bosque Oeste', col: -6.5, row: 17, color: '#7dd3fc' },
+  { id: 'deck-leste', label: '☂️ Jardim & Pátio Leste', col: 55.5, row: 12, color: '#fcd34d' },
+  { id: 'praca-sul', label: '🌳 Alameda & Parque Sul', col: 25, row: 38.5, color: '#86efac' },
 ];
 
 interface AreaLabelsOverlayProps {
