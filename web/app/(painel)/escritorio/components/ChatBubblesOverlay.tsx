@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { PresenceView } from '@/lib/presence';
 import { CHARACTER_SITTING_OFFSET_PX } from '../constants';
+import { offsetPuloPx } from '../office/engine/characters';
 import type { OfficeState } from '../office/engine/officeState';
 import { CharacterState, TILE_SIZE } from '../office/types';
 
@@ -95,7 +96,7 @@ export function ChatBubblesOverlay({
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
         // Posicionado logo acima do nome do personagem
-        const screenY = (deviceOffsetY + (ch.y + sittingOffset - 24) * zoom) / dpr - (isMobile ? 36 : 46);
+        const screenY = (deviceOffsetY + (ch.y + sittingOffset + offsetPuloPx(ch) - 24) * zoom) / dpr - (isMobile ? 36 : 46);
 
         const isUrgente = b.urgente ?? false;
 

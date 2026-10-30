@@ -104,6 +104,10 @@ export const WAITING_BUBBLE_DURATION_SEC = 2.0;
 export const DISMISS_BUBBLE_FAST_FADE_SEC = 0.3;
 export const TOOL_BUBBLE_DURATION_SEC = 3.5;
 export const TOOL_BUBBLE_FADE_SEC = 0.5;
+/** Reação do NPC a mensagem nova: dois quiques e um "!" acima da cabeça */
+export const REACAO_PULO_DURATION_SEC = 0.9;
+export const REACAO_PULO_ALTURA_PX = 6;
+export const REACAO_ALERTA_DURATION_SEC = 2.5;
 export const INACTIVE_SEAT_TIMER_MIN_SEC = 3.0;
 export const INACTIVE_SEAT_TIMER_RANGE_SEC = 2.0;
 export const PALETTE_COUNT = 18;

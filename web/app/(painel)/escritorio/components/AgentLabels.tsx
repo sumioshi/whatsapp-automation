@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { CHARACTER_SITTING_OFFSET_PX } from '../constants';
 import type { SubagentCharacter } from '../office/components/ToolOverlay';
+import { offsetPuloPx } from '../office/engine/characters';
 import type { OfficeState } from '../office/engine/officeState';
 import { LEADER_ID, PLAYER_ID } from '../office/engine/officeState';
 import { CharacterState, TILE_SIZE } from '../office/types';
@@ -88,7 +89,7 @@ export function AgentLabels({
 
         const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
-        const screenY = (deviceOffsetY + (ch.y + sittingOffset - 24) * zoom) / dpr - (isMobile ? 12 : 16);
+        const screenY = (deviceOffsetY + (ch.y + sittingOffset + offsetPuloPx(ch) - 24) * zoom) / dpr - (isMobile ? 12 : 16);
 
         const isLeader = id === LEADER_ID;
         const isPlayer = id === PLAYER_ID;
