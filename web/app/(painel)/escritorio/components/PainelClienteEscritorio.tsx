@@ -432,7 +432,18 @@ export function PainelClienteEscritorio({
   const ehUrgente = cliente.band === 'hot' || cliente.band === 'warm';
 
   return (
+    <>
+      {/* No celular a gaveta vira folha de baixo: o fundo engole o toque (nada chega ao mapa) e fecha ao tocar fora. */}
+      <div
+        aria-hidden="true"
+        onClick={onClose}
+        className="fixed inset-0 bg-black/45 md:hidden"
+        style={{ zIndex: 54, touchAction: 'none' }}
+      />
     <aside
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Painel de ${cliente.nome}`}
       className="flex shrink-0 flex-col border-line bg-surface text-fg shadow-2xl max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:top-14 max-md:w-full max-md:rounded-t-2xl max-md:border-t md:relative md:h-full md:w-[420px] md:border-l"
       style={{ zIndex: 55 }}
     >
@@ -636,7 +647,7 @@ export function PainelClienteEscritorio({
       {abaAtiva === 'orca' ? (
         <div className="flex flex-1 flex-col overflow-hidden">
           <div
-            className={`flex-1 space-y-3 overflow-y-auto px-4 py-3 ${
+            className={`flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-3 ${
               mostrarTerminalOrca && terminalHandleAtivo ? 'flex flex-col' : ''
             }`}
           >
@@ -935,7 +946,7 @@ export function PainelClienteEscritorio({
                               : 'Última resposta'}
                           </span>
                         </div>
-                        <div className="max-h-[300px] overflow-y-auto whitespace-pre-wrap break-words font-sans text-[12px] leading-relaxed text-fg">
+                        <div className="max-h-[300px] overflow-y-auto overscroll-contain whitespace-pre-wrap break-words font-sans text-[12px] leading-relaxed text-fg">
                           {agenteSelecionado.lastAssistantMessage}
                         </div>
                       </div>
@@ -1081,7 +1092,7 @@ export function PainelClienteEscritorio({
         </div>
       ) : (
       /* Corpo rolável: Aba WhatsApp & CRM */
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-3">
+      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-3">
         {/* Contatos do Projeto & Conversas Fora do Grupo (DMs Monitoradas) */}
         <div className="rounded-lg border border-line bg-surface-2 p-3">
           <div className="flex items-center justify-between gap-2">
@@ -1438,5 +1449,6 @@ export function PainelClienteEscritorio({
       </div>
       )}
     </aside>
+    </>
   );
 }
