@@ -1747,7 +1747,7 @@ export function EscritorioView({
                           aria-pressed={selecionado}
                           aria-label={`${c.nome}, Baia #${baiaNum}, ${
                             c.aguardando
-                              ? `aguardando resposta há ${c.waitingLabel ?? 'pendente'}`
+                              ? `aguardando resposta ${c.waitingLabel ?? 'pendente'}`
                               : dmsPendentes > 0
                                 ? `${dmsPendentes} DM aguardando`
                                 : 'em dia'
