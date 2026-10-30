@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  epochDaMensagem,
   FreioPorChat,
   interpretarEventoMensagem,
   PREVIA_MAX_CHARS,
@@ -65,6 +66,34 @@ describe('interpretarEventoMensagem', () => {
       interpretarEventoMensagem({ slug: 'dm-5511000000000', fromMe: false, text: 'oi' }, clientes),
     ).toBeNull();
   });
+
+  it('replay de reconexão: mensagem com mais de 90 s não notifica; recente e sem timestamp passam', () => {
+    const agora = Date.parse('2026-10-30T12:00:00.000Z');
+    const base = { slug: 'loja-y', fromMe: false, text: 'oi' };
+    expect(
+      interpretarEventoMensagem({ ...base, timestamp: '2026-10-30T11:58:29.000Z' }, clientes, agora),
+    ).toBeNull();
+    expect(
+      interpretarEventoMensagem({ ...base, timestamp: '2026-10-30T11:59:00.000Z' }, clientes, agora),
+    ).not.toBeNull();
+    expect(interpretarEventoMensagem(base, clientes, agora)).not.toBeNull();
+    // epoch em segundos e em ms também contam
+    expect(interpretarEventoMensagem({ ...base, timestamp: agora / 1000 - 120 }, clientes, agora)).toBeNull();
+    expect(interpretarEventoMensagem({ ...base, ts: agora - 5_000 }, clientes, agora)).not.toBeNull();
+    // timestamp ilegível não derruba a notificação
+    expect(interpretarEventoMensagem({ ...base, timestamp: 'ontem' }, clientes, agora)).not.toBeNull();
+  });
+});
+
+describe('epochDaMensagem', () => {
+  it('lê ISO, ms e segundos', () => {
+    expect(epochDaMensagem({ timestamp: '2026-07-14T17:14:35.000Z' })).toBe(Date.parse('2026-07-14T17:14:35.000Z'));
+    expect(epochDaMensagem({ timestamp: 1_800_000_000_000 })).toBe(1_800_000_000_000);
+    expect(epochDaMensagem({ timestamp: 1_800_000_000 })).toBe(1_800_000_000_000);
+    expect(epochDaMensagem({ timestamp: '1800000000' })).toBe(1_800_000_000_000);
+    expect(epochDaMensagem({})).toBeNull();
+    expect(epochDaMensagem({ timestamp: '' })).toBeNull();
+  });
 });
 
 describe('previaDaMensagem', () => {
@@ -116,5 +145,20 @@ describe('FreioPorChat', () => {
     expect(f.permitir('a', 0)).toBe(true);
     expect(f.permitir('a', 2_900)).toBe(false);
     expect(f.permitir('a', 3_000)).toBe(true);
+  });
+
+  it('tocouRecentemente: som da mensagem nos últimos 2 s cala a transição, sem registrar', () => {
+    const f = new FreioPorChat();
+    expect(f.tocouRecentemente('a', 0)).toBe(false);
+    expect(f.permitir('a', 1_000)).toBe(true);
+    expect(f.tocouRecentemente('a', 1_150)).toBe(true);
+    expect(f.tocouRecentemente(undefined, 1_150)).toBe(true); // global
+    expect(f.tocouRecentemente('b', 2_500)).toBe(true); // 'b' nunca tocou, mas o global ainda vale
+    expect(f.tocouRecentemente('a', 2_500)).toBe(true); // 'a' ainda dentro dos 2 s
+    expect(f.tocouRecentemente('b', 3_000)).toBe(false); // global expirou, 'b' nunca tocou
+    expect(f.tocouRecentemente('a', 3_000)).toBe(false);
+    // consultar não renova nada: 'a' libera de novo aos 4 s como antes
+    expect(f.permitir('a', 3_999)).toBe(false);
+    expect(f.permitir('a', 4_000)).toBe(true);
   });
 });

@@ -13,6 +13,27 @@ export interface EventoMensagemSse {
   text?: string | null;
   type?: string | null;
   origem?: string | null;
+  /** ISO (como o coletor grava), ms ou segundos de epoch. */
+  timestamp?: string | number | null;
+  ts?: string | number | null;
+}
+
+/** Mensagem mais velha que isso é replay de reconexão, não chegada nova: não notifica. */
+export const IDADE_MAX_NOTIFICAVEL_MS = 90_000;
+
+/** Epoch ms do timestamp da mensagem, ou null se ausente/ilegível. */
+export function epochDaMensagem(evento: EventoMensagemSse): number | null {
+  const bruto = evento.timestamp ?? evento.ts;
+  if (bruto === null || bruto === undefined || bruto === '') return null;
+  if (typeof bruto === 'number') {
+    if (!Number.isFinite(bruto)) return null;
+    // Abaixo de 1e12 só cabe em segundos (ms de epoch passam disso desde 2001)
+    return bruto < 1e12 ? bruto * 1000 : bruto;
+  }
+  const n = Number(bruto);
+  if (/^\d+$/.test(bruto) && Number.isFinite(n)) return n < 1e12 ? n * 1000 : n;
+  const t = Date.parse(bruto);
+  return Number.isNaN(t) ? null : t;
 }
 
 /** Recorte mínimo do cliente que o escritório precisa pra resolver DM → projeto. */
@@ -64,12 +85,16 @@ export function previaDaMensagem(evento: EventoMensagemSse): string {
 export function interpretarEventoMensagem(
   payload: unknown,
   clientes: ClienteNotificavel[],
+  agora: number = Date.now(),
 ): MensagemInterpretada | null {
   if (!payload || typeof payload !== 'object') return null;
   const evento = payload as EventoMensagemSse;
   if (evento.fromMe) return null;
   const slug = typeof evento.slug === 'string' ? evento.slug.trim() : '';
   if (!slug) return null;
+  // Reconexão do SSE reemite o buraco (Last-Event-ID): mensagem velha não vira alerta
+  const epoch = epochDaMensagem(evento);
+  if (epoch !== null && agora - epoch > IDADE_MAX_NOTIFICAVEL_MS) return null;
 
   let slugProjeto: string | null = null;
   let autorContato: string | undefined;
@@ -103,6 +128,8 @@ export function interpretarEventoMensagem(
 
 export const FREIO_POR_SLUG_MS = 3_000;
 export const FREIO_GLOBAL_MS = 1_000;
+/** Janela em que outro gatilho de som (transição de estado) cede ao som da mensagem. */
+export const TOCOU_RECENTEMENTE_MS = 2_000;
 
 /**
  * Freio de som: no máximo um por slug a cada 3 s e um global a cada 1 s.
@@ -126,5 +153,17 @@ export class FreioPorChat {
     this.ultimoPorSlug.set(slug, agora);
     this.ultimoGlobal = agora;
     return true;
+  }
+
+  /**
+   * Um som já saiu nos últimos `janelaMs` (pro slug, ou qualquer um sem slug)?
+   * Serve pra outro gatilho (ex.: transição pra "aguardando") não tocar em cima.
+   * Só consulta, não registra.
+   */
+  tocouRecentemente(slug?: string, agora: number = Date.now(), janelaMs = TOCOU_RECENTEMENTE_MS): boolean {
+    if (agora - this.ultimoGlobal < janelaMs) return true;
+    if (slug === undefined) return false;
+    const ultimo = this.ultimoPorSlug.get(slug);
+    return ultimo !== undefined && agora - ultimo < janelaMs;
   }
 }

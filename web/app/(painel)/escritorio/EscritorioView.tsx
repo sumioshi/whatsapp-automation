@@ -580,6 +580,8 @@ export function EscritorioView({
     let novoUrgente = false;
     for (const slug of currentSet) {
       if (!prevAguardandoSlugsRef.current.has(slug)) {
+        // O som da mensagem (handler SSE) acabou de sair pra esse chat: a transição não toca em cima
+        if (freioSomRef.current.tocouRecentemente(slug)) continue;
         novoAguardando = true;
         const cli = clientes.find((c) => c.slug === slug);
         if (cli && (cli.band === 'hot' || cli.band === 'warm')) {
