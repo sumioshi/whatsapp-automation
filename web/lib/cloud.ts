@@ -78,17 +78,51 @@ function sinalDaChamada(opts: CloudReqOpts): AbortSignal {
   return opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout;
 }
 
-export async function cloudPost(path: string, body: unknown, opts: CloudReqOpts = {}): Promise<Response> {
-  const base = cloudUrl();
-  if (!base) throw new Error('WAC_CLOUD_URL não configurado');
+/** Um coletor na nuvem (URL + Basic Auth). O trio `WAC_CLOUD_*` é o destino padrão;
+ * quem precisa falar com outro coletor (ex.: o pessoal) monta o seu e usa `cloudPostTo`. */
+export interface CloudDestino {
+  url: string;
+  user?: string;
+  pass?: string;
+}
+
+/** Destino lido das variáveis `WAC_CLOUD_*` (null se a nuvem está desligada). */
+export function cloudDestinoDoEnv(): CloudDestino | null {
+  const url = cloudUrl();
+  if (!url) return null;
+  return { url, user: process.env.WAC_CLOUD_USER, pass: process.env.WAC_CLOUD_PASS };
+}
+
+function authHeadersDe(destino: CloudDestino): Record<string, string> {
+  if (!destino.user || !destino.pass) return {};
+  return {
+    Authorization: `Basic ${Buffer.from(`${destino.user}:${destino.pass}`).toString('base64')}`,
+  };
+}
+
+/** `cloudPost` com destino explícito (mesma auth/timeout/premissa de erro). */
+export async function cloudPostTo(
+  destino: CloudDestino,
+  path: string,
+  body: unknown,
+  opts: CloudReqOpts = {},
+): Promise<Response> {
+  const base = destino.url.replace(/\/+$/, '');
+  if (!base) throw new Error('destino da nuvem sem URL');
   const res = await fetch(`${base}${path}`, {
     method: 'POST',
-    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    headers: { ...authHeadersDe(destino), 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal: sinalDaChamada(opts),
   });
   if (!res.ok) throw await cloudHttpError(path, res);
   return res;
+}
+
+export async function cloudPost(path: string, body: unknown, opts: CloudReqOpts = {}): Promise<Response> {
+  const destino = cloudDestinoDoEnv();
+  if (!destino) throw new Error('WAC_CLOUD_URL não configurado');
+  return cloudPostTo(destino, path, body, opts);
 }
 
 /** POST multipart (upload de bytes). NÃO seta Content-Type: o fetch define o

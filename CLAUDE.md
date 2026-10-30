@@ -309,9 +309,12 @@ e em modo Organograma:
   comandos em `.orca-remote-queue.json` para o Mac executar.
   - **Relay (Mac → nuvem):** `web/lib/orca-relay.ts` roda dentro do MCP enquanto há sessão aberta
     e, de forma permanente, no daemon `scripts/orca-bridge-daemon.ts` (`npm run orca-bridge`, ou
-    `pm2 start ecosystem.config.cjs --only wa-orca-bridge`). Lock em tmpdir: só um processo
-    sincroniza por vez. Sem daemon nem MCP, a nuvem congela num snapshot velho: o pill da barra
-    fica amarelo (> 60 s) e o painel de status avisa.
+    `pm2 start ecosystem.config.cjs --only wa-orca-bridge`). O daemon alimenta o coletor
+    principal (`WAC_CLOUD_*`) e, se o trio `WAC_PESSOAL_*` existir, o pessoal também. Lock em
+    tmpdir **por destino** (`wac-orca-relay-<hash da URL>.lock`): o MCP do pessoal nunca
+    disputa com o do business; o lock só é renovado em ciclo que deu certo, então um dono
+    travado perde a vez em 12 s. Sem daemon nem MCP, a nuvem congela num snapshot velho: o
+    pill da barra fica amarelo (> 60 s) e o painel de status avisa.
   - **Painel de status:** o pill `🐋 Orca` da barra superior é um botão sempre visível (verde =
     local ou remoto fresco, amarelo = remoto parado, cinza = offline) que abre `OrcaStatusPanel`:
     fonte, host de origem, runtime, versão, idade do snapshot, contadores, hosts, ambientes
