@@ -10,12 +10,19 @@ import {
   readLocalOrcaSnapshot,
   readLocalTerminalScreen,
 } from './orca-bridge';
+import { intervaloRelay } from './orca-terminal';
 
 const LOCK_FILE = join(tmpdir(), 'wac-orca-remote-relay.lock');
 const LOCK_STALE_MS = 12_000;
 
 let relayStarted = false;
 const screenCache = new Map<string, { ts: number; tail: string[]; draft?: string | null }>();
+// Handles com stream aberto na nuvem (vem no retorno do sync_push): sem cache e ciclo curto.
+let terminaisAssistidos = new Set<string>();
+
+export function terminaisAssistidosAgora(): string[] {
+  return [...terminaisAssistidos];
+}
 
 async function acquireOrRefreshLock(pid: number): Promise<boolean> {
   const now = Date.now();
@@ -53,7 +60,7 @@ export async function runSingleOrcaRelayCycle(
       for (const ag of proj.agents) {
         if (!ag.terminalHandle) continue;
         const cached = screenCache.get(ag.terminalHandle);
-        if (cached && now - cached.ts < 6000) {
+        if (cached && now - cached.ts < 6000 && !terminaisAssistidos.has(ag.terminalHandle)) {
           ag.screenTail = cached.tail;
           ag.draft = cached.draft;
           continue;
@@ -81,7 +88,9 @@ export async function runSingleOrcaRelayCycle(
   const data = (await res.json()) as {
     ok?: boolean;
     pendingCommands?: OrcaPendingCommand[];
+    watch?: string[];
   };
+  terminaisAssistidos = new Set(Array.isArray(data?.watch) ? data.watch : []);
 
   const cmds = Array.isArray(data?.pendingCommands) ? data.pendingCommands : [];
   if (cmds.length === 0) return [];
@@ -133,9 +142,16 @@ export function startOrcaRemoteRelayLoop(intervalMs = 4500): void {
     }
   };
 
-  setTimeout(() => void tick(), 800);
-  const timer = setInterval(() => void tick(), intervalMs);
-  if (typeof timer.unref === 'function') {
-    timer.unref();
-  }
+  // Reagenda a cada passada: o intervalo encurta enquanto algum terminal está
+  // sendo assistido pelo stream da nuvem e volta ao normal quando ninguém olha.
+  const agendar = (ms: number) => {
+    const timer = setTimeout(async () => {
+      await tick();
+      agendar(intervaloRelay(terminaisAssistidos.size, intervalMs));
+    }, ms);
+    if (typeof timer.unref === 'function') {
+      timer.unref();
+    }
+  };
+  agendar(800);
 }

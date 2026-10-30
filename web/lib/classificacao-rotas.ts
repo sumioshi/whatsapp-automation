@@ -54,6 +54,8 @@ export const CLASSIFICACAO: Record<string, 'dono' | 'atendimento' | 'publico'> =
   'api/escritorio/estado/route.ts': 'dono',
   'api/escritorio/layout/route.ts': 'dono',
   'api/escritorio/mensagens/route.ts': 'dono',
+  'api/escritorio/orca/route.ts': 'dono',
+  'api/escritorio/orca/terminal/route.ts': 'dono',
   'api/events/route.ts': 'dono',
   'api/features/route.ts': 'dono',
   'api/google/callback/route.ts': 'dono',

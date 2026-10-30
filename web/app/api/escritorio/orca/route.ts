@@ -6,6 +6,7 @@ import {
   executeLocalOrcaCommand,
   getOrcaBin,
   getOrcaSnapshot,
+  lerWatchAtivo,
   type OrcaCommandResult,
   type OrcaPendingCommand,
   type OrcaSnapshot,
@@ -74,6 +75,7 @@ export async function POST(request: Request) {
       worktreePath?: string;
       text?: string;
       agentType?: string;
+      data?: string;
       snapshot?: OrcaSnapshot;
       commandResults?: OrcaCommandResult[];
     };
@@ -87,6 +89,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         pendingCommands,
+        watch: await lerWatchAtivo(),
       });
     }
 
@@ -95,6 +98,7 @@ export async function POST(request: Request) {
       'iniciar_agente',
       'interromper',
       'focar_orca',
+      'enviar_teclas',
     ]);
     if (!body.acao || !validActions.has(body.acao)) {
       return NextResponse.json(
@@ -112,11 +116,16 @@ export async function POST(request: Request) {
       worktreePath: body.worktreePath,
       text: body.text,
       agentType: body.agentType,
+      data: typeof body.data === 'string' ? body.data : undefined,
     };
 
     // 1. Se o Orca CLI está disponível localmente nesta máquina, executa imediatamente!
     if (getOrcaBin()) {
       const result = await executeLocalOrcaCommand(cmd);
+      // Teclas são frequentes e a tela chega pelo stream: sem snapshot para não atrasar o lote seguinte.
+      if (cmd.acao === 'enviar_teclas') {
+        return NextResponse.json({ ok: result.ok, mode: 'local', result });
+      }
       const snapshot = await getOrcaSnapshot(true);
       return NextResponse.json({
         ok: result.ok,
@@ -128,6 +137,11 @@ export async function POST(request: Request) {
 
     // 2. Caso contrário (estamos rodando na nuvem Railway), enfileira para o relay do Mac executar!
     await enqueueRemoteOrcaCommand(cmd);
+
+    // Teclas não esperam resultado: o relay executa na ordem da fila e a tela volta pelo stream.
+    if (cmd.acao === 'enviar_teclas') {
+      return NextResponse.json({ ok: true, queued: true, mode: 'remote-queued', commandId: cmd.id });
+    }
 
     // Aguarda até 4.5s caso o relay do Mac processe quase em tempo real
     const deadline = Date.now() + 4500;
