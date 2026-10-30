@@ -40,6 +40,7 @@ interface OfficeCanvasProps {
   onZoomChange: (zoom: number) => void;
   panRef: React.MutableRefObject<{ x: number; y: number }>;
   faseIluminacao?: 'dia' | 'tarde' | 'noite';
+  natalAtivo?: boolean;
 }
 
 export function OfficeCanvas({
@@ -58,6 +59,7 @@ export function OfficeCanvas({
   onZoomChange,
   panRef,
   faseIluminacao,
+  natalAtivo = true,
 }: OfficeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -96,15 +98,17 @@ export function OfficeCanvas({
   // Iluminação ambiente dinâmica (dia / tarde / noite)
   const faseIluminacaoRef = useRef(faseIluminacao);
   faseIluminacaoRef.current = faseIluminacao;
+  const natalAtivoRef = useRef(natalAtivo);
+  natalAtivoRef.current = natalAtivo;
 
-  // Clamp pan so the map edge can't go past a margin inside the viewport
+  // Clamp pan so the map edge (including surrounding exterior world) can be explored smoothly
   const clampPan = useCallback(
     (px: number, py: number): { x: number; y: number } => {
       const canvas = canvasRef.current;
       if (!canvas) return { x: px, y: py };
       const layout = officeState.getLayout();
-      const mapW = layout.cols * TILE_SIZE * zoom;
-      const mapH = layout.rows * TILE_SIZE * zoom;
+      const mapW = (layout.cols + 30) * TILE_SIZE * zoom;
+      const mapH = (layout.rows + 28) * TILE_SIZE * zoom;
       const marginX = canvas.width * PAN_MARGIN_FRACTION;
       const marginY = canvas.height * PAN_MARGIN_FRACTION;
       const maxPanX = mapW / 2 + canvas.width / 2 - marginX;
@@ -289,6 +293,7 @@ export function OfficeCanvas({
           officeState.getLayout().cols,
           officeState.getLayout().rows,
           faseIluminacaoRef.current,
+          natalAtivoRef.current,
         );
         offsetRef.current = { x: offsetX, y: offsetY };
 

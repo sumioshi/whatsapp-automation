@@ -61,7 +61,7 @@ export function useOfficeAssets(
           const rawLayout = (data?.layout ?? data) as OfficeLayout;
           if (
             rawLayout &&
-            rawLayout.version === 1 &&
+            (rawLayout.version ?? 1) >= 3 &&
             Array.isArray(rawLayout.tiles) &&
             rawLayout.cols >= 48
           ) {

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ClienteEscritorio, DmDisponivelEscritorio } from '@/lib/escritorio-estado';
 import type { OrcaSnapshot } from '@/lib/orca-bridge';
 import type { PresenceView } from '@/lib/presence';
+import { AMBIENT_STATIONS, type AmbientStation, getAmbientMusic } from './ambientMusic';
 import { AgentLabels, type AgentLabelMeta } from './components/AgentLabels';
 import { AreaLabelsOverlay } from './components/AreaLabelsOverlay';
 import { CenaLoaderEscritorio } from './components/CenaLoaderEscritorio';
@@ -104,6 +105,11 @@ export function EscritorioView({
 
   // Balões de fala flutuantes sobre os NPCs
   const [mostrarBaloes, setMostrarBaloes] = useState(true);
+
+  // Decoração de Natal & Luzes Aconchegantes + Rádio Ambiente Lo-Fi / Campo / Natal
+  const [natalAtivo, setNatalAtivo] = useState(true);
+  const [musicaAtiva, setMusicaAtiva] = useState(false);
+  const [estacaoMusica, setEstacaoMusica] = useState<AmbientStation>('lofi');
 
   // Customizador do Avatar do Jogador ("Você")
   const [playerPalette, setPlayerPalette] = useState<number>(5);
@@ -295,13 +301,57 @@ export function EscritorioView({
     [clientes],
   );
 
-  // Carrega e sincroniza ciclo de iluminação dinâmico
+  // Carrega e sincroniza ciclo de iluminação dinâmico + decoração de natal + estação musical
   useEffect(() => {
     const salvo = localStorage.getItem('escritorio_ciclo') as CicloIluminacaoModo | null;
     if (salvo && ['auto', 'dia', 'tarde', 'noite'].includes(salvo)) {
       setCicloModo(salvo);
     }
+    const natalSalvo = localStorage.getItem('escritorio_natal');
+    if (natalSalvo !== null) {
+      setNatalAtivo(natalSalvo === 'true');
+    }
+    const estacaoSalva = localStorage.getItem('escritorio_estacao_musica') as AmbientStation | null;
+    if (estacaoSalva && ['lofi', 'campo', 'natal'].includes(estacaoSalva)) {
+      setEstacaoMusica(estacaoSalva);
+    }
+    return () => {
+      getAmbientMusic().stop();
+    };
   }, []);
+
+  const handleToggleNatal = useCallback(() => {
+    playKeyClickSound();
+    setNatalAtivo((prev) => {
+      const next = !prev;
+      localStorage.setItem('escritorio_natal', String(next));
+      return next;
+    });
+  }, []);
+
+  const handleToggleMusica = useCallback(() => {
+    const ctrl = getAmbientMusic();
+    if (musicaAtiva) {
+      ctrl.stop();
+      setMusicaAtiva(false);
+    } else {
+      const ok = ctrl.start(estacaoMusica);
+      setMusicaAtiva(ok);
+    }
+  }, [musicaAtiva, estacaoMusica]);
+
+  const handleCycleEstacaoMusica = useCallback(() => {
+    const ordem: AmbientStation[] = ['lofi', 'campo', 'natal'];
+    const prox = ordem[(ordem.indexOf(estacaoMusica) + 1) % ordem.length];
+    setEstacaoMusica(prox);
+    localStorage.setItem('escritorio_estacao_musica', prox);
+    const ctrl = getAmbientMusic();
+    ctrl.setStation(prox);
+    if (!musicaAtiva) {
+      const ok = ctrl.start(prox);
+      setMusicaAtiva(ok);
+    }
+  }, [estacaoMusica, musicaAtiva]);
 
   useEffect(() => {
     const atualiza = () => {
@@ -618,12 +668,14 @@ export function EscritorioView({
       const ch = os.characters.get(idSorteado);
       if (!ch || !ch.seatId) return;
 
-      // Posições amplas e desimpedidas na Cafeteria / Lounge Barista
+      // Posições amplas na Cafeteria, Deck Leste e Hall da Praça de Natal Sul
       const loungeSpots = [
         { col: 41, row: 5 },
         { col: 38, row: 5 },
         { col: 43, row: 3 },
-        { col: 41, row: 3 },
+        { col: 46, row: 4 },
+        { col: 23, row: 30 },
+        { col: 24, row: 30 },
       ];
       const spot = loungeSpots[Math.floor(Math.random() * loungeSpots.length)];
       const pathIda = findPath(ch.tileCol, ch.tileRow, spot.col, spot.row, os.tileMap, os.blockedTiles);
@@ -1030,6 +1082,58 @@ export function EscritorioView({
                       {cicloModo === 'auto' ? `Auto (${infoFase.rotulo})` : infoFase.rotulo}
                     </span>
                   </button>
+                );
+              })()}
+
+              {/* Decoração de Natal & Luzes */}
+              <button
+                type="button"
+                onClick={handleToggleNatal}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                  natalAtivo
+                    ? 'border-ok/50 bg-ok-bg text-ok'
+                    : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
+                }`}
+                title="Ativar/desativar árvores de Natal iluminadas, pisca-piscas e presentes na praça externa"
+              >
+                <span>🎄</span>
+                <span className="hidden xl:inline">{natalAtivo ? 'Natal On' : 'Natal Off'}</span>
+              </button>
+
+              {/* Rádio Ambiente Relax & Progresso (Lo-Fi / Campo / Natal) */}
+              {(() => {
+                const st =
+                  AMBIENT_STATIONS.find((s) => s.id === estacaoMusica) ?? AMBIENT_STATIONS[0];
+                return (
+                  <div className="inline-flex items-center overflow-hidden rounded-lg border border-line bg-elevated">
+                    <button
+                      type="button"
+                      onClick={handleToggleMusica}
+                      className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold transition-colors ${
+                        musicaAtiva
+                          ? 'bg-accent text-accent-ink'
+                          : 'bg-surface text-fg hover:bg-elevated'
+                      }`}
+                      title={
+                        musicaAtiva
+                          ? `Pausar música ambiente (${st.label}: ${st.desc})`
+                          : `Tocar música relaxante de fundo (${st.label}: ${st.desc})`
+                      }
+                    >
+                      <span>{musicaAtiva ? '🎵' : '🎧'}</span>
+                      <span className="hidden sm:inline">
+                        {musicaAtiva ? st.shortLabel : 'Rádio Chill'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCycleEstacaoMusica}
+                      className="border-l border-line px-1.5 py-1 text-[10px] font-semibold text-fg-dim hover:bg-surface hover:text-fg"
+                      title={`Trocar estilo musical (atual: ${st.emoji} ${st.label})`}
+                    >
+                      {st.emoji} ▾
+                    </button>
+                  </div>
                 );
               })()}
 
@@ -1498,6 +1602,7 @@ export function EscritorioView({
                     onZoomChange={editor.handleZoomChange}
                     panRef={editor.panRef}
                     faseIluminacao={faseIluminacao}
+                    natalAtivo={natalAtivo}
                   />
 
                   <AreaLabelsOverlay

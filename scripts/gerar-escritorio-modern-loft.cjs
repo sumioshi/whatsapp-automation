@@ -57,14 +57,30 @@ for (let r = 0; r < ROWS; r++) {
   }
 }
 
-// 2. Paredes de perímetro
+// 2. Paredes de perímetro (com Portaria Sul, Porta do Deck Leste e Passarela do Riacho Oeste)
 for (let c = 0; c < COLS; c++) {
   setTile(c, 0, WALL, COR_PAREDE);
-  setTile(c, ROWS - 1, WALL, COR_PAREDE);
+  const ehEntradaPrincipalSul = c >= 22 && c <= 25;
+  if (ehEntradaPrincipalSul) {
+    setTile(c, ROWS - 1, FLOOR_BOULEVARD, COR_BOULEVARD);
+  } else {
+    setTile(c, ROWS - 1, WALL, COR_PAREDE);
+  }
 }
 for (let r = 0; r < ROWS; r++) {
-  setTile(0, r, WALL, COR_PAREDE);
-  setTile(COLS - 1, r, WALL, COR_PAREDE);
+  const ehPassarelaRiachoOeste = r >= 16 && r <= 17;
+  if (ehPassarelaRiachoOeste) {
+    setTile(0, r, FLOOR_CIRCULACAO, COR_CIRCULACAO);
+  } else {
+    setTile(0, r, WALL, COR_PAREDE);
+  }
+
+  const ehPortaDeckCafeLeste = r >= 4 && r <= 5;
+  if (ehPortaDeckCafeLeste) {
+    setTile(COLS - 1, r, FLOOR_COPA, COR_COPA);
+  } else {
+    setTile(COLS - 1, r, WALL, COR_PAREDE);
+  }
 }
 
 // 3. Parede divisória superior (row 7) com portas amplas
@@ -220,12 +236,13 @@ for (const b of BAIAS_CONFIG) {
 
 // 5. Decoração paisagística elegante
 const DECORACOES = [
-  // Vasos altos no Boulevard Central (divisórias verdes elegantes)
+  // Vasos altos no Boulevard Central (divisórias verdes elegantes e hall de entrada sul)
   { type: 'ASSET_140', col: 22, row: 10 },
   { type: 'ASSET_141', col: 25, row: 14 },
   { type: 'ASSET_142', col: 22, row: 19 },
   { type: 'ASSET_140', col: 25, row: 24 },
-  { type: 'ASSET_141', col: 23, row: 29 },
+  { type: 'ASSET_142', col: 21, row: 30 },
+  { type: 'ASSET_142', col: 26, row: 30 },
 
   // Estantes de livros embutidas nas paredes laterais
   { type: 'bookshelf', col: 1, row: 11 },
@@ -248,7 +265,7 @@ DECORACOES.forEach((d, idx) => {
 });
 
 const layout = {
-  version: 2,
+  version: 3,
   cols: COLS,
   rows: ROWS,
   tiles,

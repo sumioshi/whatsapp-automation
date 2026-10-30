@@ -48,6 +48,7 @@ import type {
 } from '../types';
 import { CharacterState, TILE_SIZE, TileType } from '../types';
 import { getWallInstances, hasWallSprites, wallColorToHex } from '../wallTiles';
+import { renderWorldScenery } from './worldScenery';
 import { getCharacterSprite } from './characters';
 import { renderMatrixEffect } from './matrixEffect';
 
@@ -467,15 +468,20 @@ export function renderLighting(
   fase: 'dia' | 'tarde' | 'noite',
   characters: Character[],
   furniture: FurnitureInstance[],
+  cols = 48,
+  rows = 32,
 ): void {
   if (fase === 'dia') return;
+
+  const bldgW = cols * TILE_SIZE * zoom;
+  const bldgH = rows * TILE_SIZE * zoom;
 
   ctx.save();
 
   if (fase === 'tarde') {
-    // Golden Hour sunset tint
+    // Golden Hour sunset tint over building interior
     ctx.fillStyle = 'rgba(255, 140, 40, 0.12)';
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ctx.fillRect(offsetX, offsetY, bldgW, bldgH);
 
     // Warm soft glow at windows or center
     ctx.globalCompositeOperation = 'lighter';
@@ -495,9 +501,9 @@ export function renderLighting(
     return;
   }
 
-  // Noite: Ambient darkness
-  ctx.fillStyle = 'rgba(10, 14, 28, 0.50)';
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  // Noite: Ambient darkness inside building (exterior already uses night palette & additive lights)
+  ctx.fillStyle = 'rgba(10, 14, 28, 0.48)';
+  ctx.fillRect(offsetX, offsetY, bldgW, bldgH);
 
   // Additive light sources: monitors, lamps, copa
   ctx.globalCompositeOperation = 'lighter';
@@ -650,6 +656,7 @@ export function renderFrame(
   layoutCols?: number,
   layoutRows?: number,
   faseIluminacao?: 'dia' | 'tarde' | 'noite',
+  natalAtivo?: boolean,
 ): { offsetX: number; offsetY: number } {
   // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -663,6 +670,12 @@ export function renderFrame(
   const mapH = rows * TILE_SIZE * zoom;
   const offsetX = Math.floor((canvasWidth - mapW) / 2) + Math.round(panX);
   const offsetY = Math.floor((canvasHeight - mapH) / 2) + Math.round(panY);
+
+  // Draw living exterior world scenery (countryside, river, town, avenue with cars, Christmas lights)
+  renderWorldScenery(ctx, canvasWidth, canvasHeight, offsetX, offsetY, zoom, cols, rows, {
+    faseIluminacao: faseIluminacao ?? 'dia',
+    natalAtivo: natalAtivo ?? true,
+  });
 
   // Draw tiles (floor + wall base color)
   renderTileGrid(ctx, tileMap, offsetX, offsetY, zoom, tileColors, layoutCols);
@@ -702,6 +715,8 @@ export function renderFrame(
       faseIluminacao,
       characters,
       allFurniture,
+      cols,
+      rows,
     );
   }
 

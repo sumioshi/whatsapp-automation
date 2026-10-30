@@ -18,6 +18,11 @@ const DEFAULT_ZONES: AreaZone[] = [
   { id: 'lounge', label: '☕ Cafeteria, Coffee Lab & Lounge', col: 40, row: 1.5, color: '#34d399' },
   { id: 'ala-oeste', label: '💻 Ala SaaS & AI Core (Baias 1–14)', col: 11, row: 8.8, color: '#60a5fa' },
   { id: 'ala-leste', label: '🚀 Ala Operações & Automação (Baias 15–28)', col: 36, row: 8.8, color: '#38bdf8' },
+  // Exterior world zones
+  { id: 'vila-norte', label: '🏘️ Vila Tech & Vale Norte', col: 24, row: -5.2, color: '#a7f3d0' },
+  { id: 'riacho-oeste', label: '🌊 Riacho & Ponte do Bosque', col: -8, row: 15.2, color: '#7dd3fc' },
+  { id: 'deck-leste', label: '☂️ Deck Bistrô & Jardim Leste', col: 50.2, row: 5.5, color: '#fcd34d' },
+  { id: 'praca-sul', label: '🎄 Praça de Entrada & Avenida Sul', col: 24, row: 34.2, color: '#fda4af' },
 ];
 
 interface AreaLabelsOverlayProps {
@@ -64,7 +69,6 @@ export function AreaLabelsOverlay({
   return (
     <>
       {DEFAULT_ZONES.map((z) => {
-        if (z.col >= layout.cols || z.row >= layout.rows) return null;
         const screenX = (deviceOffsetX + z.col * TILE_SIZE * zoom) / dpr;
         const screenY = (deviceOffsetY + z.row * TILE_SIZE * zoom) / dpr;
 
