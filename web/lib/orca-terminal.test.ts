@@ -24,6 +24,13 @@ describe('hashTela', () => {
     expect(hashTela({ tail: ['x', 'y'], status: 'exited' })).not.toBe(base);
   });
 
+  it('muda quando só o rascunho muda, e rascunho vazio equivale a ausente', () => {
+    const base = hashTela({ tail: ['x'], status: 'running' });
+    expect(hashTela({ tail: ['x'], status: 'running', draft: 'digitando' })).not.toBe(base);
+    expect(hashTela({ tail: ['x'], status: 'running', draft: '' })).toBe(base);
+    expect(hashTela({ tail: ['x'], status: 'running', draft: null })).toBe(base);
+  });
+
   it('não confunde quebra de linha com conteúdo', () => {
     expect(hashTela({ tail: ['a\nb'] })).not.toBe(hashTela({ tail: ['a', 'b'] }));
   });
