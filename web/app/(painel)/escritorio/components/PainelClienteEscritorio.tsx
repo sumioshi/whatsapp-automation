@@ -400,8 +400,9 @@ export function PainelClienteEscritorio({
             <button
               type="button"
               onClick={onClose}
+              aria-label="Fechar painel lateral (Esc)"
               title="Fechar painel (Esc)"
-              className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded text-fg-dim hover:bg-elevated hover:text-fg"
+              className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-dim transition-colors hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               ✕
             </button>
@@ -523,30 +524,38 @@ export function PainelClienteEscritorio({
       </div>
 
       {/* Seletor de Abas: WhatsApp & CRM vs Agente Orca (Remote / Local) */}
-      <div className="grid grid-cols-2 gap-1.5 border-b border-line bg-surface-2 px-4 py-2">
+      <div
+        role="tablist"
+        aria-label="Abas do painel do cliente"
+        className="grid grid-cols-2 gap-1.5 border-b border-line bg-surface-2 px-4 py-2"
+      >
         <button
           type="button"
+          role="tab"
+          aria-selected={abaAtiva === 'whatsapp'}
           onClick={() => setAbaAtiva('whatsapp')}
-          className={`flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+          className={`flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
             abaAtiva === 'whatsapp'
               ? 'border-accent bg-accent text-accent-ink shadow-sm'
               : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
           }`}
         >
-          <span>💬</span>
+          <span aria-hidden="true">💬</span>
           <span>WhatsApp &amp; CRM</span>
         </button>
 
         <button
           type="button"
+          role="tab"
+          aria-selected={abaAtiva === 'orca'}
           onClick={() => setAbaAtiva('orca')}
-          className={`flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+          className={`flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
             abaAtiva === 'orca'
               ? 'border-ok bg-ok-bg text-ok shadow-sm'
               : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
           }`}
         >
-          <span>🐋</span>
+          <span aria-hidden="true">🐋</span>
           <span>Agente Orca</span>
           {orcaInfo ? (
             orcaInfo.status === 'working' ? (

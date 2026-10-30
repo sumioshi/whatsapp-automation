@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import {
+  ZOOM_DEFAULT_DPR_FACTOR,
   ZOOM_LEVEL_FADE_DELAY_MS,
   ZOOM_LEVEL_FADE_DURATION_SEC,
   ZOOM_LEVEL_HIDE_DELAY_MS,
@@ -11,25 +12,10 @@ import {
 interface ZoomControlsProps {
   zoom: number;
   onZoomChange: (zoom: number) => void;
+  onCenterPlayer?: () => void;
 }
 
-const btnBase: React.CSSProperties = {
-  width: 40,
-  height: 40,
-  padding: 0,
-  background: 'var(--pixel-bg)',
-  color: 'var(--pixel-text)',
-  border: '2px solid var(--pixel-border)',
-  borderRadius: 0,
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  boxShadow: 'var(--pixel-shadow)',
-};
-
-export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
-  const [hovered, setHovered] = useState<'minus' | 'plus' | null>(null);
+export function ZoomControls({ zoom, onZoomChange, onCenterPlayer }: ZoomControlsProps) {
   const [showLevel, setShowLevel] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -44,19 +30,16 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
     if (zoom === prevZoomRef.current) return;
     prevZoomRef.current = zoom;
 
-    // Clear existing timers
     if (timerRef.current) clearTimeout(timerRef.current);
     if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
 
     setShowLevel(true);
     setFadeOut(false);
 
-    // Start fade after delay
     fadeTimerRef.current = setTimeout(() => {
       setFadeOut(true);
     }, ZOOM_LEVEL_FADE_DELAY_MS);
 
-    // Hide completely after delay
     timerRef.current = setTimeout(() => {
       setShowLevel(false);
       setFadeOut(false);
@@ -70,72 +53,61 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
 
   return (
     <>
-      {/* Zoom level indicator at top-center */}
+      {/* Zoom level toast at top-center */}
       {showLevel && (
         <div
+          role="status"
+          aria-live="polite"
           style={{
             position: 'absolute',
-            top: 10,
+            top: 14,
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 'var(--pixel-controls-z)',
-            background: 'var(--pixel-bg)',
-            border: '2px solid var(--pixel-border)',
-            borderRadius: 0,
-            padding: '4px 12px',
-            boxShadow: 'var(--pixel-shadow)',
-            fontSize: '26px',
-            color: 'var(--pixel-text)',
-            userSelect: 'none',
             opacity: fadeOut ? 0 : 1,
             transition: `opacity ${ZOOM_LEVEL_FADE_DURATION_SEC}s ease-out`,
             pointerEvents: 'none',
           }}
+          className="rounded-full border border-white/15 bg-[#141624]/90 px-3.5 py-1 font-mono text-xs font-bold tabular-nums text-white shadow-xl backdrop-blur-md select-none"
         >
-          {zoom}x
+          Zoom {zoom}x
         </div>
       )}
 
-      {/* Vertically stacked round buttons — top-right */}
+      {/* Floating Canvas Control Dock — top-right */}
       <div
+        role="group"
+        aria-label="Controles de câmera e zoom do mapa"
         style={{
           position: 'absolute',
-          top: 8,
-          right: 8,
+          top: 12,
+          right: 12,
           zIndex: 'var(--pixel-controls-z)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
         }}
+        className="flex flex-col items-center gap-1 rounded-xl border border-white/15 bg-[#141624]/90 p-1 shadow-2xl backdrop-blur-md"
       >
         <button
+          type="button"
           onClick={() => onZoomChange(zoom + 1)}
           disabled={maxDisabled}
-          onMouseEnter={() => setHovered('plus')}
-          onMouseLeave={() => setHovered(null)}
-          style={{
-            ...btnBase,
-            background:
-              hovered === 'plus' && !maxDisabled ? 'var(--pixel-btn-hover-bg)' : btnBase.background,
-            cursor: maxDisabled ? 'default' : 'pointer',
-            opacity: maxDisabled ? 'var(--pixel-btn-disabled-opacity)' : 1,
-          }}
-          title="Zoom in (Ctrl+Scroll)"
+          aria-label="Aumentar zoom (Ctrl + Scroll)"
+          title="Aumentar zoom (Ctrl + Scroll)"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 active:scale-95 disabled:pointer-events-none disabled:opacity-35"
         >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
             <line
               x1="9"
-              y1="3"
+              y1="3.5"
               x2="9"
-              y2="15"
+              y2="14.5"
               stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
             />
             <line
-              x1="3"
+              x1="3.5"
               y1="9"
-              x2="15"
+              x2="14.5"
               y2="9"
               stroke="currentColor"
               strokeWidth="2"
@@ -143,27 +115,30 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
             />
           </svg>
         </button>
+
         <button
+          type="button"
+          onClick={() => onZoomChange(ZOOM_DEFAULT_DPR_FACTOR)}
+          aria-label={`Zoom atual ${zoom}x. Clique para restaurar zoom padrão (${ZOOM_DEFAULT_DPR_FACTOR}x)`}
+          title={`Restaurar zoom padrão (${ZOOM_DEFAULT_DPR_FACTOR}x)`}
+          className="flex h-6 w-8 items-center justify-center rounded-md font-mono text-[11px] font-bold tabular-nums text-white/75 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+        >
+          {zoom}x
+        </button>
+
+        <button
+          type="button"
           onClick={() => onZoomChange(zoom - 1)}
           disabled={minDisabled}
-          onMouseEnter={() => setHovered('minus')}
-          onMouseLeave={() => setHovered(null)}
-          style={{
-            ...btnBase,
-            background:
-              hovered === 'minus' && !minDisabled
-                ? 'var(--pixel-btn-hover-bg)'
-                : btnBase.background,
-            cursor: minDisabled ? 'default' : 'pointer',
-            opacity: minDisabled ? 'var(--pixel-btn-disabled-opacity)' : 1,
-          }}
-          title="Zoom out (Ctrl+Scroll)"
+          aria-label="Diminuir zoom (Ctrl + Scroll)"
+          title="Diminuir zoom (Ctrl + Scroll)"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-white/90 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 active:scale-95 disabled:pointer-events-none disabled:opacity-35"
         >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
             <line
-              x1="3"
+              x1="3.5"
               y1="9"
-              x2="15"
+              x2="14.5"
               y2="9"
               stroke="currentColor"
               strokeWidth="2"
@@ -171,6 +146,24 @@ export function ZoomControls({ zoom, onZoomChange }: ZoomControlsProps) {
             />
           </svg>
         </button>
+
+        {onCenterPlayer && (
+          <>
+            <div className="my-0.5 h-px w-5 bg-white/15" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={onCenterPlayer}
+              aria-label="Centralizar câmera no seu personagem"
+              title="Centralizar câmera em Você"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-blue-300 transition-colors hover:bg-blue-500/20 hover:text-blue-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 active:scale-95"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 2v3m0 14v3M2 12h3m14 0h3" />
+              </svg>
+            </button>
+          </>
+        )}
       </div>
     </>
   );

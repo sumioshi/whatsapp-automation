@@ -39,7 +39,7 @@ import { OfficeCanvas } from './office/components/OfficeCanvas';
 import { type SubagentCharacter, ToolOverlay } from './office/components/ToolOverlay';
 import { EditorState } from './office/editor/editorState';
 import { EditorToolbar } from './office/editor/EditorToolbar';
-import { OfficeState } from './office/engine/officeState';
+import { OfficeState, PLAYER_ID } from './office/engine/officeState';
 import { getCatalogEntry } from './office/layout/furnitureCatalog';
 import { findPath } from './office/layout/tileMap';
 import { CharacterState, EditTool, TILE_SIZE, type ToolActivity } from './office/types';
@@ -114,6 +114,8 @@ export function EscritorioView({
   // Customizador do Avatar do Jogador ("Você")
   const [playerPalette, setPlayerPalette] = useState<number>(5);
   const [mostrarAvatarModal, setMostrarAvatarModal] = useState(false);
+  const [mostrarDicasTeclado, setMostrarDicasTeclado] = useState(true);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Em telas mobile (<768px), inicia com a lista lateral recolhida para não esmagar o mapa
   useEffect(() => {
@@ -337,7 +339,7 @@ export function EscritorioView({
           return false;
         }
         if (statusFiltro === 'aguardando' && !c.aguardando && !(c.dmsAguardando > 0)) return false;
-        if (statusFiltro === 'em_dia' && c.aguardando) return false;
+        if (statusFiltro === 'em_dia' && (c.aguardando || (c.dmsAguardando ?? 0) > 0)) return false;
         if (q) {
           const matchNome =
             c.nome.toLowerCase().includes(q) ||
@@ -855,6 +857,61 @@ export function EscritorioView({
     [getOfficeState],
   );
 
+  const handleCenterPlayer = useCallback(() => {
+    playKeyClickSound();
+    const os = getOfficeState();
+    const player = os.characters.get(PLAYER_ID);
+    if (!player) {
+      editor.panRef.current = { x: 0, y: 0 };
+      return;
+    }
+    const layout = os.getLayout();
+    const mapW = layout.cols * TILE_SIZE * editor.zoom;
+    const mapH = layout.rows * TILE_SIZE * editor.zoom;
+    editor.panRef.current = {
+      x: Math.round(mapW / 2 - player.x * editor.zoom),
+      y: Math.round(mapH / 2 - player.y * editor.zoom),
+    };
+  }, [getOfficeState, editor.panRef, editor.zoom]);
+
+  // Atalhos globais de teclado: '/' foca busca, 'Escape' fecha seleção/busca/modo edição
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isEditable =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable);
+
+      if (e.key === '/' && !isEditable && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        if (mostrarAvatarModal) return;
+        if (isEditable && target === searchInputRef.current) {
+          if (busca) setBusca('');
+          searchInputRef.current?.blur();
+          return;
+        }
+        if (editor.isEditMode) {
+          editor.handleToggleEditMode();
+          return;
+        }
+        if (selectedAgentId !== null) {
+          handleSelectAgent(null);
+          setCanalDrawerSelecionado(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mostrarAvatarModal, busca, editor, selectedAgentId, handleSelectAgent]);
+
   const handleToggleSound = useCallback(() => {
     const next = !somAtivo;
     setSomAtivo(next);
@@ -883,14 +940,14 @@ export function EscritorioView({
 
   const selectedEntry = selectedAgentId !== null ? idToCliente.get(selectedAgentId) : undefined;
 
-  // Calcula contadores rápidos do topo
+  // Calcula contadores rápidos do topo (sincronizados com o alerta vermelho imediato de sem-resposta)
   const contadores = useMemo(() => {
     const base = escopo === 'em_dev' ? clientes.filter((c) => c.emDesenvolvimento) : clientes;
     const urgentes = base.filter(
       (c) => c.aguardando && (c.band === 'hot' || c.band === 'warm'),
     ).length;
-    const aguardando = base.filter((c) => c.aguardando).length;
-    const emDia = base.length - aguardando;
+    const aguardando = base.filter((c) => c.aguardando || (c.dmsAguardando ?? 0) > 0).length;
+    const emDia = Math.max(0, base.length - aguardando);
     const mesasOcupadas = Math.min(TOTAL_MESAS_ESCRITORIO, clientesVisiveis.length);
     const mesasVazias = Math.max(0, TOTAL_MESAS_ESCRITORIO - mesasOcupadas);
     return { total: base.length, urgentes, aguardando, emDia, mesasOcupadas, mesasVazias };
@@ -978,306 +1035,456 @@ export function EscritorioView({
         }
       `}</style>
 
-      {/* Barra Superior do Escritório */}
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2 md:gap-3 md:px-4 md:py-2.5">
-        <div className="flex flex-wrap items-center gap-2 md:gap-3">
-          {/* Switcher Escritório 2D vs Organograma */}
-          <div className="inline-flex rounded-lg border border-line bg-elevated p-0.5">
+      {/* Barra Superior do Escritório — Agrupada com Hierarquia Visual e Acessibilidade */}
+      <header
+        aria-label="Barra de controle do Escritório"
+        className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2 md:gap-2.5 md:px-4"
+      >
+        {/* Zona Esquerda: Modo de Visão + Escopo + Filtros de SLA */}
+        <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+          {/* 1. Switcher Escritório 2D vs Organograma */}
+          <div
+            role="tablist"
+            aria-label="Modo de visualização"
+            className="inline-flex h-8 items-center rounded-lg border border-line bg-elevated p-0.5"
+          >
             <button
               type="button"
+              role="tab"
+              aria-selected={aba === 'mapa'}
               onClick={() => setAba('mapa')}
-              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors md:px-3 md:text-[12px] ${
+              className={`inline-flex h-full items-center gap-1.5 rounded-md px-2.5 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:text-xs ${
                 aba === 'mapa'
-                  ? 'border border-line bg-surface text-fg shadow-sm'
+                  ? 'border border-line bg-surface text-fg shadow-xs'
                   : 'text-fg-dim hover:text-fg'
               }`}
             >
-              🏢 Escritório 2D
+              <span aria-hidden="true">🏢</span>
+              <span>Escritório 2D</span>
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={aba === 'organograma'}
               onClick={() => setAba('organograma')}
-              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors md:px-3 md:text-[12px] ${
+              className={`inline-flex h-full items-center gap-1.5 rounded-md px-2.5 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:text-xs ${
                 aba === 'organograma'
-                  ? 'border border-line bg-surface text-fg shadow-sm'
+                  ? 'border border-line bg-surface text-fg shadow-xs'
                   : 'text-fg-dim hover:text-fg'
               }`}
             >
-              📊 Organograma ({clientesVisiveis.length})
+              <span aria-hidden="true">📊</span>
+              <span>Organograma</span>
+              <span className="rounded bg-surface-2 px-1.5 py-0.2 font-mono text-[10px] font-bold tabular-nums text-fg-dim">
+                {clientesVisiveis.length}
+              </span>
             </button>
           </div>
 
-          {/* Escopo: Em Dev vs Todos */}
-          <div className="inline-flex rounded-lg border border-line bg-elevated p-0.5">
+          {/* 2. Escopo: Em Dev vs Todos */}
+          <div
+            role="group"
+            aria-label="Escopo de projetos nas mesas"
+            className="inline-flex h-8 items-center rounded-lg border border-line bg-elevated p-0.5"
+          >
             <button
               type="button"
+              aria-pressed={escopo === 'em_dev'}
               onClick={() => setEscopo('em_dev')}
-              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors md:px-2.5 ${
+              className={`inline-flex h-full items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:px-2.5 ${
                 escopo === 'em_dev'
-                  ? 'border border-line bg-surface text-fg shadow-sm'
+                  ? 'border border-line bg-surface text-fg shadow-xs'
                   : 'text-fg-dim hover:text-fg'
               }`}
               title="Mostrar apenas projetos em desenvolvimento ativo (demais mesas ficam vazias)"
             >
-              💻 Em Dev ({clientes.filter((c) => c.emDesenvolvimento).length})
+              <span aria-hidden="true">💻</span>
+              <span>Em Dev</span>
+              <span className="font-mono text-[10px] tabular-nums opacity-75">
+                {clientes.filter((c) => c.emDesenvolvimento).length}
+              </span>
             </button>
             <button
               type="button"
+              aria-pressed={escopo === 'todos'}
               onClick={() => setEscopo('todos')}
-              className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors md:px-2.5 ${
+              className={`inline-flex h-full items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:px-2.5 ${
                 escopo === 'todos'
-                  ? 'border border-line bg-surface text-fg shadow-sm'
+                  ? 'border border-line bg-surface text-fg shadow-xs'
                   : 'text-fg-dim hover:text-fg'
               }`}
               title="Mostrar todos os projetos vinculados, inclusive pausados"
             >
-              Todos ({clientes.length})
+              <span>Todos</span>
+              <span className="font-mono text-[10px] tabular-nums opacity-75">
+                {clientes.length}
+              </span>
             </button>
           </div>
 
+          <div className="hidden h-5 w-px bg-line lg:block" aria-hidden="true" />
+
+          {/* 3. Barra Unificada de Filtros de Atendimento (SLA) */}
+          <div
+            role="group"
+            aria-label="Filtrar clientes por status de resposta"
+            className="hidden h-8 items-center rounded-lg border border-line bg-elevated p-0.5 md:inline-flex"
+          >
+            <button
+              type="button"
+              aria-pressed={statusFiltro === 'todos'}
+              onClick={() => setStatusFiltro('todos')}
+              className={`inline-flex h-full items-center gap-1.5 rounded-md px-2.5 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                statusFiltro === 'todos'
+                  ? 'border border-line bg-surface text-fg shadow-xs'
+                  : 'text-fg-dim hover:text-fg'
+              }`}
+            >
+              <span>Todos</span>
+              <span className="font-mono text-[10px] tabular-nums opacity-80">
+                {contadores.total}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              aria-pressed={statusFiltro === 'aguardando'}
+              onClick={() =>
+                setStatusFiltro(statusFiltro === 'aguardando' ? 'todos' : 'aguardando')
+              }
+              title="Filtrar projetos com mensagem de grupo ou DM aguardando resposta"
+              className={`inline-flex h-full items-center gap-1.5 rounded-md px-2.5 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                statusFiltro === 'aguardando'
+                  ? 'border border-danger/50 bg-danger-bg text-danger shadow-xs'
+                  : 'text-fg-dim hover:text-fg'
+              }`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full bg-red-500 ${
+                  contadores.aguardando > 0 ? 'animate-pulse' : 'opacity-60'
+                }`}
+                aria-hidden="true"
+              />
+              <span>Sem Resposta</span>
+              <span className="font-mono text-[10px] font-bold tabular-nums">
+                {contadores.aguardando}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              aria-pressed={statusFiltro === 'urgentes'}
+              onClick={() =>
+                setStatusFiltro(statusFiltro === 'urgentes' ? 'todos' : 'urgentes')
+              }
+              title="Filtrar clientes aguardando retorno há mais de 4 horas"
+              className={`inline-flex h-full items-center gap-1.5 rounded-md px-2.5 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                statusFiltro === 'urgentes'
+                  ? 'border border-danger bg-danger-bg text-danger shadow-xs'
+                  : 'text-fg-dim hover:text-fg'
+              }`}
+            >
+              <span className="text-[10px]" aria-hidden="true">
+                🔥
+              </span>
+              <span>Críticos +4h</span>
+              <span className="font-mono text-[10px] font-bold tabular-nums">
+                {contadores.urgentes}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              aria-pressed={statusFiltro === 'em_dia'}
+              onClick={() => setStatusFiltro(statusFiltro === 'em_dia' ? 'todos' : 'em_dia')}
+              title="Filtrar clientes com atendimento em dia"
+              className={`inline-flex h-full items-center gap-1.5 rounded-md px-2.5 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                statusFiltro === 'em_dia'
+                  ? 'border border-ok/50 bg-ok-bg text-ok shadow-xs'
+                  : 'text-fg-dim hover:text-fg'
+              }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
+              <span>Em Dia</span>
+              <span className="font-mono text-[10px] tabular-nums opacity-80">
+                {contadores.emDia}
+              </span>
+            </button>
+          </div>
+
+          {/* 4. Indicadores de Capacidade & Orca */}
           <span
-            className="hidden items-center gap-1.5 rounded-full border border-line bg-elevated px-2.5 py-0.5 text-[11px] font-medium text-fg lg:inline-flex"
+            className="hidden h-8 items-center gap-1.5 rounded-lg border border-line bg-elevated px-2.5 text-[11px] font-medium tabular-nums text-fg 2xl:inline-flex"
             title="Capacidade das baias individuais no escritório"
           >
-            🪑 <strong className="font-mono text-fg">{contadores.mesasOcupadas}</strong>/
-            {TOTAL_MESAS_ESCRITORIO} mesas ·{' '}
-            <span className="text-fg-dim">{contadores.mesasVazias} vazias</span>
+            <span aria-hidden="true">🪑</span>
+            <strong className="font-mono text-fg">{contadores.mesasOcupadas}</strong>/
+            {TOTAL_MESAS_ESCRITORIO} mesas
           </span>
 
           {orcaSnapshot?.available && (
             <span
-              className="hidden items-center gap-1.5 rounded-full border border-ok/40 bg-ok-bg px-2.5 py-0.5 text-[11px] font-semibold text-ok lg:inline-flex"
+              className="hidden h-8 items-center gap-1.5 rounded-lg border border-ok/40 bg-ok-bg px-2.5 text-[11px] font-semibold tabular-nums text-ok xl:inline-flex"
               title={`Conectado ao Orca (${orcaSnapshot.source === 'local-cli' ? 'CLI Local' : 'Remote Sync'}) · ${orcaSnapshot.allWorktreesCount} worktrees`}
             >
-              <span>🐋</span>
+              <span aria-hidden="true">🐋</span>
               <span>Orca</span>
               <strong className="font-mono">{orcaSnapshot.activeAgentsCount} ativos</strong>
             </span>
           )}
-
-          {/* Pílulas de filtro por SLA */}
-          <div className="hidden items-center gap-1.5 md:flex">
-            <button
-              type="button"
-              onClick={() => setStatusFiltro('todos')}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
-                statusFiltro === 'todos'
-                  ? 'border-accent bg-accent-soft text-accent'
-                  : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
-              }`}
-            >
-              Todos <span className="font-mono text-[10px]">{contadores.total}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setStatusFiltro(statusFiltro === 'urgentes' ? 'todos' : 'urgentes')
-              }
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
-                statusFiltro === 'urgentes'
-                  ? 'border-danger bg-danger-bg text-danger'
-                  : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
-              }`}
-            >
-              <span className="h-2 w-2 rounded-full bg-red-500" />
-              Urgentes (&gt;4h){' '}
-              <span className="font-mono text-[10px]">{contadores.urgentes}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setStatusFiltro(statusFiltro === 'aguardando' ? 'todos' : 'aguardando')
-              }
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
-                statusFiltro === 'aguardando'
-                  ? 'border-warn-mark bg-warn-bg text-warn'
-                  : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
-              }`}
-            >
-              <span className="h-2 w-2 rounded-full bg-amber-500" />
-              Aguardando{' '}
-              <span className="font-mono text-[10px]">{contadores.aguardando}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFiltro(statusFiltro === 'em_dia' ? 'todos' : 'em_dia')}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
-                statusFiltro === 'em_dia'
-                  ? 'border-ok bg-ok-bg text-ok'
-                  : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
-              }`}
-            >
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              Em dia (Na Mesa) <span className="font-mono text-[10px]">{contadores.emDia}</span>
-            </button>
-          </div>
         </div>
 
-        {/* Busca + Controles do Mapa */}
+        {/* Zona Direita: Busca + Camadas do Mapa + Ambiente/Áudio + Ações */}
         <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
-          <input
-            type="search"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar projeto ou contato…"
-            className="w-36 rounded-lg border border-line bg-elevated px-2.5 py-1 text-[12px] font-medium text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none sm:w-52"
-          />
-
-          {aba === 'mapa' && (
-            <>
-              <button
-                type="button"
-                onClick={() => setMostrarRoster((v) => !v)}
-                className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors md:px-2.5 ${
-                  mostrarRoster
-                    ? 'border-line-2 bg-elevated text-fg'
-                    : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
-                }`}
-                title="Mostrar/ocultar lista lateral de personagens"
-              >
-                👥 Lista ({clientesVisiveis.length})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMostrarAreas((v) => !v)}
-                className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors md:px-2.5 ${
-                  mostrarAreas
-                    ? 'border-line-2 bg-elevated text-fg'
-                    : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
-                }`}
-                title="Mostrar/ocultar nomes das salas no mapa"
-              >
-                🏷️ Salas
-              </button>
-
-              {/* Ciclo Dia / Tarde / Noite */}
-              {(() => {
-                const infoFase = getInfoFase(faseIluminacao);
-                return (
-                  <button
-                    type="button"
-                    onClick={handleCycleIluminacao}
-                    className="inline-flex items-center gap-1 rounded-lg border border-line bg-elevated px-2 py-1 text-[11px] font-semibold text-fg hover:border-line-2"
-                    title={`Iluminação: ${infoFase.rotulo} (${infoFase.descricao}) · Modo: ${cicloModo}. Clique para alternar.`}
-                  >
-                    <span>{infoFase.icone}</span>
-                    <span className="hidden xl:inline">
-                      {cicloModo === 'auto' ? `Auto (${infoFase.rotulo})` : infoFase.rotulo}
-                    </span>
-                  </button>
-                );
-              })()}
-
-              {/* Decoração de Natal & Luzes */}
-              <button
-                type="button"
-                onClick={handleToggleNatal}
-                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors ${
-                  natalAtivo
-                    ? 'border-ok/50 bg-ok-bg text-ok'
-                    : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
-                }`}
-                title="Ativar/desativar árvores de Natal iluminadas, pisca-piscas e presentes na praça externa"
-              >
-                <span>🎄</span>
-                <span className="hidden xl:inline">{natalAtivo ? 'Natal On' : 'Natal Off'}</span>
-              </button>
-
-              {/* Rádio Ambiente Relax & Progresso (Lo-Fi / Campo / Natal) */}
-              {(() => {
-                const st =
-                  AMBIENT_STATIONS.find((s) => s.id === estacaoMusica) ?? AMBIENT_STATIONS[0];
-                return (
-                  <div className="inline-flex items-center overflow-hidden rounded-lg border border-line bg-elevated">
-                    <button
-                      type="button"
-                      onClick={handleToggleMusica}
-                      className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold transition-colors ${
-                        musicaAtiva
-                          ? 'bg-accent text-accent-ink'
-                          : 'bg-surface text-fg hover:bg-elevated'
-                      }`}
-                      title={
-                        musicaAtiva
-                          ? `Pausar música ambiente (${st.label}: ${st.desc})`
-                          : `Tocar música relaxante de fundo (${st.label}: ${st.desc})`
-                      }
-                    >
-                      <span>{musicaAtiva ? '🎵' : '🎧'}</span>
-                      <span className="hidden sm:inline">
-                        {musicaAtiva ? st.shortLabel : 'Rádio Chill'}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCycleEstacaoMusica}
-                      className="border-l border-line px-1.5 py-1 text-[10px] font-semibold text-fg-dim hover:bg-surface hover:text-fg"
-                      title={`Trocar estilo musical (atual: ${st.emoji} ${st.label})`}
-                    >
-                      {st.emoji} ▾
-                    </button>
-                  </div>
-                );
-              })()}
-
-              {/* Balões de Fala em Tempo Real */}
+          {/* Campo de Busca com atalho '/' e botão Limpar */}
+          <div role="search" className="relative flex items-center">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              className="pointer-events-none absolute left-2.5 text-fg-dim"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              aria-label="Buscar projeto, repositório ou contato (atalho: tecla /)"
+              placeholder="Buscar projeto ou contato…"
+              className="h-8 w-40 rounded-lg border border-line bg-elevated pr-7 pl-7 text-[12px] font-medium text-fg placeholder:text-fg-faint transition-colors focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:w-52"
+            />
+            {busca ? (
               <button
                 type="button"
                 onClick={() => {
-                  playKeyClickSound();
-                  setMostrarBaloes((v) => !v);
+                  setBusca('');
+                  searchInputRef.current?.focus();
                 }}
-                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors ${
-                  mostrarBaloes
-                    ? 'border-line-2 bg-elevated text-fg'
-                    : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
-                }`}
-                title="Mostrar/ocultar balões de mensagens recentes e digitação dos NPCs"
+                aria-label="Limpar busca"
+                title="Limpar busca (Esc)"
+                className="absolute right-1.5 flex h-5 w-5 items-center justify-center rounded text-[11px] text-fg-dim hover:bg-surface hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
-                <span>💬</span>
-                <span className="hidden xl:inline">Balões</span>
+                ✕
               </button>
+            ) : (
+              <kbd
+                aria-hidden="true"
+                className="pointer-events-none absolute right-2 hidden rounded border border-line bg-surface px-1 font-mono text-[10px] font-medium text-fg-dim sm:inline-block"
+              >
+                /
+              </kbd>
+            )}
+          </div>
 
-              {/* Customizador de Avatar ("Você") */}
+          {aba === 'mapa' && (
+            <>
+              {/* Grupo 1: Camadas de Visão do Mapa (Lista Lateral, Salas, Balões) */}
+              <div
+                role="group"
+                aria-label="Camadas visuais do mapa"
+                className="inline-flex h-8 items-center rounded-lg border border-line bg-elevated p-0.5"
+              >
+                <button
+                  type="button"
+                  aria-pressed={mostrarRoster}
+                  onClick={() => setMostrarRoster((v) => !v)}
+                  className={`inline-flex h-full items-center gap-1.5 rounded-md px-2 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:px-2.5 ${
+                    mostrarRoster
+                      ? 'border border-line bg-surface text-fg shadow-xs'
+                      : 'text-fg-dim hover:text-fg'
+                  }`}
+                  title="Mostrar/ocultar lista lateral de projetos e contatos"
+                >
+                  <span aria-hidden="true">👥</span>
+                  <span>Lista</span>
+                  <span className="font-mono text-[10px] tabular-nums opacity-75">
+                    {clientesVisiveis.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  aria-pressed={mostrarAreas}
+                  onClick={() => setMostrarAreas((v) => !v)}
+                  className={`inline-flex h-full items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                    mostrarAreas
+                      ? 'border border-line bg-surface text-fg shadow-xs'
+                      : 'text-fg-dim hover:text-fg'
+                  }`}
+                  title="Mostrar/ocultar placas com os nomes das salas no mapa"
+                >
+                  <span aria-hidden="true">🏷️</span>
+                  <span className="hidden lg:inline">Salas</span>
+                </button>
+
+                <button
+                  type="button"
+                  aria-pressed={mostrarBaloes}
+                  onClick={() => {
+                    playKeyClickSound();
+                    setMostrarBaloes((v) => !v);
+                  }}
+                  className={`inline-flex h-full items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                    mostrarBaloes
+                      ? 'border border-line bg-surface text-fg shadow-xs'
+                      : 'text-fg-dim hover:text-fg'
+                  }`}
+                  title="Mostrar/ocultar balões de mensagens recentes e digitação dos NPCs"
+                >
+                  <span aria-hidden="true">💬</span>
+                  <span className="hidden lg:inline">Balões</span>
+                </button>
+              </div>
+
+              {/* Grupo 2: Ambiente, Clima & Áudio (Iluminação, Natal, Rádio Chill, Alerta Sonoro) */}
+              <div
+                role="group"
+                aria-label="Ambiente, iluminação e som"
+                className="inline-flex h-8 items-center rounded-lg border border-line bg-elevated p-0.5"
+              >
+                {/* Ciclo Dia / Tarde / Noite */}
+                {(() => {
+                  const infoFase = getInfoFase(faseIluminacao);
+                  return (
+                    <button
+                      type="button"
+                      onClick={handleCycleIluminacao}
+                      aria-label={`Iluminação atual: ${infoFase.rotulo} (${cicloModo}). Clique para alternar`}
+                      className="inline-flex h-full items-center gap-1 rounded-md px-2 text-[11px] font-semibold text-fg transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      title={`Iluminação: ${infoFase.rotulo} (${infoFase.descricao}) · Modo: ${cicloModo}. Clique para alternar.`}
+                    >
+                      <span aria-hidden="true">{infoFase.icone}</span>
+                      <span className="hidden 2xl:inline">
+                        {cicloModo === 'auto' ? `Auto (${infoFase.rotulo})` : infoFase.rotulo}
+                      </span>
+                    </button>
+                  );
+                })()}
+
+                {/* Decoração de Natal & Luzes */}
+                <button
+                  type="button"
+                  aria-pressed={natalAtivo}
+                  aria-label={natalAtivo ? 'Desativar decoração de Natal' : 'Ativar decoração de Natal'}
+                  onClick={handleToggleNatal}
+                  className={`inline-flex h-full items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                    natalAtivo
+                      ? 'border border-ok/40 bg-ok-bg text-ok shadow-xs'
+                      : 'text-fg-dim hover:bg-surface hover:text-fg'
+                  }`}
+                  title="Ativar/desativar árvores de Natal iluminadas, pisca-piscas e presentes no parque"
+                >
+                  <span aria-hidden="true">🎄</span>
+                  <span className="hidden 2xl:inline">{natalAtivo ? 'Natal' : 'Natal Off'}</span>
+                </button>
+
+                <div className="mx-0.5 h-4 w-px bg-line" aria-hidden="true" />
+
+                {/* Rádio Ambiente Relax & Progresso (Lo-Fi / Campo / Natal) */}
+                {(() => {
+                  const st =
+                    AMBIENT_STATIONS.find((s) => s.id === estacaoMusica) ?? AMBIENT_STATIONS[0];
+                  return (
+                    <div className="inline-flex h-full items-center">
+                      <button
+                        type="button"
+                        aria-pressed={musicaAtiva}
+                        onClick={handleToggleMusica}
+                        className={`inline-flex h-full items-center gap-1 rounded-l-md px-2 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                          musicaAtiva
+                            ? 'bg-accent text-accent-ink shadow-xs'
+                            : 'text-fg-dim hover:bg-surface hover:text-fg'
+                        }`}
+                        title={
+                          musicaAtiva
+                            ? `Pausar música ambiente (${st.label}: ${st.desc})`
+                            : `Tocar música relaxante de fundo (${st.label}: ${st.desc})`
+                        }
+                      >
+                        <span aria-hidden="true">{musicaAtiva ? '🎵' : '🎧'}</span>
+                        <span className="hidden sm:inline">
+                          {musicaAtiva ? st.shortLabel : 'Rádio'}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCycleEstacaoMusica}
+                        aria-label={`Trocar estação musical (atual: ${st.label})`}
+                        className="inline-flex h-full items-center rounded-r-md border-l border-line px-1.5 text-[10px] font-semibold text-fg-dim transition-colors hover:bg-surface hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                        title={`Trocar estilo musical (atual: ${st.emoji} ${st.label})`}
+                      >
+                        <span aria-hidden="true">{st.emoji} ▾</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* Alerta Sonoro de Mensagem */}
+                <button
+                  type="button"
+                  aria-pressed={somAtivo}
+                  aria-label={
+                    somAtivo
+                      ? 'Alerta sonoro ativado. Clique para silenciar'
+                      : 'Alerta sonoro silenciado. Clique para ativar'
+                  }
+                  onClick={handleToggleSound}
+                  className={`hidden h-full items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:inline-flex ${
+                    somAtivo
+                      ? 'border border-warn-mark/60 bg-warn-bg text-warn shadow-xs'
+                      : 'text-fg-dim hover:bg-surface hover:text-fg'
+                  }`}
+                  title="Aviso sonoro quando um cliente entrar em espera"
+                >
+                  <span aria-hidden="true">{somAtivo ? '🔔' : '🔕'}</span>
+                  <span className="hidden xl:inline">{somAtivo ? 'Som' : 'Mudo'}</span>
+                </button>
+              </div>
+
+              {/* Grupo 3: Avatar ("Você") & Modo Editor do Mapa */}
               <button
                 type="button"
+                aria-haspopup="dialog"
+                aria-expanded={mostrarAvatarModal}
                 onClick={() => {
                   playKeyClickSound();
                   setMostrarAvatarModal(true);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-elevated px-2 py-1 text-[11px] font-semibold text-fg hover:border-line-2"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-elevated px-2.5 text-[11px] font-semibold text-fg transition-colors hover:border-line-2 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 title="Personalizar seu personagem ('Você') no mapa"
               >
-                <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-line bg-[#161822]">
-                  <CharSprite charIndex={playerPalette} size={15} />
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-line bg-[#161822]">
+                  <CharSprite charIndex={playerPalette} size={16} />
                 </div>
                 <span className="hidden sm:inline">Você</span>
               </button>
 
               <button
                 type="button"
-                onClick={handleToggleSound}
-                className={`hidden rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors sm:inline-flex ${
-                  somAtivo
-                    ? 'border-warn-mark bg-warn-bg text-warn'
-                    : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
-                }`}
-                title="Aviso sonoro quando um cliente entrar em espera"
-              >
-                {somAtivo ? '🔔 Som On' : '🔕 Som Off'}
-              </button>
-
-              <button
-                type="button"
+                aria-pressed={editor.isEditMode}
                 onClick={editor.handleToggleEditMode}
-                className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-colors md:px-3 ${
+                className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:px-3 ${
                   editor.isEditMode
-                    ? 'border-accent bg-accent text-accent-ink'
-                    : 'border-line bg-elevated text-fg hover:border-line-2'
+                    ? 'border-accent bg-accent text-accent-ink shadow-xs'
+                    : 'border-line bg-elevated text-fg hover:border-line-2 hover:bg-surface'
                 }`}
+                title={
+                  editor.isEditMode
+                    ? 'Sair do modo de edição do mapa (Esc)'
+                    : 'Editar móveis, paredes e pisos do escritório'
+                }
               >
-                {editor.isEditMode ? '✓ Fechar' : '🛠️ Editar'}
+                <span aria-hidden="true">{editor.isEditMode ? '✓' : '🛠️'}</span>
+                <span>{editor.isEditMode ? 'Concluir' : 'Editar'}</span>
               </button>
             </>
           )}
@@ -1305,6 +1512,7 @@ export function EscritorioView({
             {/* Backdrop mobile para fechar o Roster ao tocar fora */}
             {mostrarRoster && (
               <div
+                aria-hidden="true"
                 className="fixed inset-0 z-40 bg-black/50 md:hidden"
                 onClick={() => setMostrarRoster(false)}
               />
@@ -1312,33 +1520,39 @@ export function EscritorioView({
 
             {/* Mini-Roster Lateral de Clientes no Escritório */}
             {mostrarRoster && (
-              <aside className="flex h-full w-72 shrink-0 flex-col border-r border-line bg-surface max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-76 max-md:shadow-2xl">
+              <aside
+                aria-label="Lista de projetos e clientes nas mesas"
+                className="flex h-full w-72 shrink-0 flex-col border-r border-line bg-surface max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-76 max-md:shadow-2xl"
+              >
                 <div className="flex items-center justify-between border-b border-line bg-surface-2 px-3 py-2.5">
                   <div>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-fg">
+                    <span className="text-[11px] font-bold tracking-wider uppercase text-fg">
                       🪑 Nas Mesas ({clientesVisiveis.length}/{TOTAL_MESAS_ESCRITORIO})
                     </span>
-                    <div className="text-[11px] font-medium text-fg-dim">
+                    <div className="text-[11px] font-medium tabular-nums text-fg-dim">
                       {contadores.mesasVazias} baias vazias no escritório
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
+                      aria-pressed={expandirTodosContatos}
                       onClick={() => setExpandirTodosContatos((v) => !v)}
                       title="Expandir ou recolher contatos e DMs de todos os projetos"
-                      className={`rounded border px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                      className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[10px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                         expandirTodosContatos
                           ? 'border-accent bg-accent-soft text-accent'
                           : 'border-line bg-surface text-fg-dim hover:bg-elevated hover:text-fg'
                       }`}
                     >
-                      👥 Contatos {expandirTodosContatos ? '▴' : '▾'}
+                      <span aria-hidden="true">👥</span>
+                      <span>Contatos {expandirTodosContatos ? '▴' : '▾'}</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setMostrarRoster(false)}
-                      className="rounded px-1.5 py-0.5 text-[11px] text-fg-dim hover:bg-elevated hover:text-fg md:hidden"
+                      aria-label="Fechar lista lateral"
+                      className="flex h-7 w-7 items-center justify-center rounded-md text-xs text-fg-dim hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:hidden"
                     >
                       ✕
                     </button>
@@ -1360,37 +1574,64 @@ export function EscritorioView({
                         ? expandedProjetos[c.slug]
                         : expandirTodosContatos || selecionado || dmsPendentes > 0 || buscaAtiva;
 
+                    const toggleProjeto = () => {
+                      if (selecionado) {
+                        handleSelectAgent(null);
+                        setCanalDrawerSelecionado(null);
+                      } else {
+                        setAbaDrawerInicial('whatsapp');
+                        handleSelectAgent(id);
+                        setCanalDrawerSelecionado(null);
+                        setExpandedProjetos((prev) => ({ ...prev, [c.slug]: true }));
+                      }
+                      if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                        setMostrarRoster(false);
+                      }
+                    };
+
                     return (
                       <div key={c.slug} className="flex flex-col">
                         <div
-                          onClick={() => {
-                            if (selecionado) {
-                              handleSelectAgent(null);
-                              setCanalDrawerSelecionado(null);
-                            } else {
-                              setAbaDrawerInicial('whatsapp');
-                              handleSelectAgent(id);
-                              setCanalDrawerSelecionado(null);
-                              setExpandedProjetos((prev) => ({ ...prev, [c.slug]: true }));
-                            }
-                            if (typeof window !== 'undefined' && window.innerWidth < 768) {
-                              setMostrarRoster(false);
+                          role="button"
+                          tabIndex={0}
+                          aria-pressed={selecionado}
+                          aria-label={`${c.nome}, Baia #${baiaNum}, ${
+                            c.aguardando
+                              ? `aguardando resposta há ${c.waitingLabel ?? 'pendente'}`
+                              : dmsPendentes > 0
+                                ? `${dmsPendentes} DM aguardando`
+                                : 'em dia'
+                          }`}
+                          onClick={toggleProjeto}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              toggleProjeto();
                             }
                           }}
-                          className={`flex cursor-pointer items-center gap-2.5 px-3 py-2.5 transition-colors ${
+                          className={`flex cursor-pointer items-center gap-2.5 px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
                             selecionado
-                              ? 'border-l-2 border-l-accent bg-selected text-fg'
+                              ? 'bg-selected text-fg ring-1 ring-inset ring-accent/40'
                               : 'hover:bg-surface-2'
                           }`}
                         >
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-line bg-[#161822]">
+                          <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line bg-[#161822]">
                             <CharSprite charIndex={palette} size={24} />
+                            {selecionado && (
+                              <span
+                                aria-hidden="true"
+                                className="absolute -top-1 -left-1 h-2.5 w-2.5 rounded-full border border-surface bg-accent"
+                              />
+                            )}
                           </div>
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               <span
-                                className="h-2 w-2 shrink-0 rounded-full"
+                                aria-hidden="true"
+                                className={`h-2 w-2 shrink-0 rounded-full ${
+                                  m?.pulse ? 'animate-pulse' : ''
+                                }`}
                                 style={{ background: m?.dotColor ?? '#22c55e' }}
                               />
                               <span className="truncate text-[12.5px] font-semibold text-fg">
@@ -1401,15 +1642,15 @@ export function EscritorioView({
                               <span className="truncate">
                                 Baia #{baiaNum} ·{' '}
                                 {c.aguardando && c.waitingLabel
-                                  ? `Aguardando ${c.waitingLabel}`
+                                  ? `Sem resposta (${c.waitingLabel})`
                                   : dmsPendentes > 0
-                                    ? `⚠️ ${dmsPendentes} DM aguardando`
+                                    ? `🔴 ${dmsPendentes} DM sem resposta`
                                     : c.repoNome
                                       ? c.repoNome
                                       : 'Em dev'}
                               </span>
                               {c.msgsCliente30d > 0 && (
-                                <span className="shrink-0 font-mono text-[10.5px] font-semibold text-fg-dim">
+                                <span className="shrink-0 font-mono text-[10.5px] font-semibold tabular-nums text-fg-dim">
                                   {c.msgsCliente30d}m
                                 </span>
                               )}
@@ -1437,7 +1678,7 @@ export function EscritorioView({
                                       }
                                     }}
                                     title="Abrir chat e terminal deste agente no Orca"
-                                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
+                                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                                       working
                                         ? 'border-ok/40 bg-ok-bg text-ok'
                                         : monitoring
@@ -1445,9 +1686,9 @@ export function EscritorioView({
                                           : 'border-line-2 bg-elevated text-fg-dim hover:text-fg'
                                     }`}
                                   >
-                                    <span>🐋</span>
+                                    <span aria-hidden="true">🐋</span>
                                     <span className="uppercase">{ag?.agentType ?? 'orca'}</span>
-                                    <span>·</span>
+                                    <span aria-hidden="true">·</span>
                                     <span>
                                       {working
                                         ? `⚡ ${ag?.toolName || 'Codando'}`
@@ -1464,6 +1705,10 @@ export function EscritorioView({
                           {contatos.length > 0 && (
                             <button
                               type="button"
+                              aria-expanded={aberto}
+                              aria-label={`${
+                                aberto ? 'Recolher' : 'Expandir'
+                              } ${contatos.length} contatos de ${c.nome}`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setExpandedProjetos((prev) => ({
@@ -1472,29 +1717,30 @@ export function EscritorioView({
                                 }));
                               }}
                               title="Mostrar/ocultar contatos e conversas fora do grupo"
-                              className={`inline-flex shrink-0 items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
+                              className={`inline-flex h-6 shrink-0 items-center gap-0.5 rounded border px-1.5 text-[10px] font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                                 dmsPendentes > 0
-                                  ? 'border-warn-mark bg-warn-bg text-warn'
+                                  ? 'border-danger/50 bg-danger-bg text-danger'
                                   : aberto
                                     ? 'border-line-2 bg-elevated text-fg'
                                     : 'border-line bg-surface-2 text-fg-dim hover:text-fg'
                               }`}
                             >
-                              <span>{dmsPendentes > 0 ? '💬' : '👥'}</span>
+                              <span aria-hidden="true">{dmsPendentes > 0 ? '💬' : '👥'}</span>
                               <span className="font-mono">{contatos.length}</span>
-                              <span>{aberto ? '▴' : '▾'}</span>
+                              <span aria-hidden="true">{aberto ? '▴' : '▾'}</span>
                             </button>
                           )}
 
                           <button
                             type="button"
+                            aria-label={`Caminhar até a mesa de ${c.nome}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleSelectAgent(id);
                               handleWalkToAgent(id);
                             }}
                             title="Ir até a mesa com seu personagem"
-                            className="rounded p-1 text-[11px] text-fg-dim hover:bg-elevated hover:text-fg"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs text-fg-dim transition-colors hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                           >
                             🚶
                           </button>
@@ -1502,7 +1748,7 @@ export function EscritorioView({
 
                         {/* Dropdown de Contatos do Grupo + DMs Monitoradas */}
                         {aberto && contatos.length > 0 && (
-                          <div className="border-t border-line bg-surface-2 pb-1.5 pl-6 pr-2.5 pt-1">
+                          <div className="border-t border-line bg-surface-2 pt-1 pr-2.5 pb-1.5 pl-6">
                             {contatos.map((ct, cIdx) => {
                               const ehUltimo = cIdx === contatos.length - 1;
                               const temDm = Boolean(ct.dmSlug);
@@ -1513,38 +1759,52 @@ export function EscritorioView({
                                 (ct.dmSlug === canalDrawerSelecionado ||
                                   ct.dmSlugs.includes(canalDrawerSelecionado));
 
+                              const selectContato = () => {
+                                handleSelectAgent(id);
+                                if (temDm && ct.dmSlug) {
+                                  setCanalDrawerSelecionado(ct.dmSlug);
+                                } else {
+                                  setCanalDrawerSelecionado(null);
+                                }
+                                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                                  setMostrarRoster(false);
+                                }
+                              };
+
                               return (
                                 <div
                                   key={ct.id}
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-label={`Contato ${ct.nome} (${temDm ? 'DM' : 'Grupo'})`}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleSelectAgent(id);
-                                    if (temDm && ct.dmSlug) {
-                                      setCanalDrawerSelecionado(ct.dmSlug);
-                                    } else {
-                                      setCanalDrawerSelecionado(null);
-                                    }
-                                    if (
-                                      typeof window !== 'undefined' &&
-                                      window.innerWidth < 768
-                                    ) {
-                                      setMostrarRoster(false);
+                                    selectContato();
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      selectContato();
                                     }
                                   }}
-                                  className={`group flex cursor-pointer flex-col rounded px-2 py-1 text-[11px] transition-colors ${
+                                  className={`group flex cursor-pointer flex-col rounded-md px-2 py-1 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                                     dmAtivaNoDrawer
-                                      ? 'bg-selected font-semibold text-fg'
+                                      ? 'bg-selected font-semibold text-fg ring-1 ring-inset ring-accent/40'
                                       : ct.aguardando
-                                        ? 'bg-warn-bg text-fg hover:opacity-95'
+                                        ? 'bg-danger-bg/60 text-fg hover:bg-danger-bg'
                                         : 'text-fg-dim hover:bg-elevated hover:text-fg'
                                   }`}
                                 >
                                   <div className="flex items-center justify-between gap-1.5">
                                     <div className="flex min-w-0 items-center gap-1.5">
-                                      <span className="font-mono text-[10px] text-fg-dim">
+                                      <span
+                                        aria-hidden="true"
+                                        className="font-mono text-[10px] text-fg-dim"
+                                      >
                                         {ehUltimo ? '└─' : '├─'}
                                       </span>
-                                      <span className="shrink-0 text-[11px]">
+                                      <span aria-hidden="true" className="shrink-0 text-[11px]">
                                         {temDm ? '💬' : '👤'}
                                       </span>
                                       <span className="truncate font-semibold text-fg">
@@ -1554,13 +1814,16 @@ export function EscritorioView({
 
                                     <div className="flex shrink-0 items-center gap-1">
                                       {ct.aguardando ? (
-                                        <span className="inline-flex items-center gap-1 rounded border border-danger/30 bg-danger-bg px-1.5 py-0.2 font-mono text-[9.5px] font-bold text-danger">
-                                          <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                                        <span className="inline-flex items-center gap-1 rounded border border-danger/30 bg-danger-bg px-1.5 py-0.2 font-mono text-[9.5px] font-bold tabular-nums text-danger">
+                                          <span
+                                            aria-hidden="true"
+                                            className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500"
+                                          />
                                           {ct.waitingLabel ?? 'DM'}
                                         </span>
                                       ) : temDm ? (
                                         <span
-                                          className="rounded border border-line bg-surface px-1.5 py-0.2 font-mono text-[9.5px] font-medium text-fg-dim"
+                                          className="rounded border border-line bg-surface px-1.5 py-0.2 font-mono text-[9.5px] font-medium tabular-nums text-fg-dim"
                                           title={`Chat individual monitorado (${ct.dmSlug})`}
                                         >
                                           {ct.atividadeLabel
@@ -1577,8 +1840,9 @@ export function EscritorioView({
                                         <Link
                                           href={`/g/${encodeURIComponent(ct.dmSlug)}`}
                                           onClick={(e) => e.stopPropagation()}
+                                          aria-label={`Abrir conversa completa de ${ct.nome}`}
                                           title={`Abrir conversa individual de ${ct.nome}`}
-                                          className="rounded px-1 text-[10px] font-semibold text-fg-dim hover:bg-surface hover:text-fg"
+                                          className="rounded px-1 text-[10px] font-semibold text-fg-dim hover:bg-surface hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                                         >
                                           ↗
                                         </Link>
@@ -1605,13 +1869,14 @@ export function EscritorioView({
                     <div className="bg-surface-2">
                       <button
                         type="button"
+                        aria-expanded={mostrarPausados}
                         onClick={() => setMostrarPausados((v) => !v)}
-                        className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-fg-dim hover:bg-elevated hover:text-fg"
+                        className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[11px] font-bold tracking-wider uppercase text-fg-dim transition-colors hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
                       >
                         <span>
                           💤 Fora de Dev / Mesa Vazia ({clientesPausados.length})
                         </span>
-                        <span>{mostrarPausados ? '▾' : '▸'}</span>
+                        <span aria-hidden="true">{mostrarPausados ? '▾' : '▸'}</span>
                       </button>
 
                       {mostrarPausados && (
@@ -1622,10 +1887,19 @@ export function EscritorioView({
                             return (
                               <div
                                 key={c.slug}
+                                role="button"
+                                tabIndex={0}
+                                aria-pressed={selecionado}
                                 onClick={() => handleSelectAgent(selecionado ? null : id)}
-                                className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-[11px] transition-colors ${
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleSelectAgent(selecionado ? null : id);
+                                  }
+                                }}
+                                className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
                                   selecionado
-                                    ? 'bg-selected text-fg'
+                                    ? 'bg-selected text-fg ring-1 ring-inset ring-accent/40'
                                     : 'text-fg-dim hover:bg-elevated hover:text-fg'
                                 }`}
                               >
@@ -1641,7 +1915,7 @@ export function EscritorioView({
                                     e.stopPropagation();
                                     handleToggleMesa(c.slug, 'ocupar_mesa');
                                   }}
-                                  className="shrink-0 rounded border border-ok/40 bg-ok-bg px-2 py-0.5 text-[10px] font-semibold text-ok hover:opacity-90"
+                                  className="shrink-0 rounded border border-ok/40 bg-ok-bg px-2 py-0.5 text-[10px] font-semibold text-ok transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                                   title="Colocar este projeto em uma mesa do escritório"
                                 >
                                   + Mesa
@@ -1719,10 +1993,15 @@ export function EscritorioView({
                     onSelectAgent={(id) => handleSelectAgent(id)}
                   />
 
-                  <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
+                  <ZoomControls
+                    zoom={editor.zoom}
+                    onZoomChange={editor.handleZoomChange}
+                    onCenterPlayer={handleCenterPlayer}
+                  />
 
                   {/* Vignette suave */}
                   <div
+                    aria-hidden="true"
                     style={{
                       position: 'absolute',
                       inset: 0,
@@ -1761,7 +2040,7 @@ export function EscritorioView({
                     />
                   )}
 
-                  {/* Dica de Controles de Movimento (canto inferior esquerdo) */}
+                  {/* Dica de Controles de Movimento (canto inferior esquerdo — recolhível e semântico) */}
                   {!editor.isEditMode && (
                     <div
                       style={{
@@ -1769,23 +2048,59 @@ export function EscritorioView({
                         bottom: 12,
                         left: 12,
                         zIndex: 45,
-                        pointerEvents: 'none',
                       }}
-                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-[#141622]/85 px-2.5 py-1 text-[10px] text-white/75 shadow-lg backdrop-blur-sm sm:gap-3 sm:px-3 sm:py-1.5 sm:text-[11px]"
+                      className="flex items-center gap-2 rounded-xl border border-white/15 bg-[#121420]/90 px-2.5 py-1.5 text-[10.5px] text-white/80 shadow-xl backdrop-blur-md sm:text-[11px]"
                     >
-                      <span className="hidden sm:inline">
-                        <strong className="text-white">WASD / Setas</strong> Andar ·{' '}
-                      </span>
-                      <span>
-                        <strong className="text-white">Arrastar</strong> Mover mapa
-                      </span>
-                      <span>·</span>
-                      <span>
-                        <strong className="text-white">Toque no chão</strong> Ir até lá
-                      </span>
-                      <span className="hidden sm:inline">
-                        · <strong className="text-white">Clique num cliente</strong> Abrir ficha
-                      </span>
+                      {mostrarDicasTeclado ? (
+                        <>
+                          <span className="hidden items-center gap-1 sm:inline-flex">
+                            <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white">
+                              WASD
+                            </kbd>
+                            <span>Andar</span>
+                            <span className="mx-0.5 text-white/30" aria-hidden="true">
+                              ·
+                            </span>
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white">
+                              Arrastar
+                            </kbd>
+                            <span>Câmera</span>
+                          </span>
+                          <span className="text-white/30" aria-hidden="true">
+                            ·
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white">
+                              Clique
+                            </kbd>
+                            <span>Andar / Abrir Ficha</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setMostrarDicasTeclado(false)}
+                            aria-label="Ocultar legenda de controles"
+                            title="Ocultar legenda de controles"
+                            className="ml-1 flex h-5 w-5 items-center justify-center rounded text-white/50 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                          >
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setMostrarDicasTeclado(true)}
+                          aria-label="Mostrar atalhos e controles do mapa"
+                          title="Mostrar controles do mapa"
+                          className="inline-flex items-center gap-1 px-1 py-0.5 font-semibold text-white/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                        >
+                          <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.2 font-mono text-[10px] text-white">
+                            ?
+                          </kbd>
+                          <span>Controles</span>
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -1793,53 +2108,68 @@ export function EscritorioView({
                   {editor.isEditMode && (
                     <>
                       <div
+                        role="toolbar"
+                        aria-label="Ações de edição do mapa"
                         style={{
                           position: 'absolute',
-                          top: 10,
+                          top: 12,
                           left: 12,
                           zIndex: 'var(--pixel-controls-z)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
                         }}
+                        className="flex flex-wrap items-center gap-1.5 rounded-xl border border-white/15 bg-[#141624]/95 p-1.5 shadow-2xl backdrop-blur-md"
                       >
                         <button
                           type="button"
                           onClick={editor.handleUndo}
                           disabled={editorState.undoStack.length === 0}
-                          className="rounded border border-white/20 bg-[#1e1e2e] px-2.5 py-1 text-xs font-medium text-white hover:bg-white/10 disabled:opacity-40"
+                          className="inline-flex h-8 items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 text-xs font-medium text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:pointer-events-none disabled:opacity-35"
                           title="Desfazer (Ctrl+Z)"
                         >
-                          ↶ Desfazer
+                          <span aria-hidden="true">↶</span>
+                          <span>Desfazer</span>
                         </button>
                         <button
                           type="button"
                           onClick={editor.handleRedo}
                           disabled={editorState.redoStack.length === 0}
-                          className="rounded border border-white/20 bg-[#1e1e2e] px-2.5 py-1 text-xs font-medium text-white hover:bg-white/10 disabled:opacity-40"
+                          className="inline-flex h-8 items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 text-xs font-medium text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:pointer-events-none disabled:opacity-35"
                           title="Refazer (Ctrl+Y)"
                         >
-                          ↷ Refazer
+                          <span aria-hidden="true">↷</span>
+                          <span>Refazer</span>
                         </button>
+                        <div className="mx-0.5 h-5 w-px bg-white/15" aria-hidden="true" />
                         <button
                           type="button"
                           onClick={editor.handleSave}
-                          className="rounded border border-emerald-500/50 bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-500"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-500/50 bg-emerald-600 px-3 text-xs font-semibold text-white shadow transition-colors hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
                         >
-                          💾 Salvar Mapa
+                          <span aria-hidden="true">💾</span>
+                          <span>Salvar Mapa</span>
                         </button>
                         <button
                           type="button"
                           onClick={handleResetDefaultMap}
-                          className="rounded border border-white/20 bg-[#1e1e2e] px-2.5 py-1 text-xs font-medium text-white/80 hover:bg-white/10"
+                          className="inline-flex h-8 items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 text-xs font-medium text-white/85 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
                           title="Restaurar mapa original de fábrica"
                         >
-                          ↺ Restaurar Padrão
+                          <span aria-hidden="true">↺</span>
+                          <span>Restaurar Padrão</span>
                         </button>
                         {showRotateHint && (
-                          <span className="rounded border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-xs text-amber-200">
-                            Pressione <b>R</b> para girar · <b>T</b> para alternar estado ·{' '}
-                            <b>Del</b> para remover
+                          <span className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 text-xs text-amber-200">
+                            <kbd className="rounded border border-amber-400/40 bg-amber-500/20 px-1 font-mono text-[10px] font-bold">
+                              R
+                            </kbd>{' '}
+                            girar ·{' '}
+                            <kbd className="rounded border border-amber-400/40 bg-amber-500/20 px-1 font-mono text-[10px] font-bold">
+                              T
+                            </kbd>{' '}
+                            estado ·{' '}
+                            <kbd className="rounded border border-amber-400/40 bg-amber-500/20 px-1 font-mono text-[10px] font-bold">
+                              Del
+                            </kbd>{' '}
+                            remover
                           </span>
                         )}
                       </div>

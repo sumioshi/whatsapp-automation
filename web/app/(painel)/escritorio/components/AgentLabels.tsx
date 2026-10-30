@@ -140,6 +140,13 @@ export function AgentLabels({
         return (
           <div
             key={id}
+            role={canClick ? 'button' : undefined}
+            tabIndex={canClick ? 0 : undefined}
+            aria-label={
+              canClick
+                ? `${rawLabel}${meta?.subLabel ? `, aguardando há ${meta.subLabel}` : ''}`
+                : undefined
+            }
             onClick={
               canClick
                 ? (e) => {
@@ -148,6 +155,18 @@ export function AgentLabels({
                   }
                 : undefined
             }
+            onKeyDown={
+              canClick
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onSelectAgent?.(id);
+                    }
+                  }
+                : undefined
+            }
+            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded"
             style={{
               position: 'absolute',
               left: screenX,

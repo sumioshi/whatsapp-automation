@@ -109,10 +109,21 @@ export function ChatBubblesOverlay({
         return (
           <div
             key={`chat-bubble-${id}`}
+            role="button"
+            tabIndex={0}
+            aria-label={`Mensagem de ${b.nome}: ${preview}`}
             onClick={(e) => {
               e.stopPropagation();
               onSelectAgent?.(id);
             }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelectAgent?.(id);
+              }
+            }}
+            className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
             style={{
               position: 'absolute',
               left: screenX,

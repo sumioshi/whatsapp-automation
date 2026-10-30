@@ -33,33 +33,37 @@ export function OrganogramaClientesView({
     (i) => i.cliente.aguardando && (i.cliente.band === 'hot' || i.cliente.band === 'warm'),
   );
   const aguardando = itens.filter(
-    (i) => i.cliente.aguardando && i.cliente.band !== 'hot' && i.cliente.band !== 'warm',
+    (i) =>
+      (i.cliente.aguardando && i.cliente.band !== 'hot' && i.cliente.band !== 'warm') ||
+      (!i.cliente.aguardando && (i.cliente.dmsAguardando ?? 0) > 0),
   );
-  const emDia = itens.filter((i) => !i.cliente.aguardando);
+  const emDia = itens.filter(
+    (i) => !i.cliente.aguardando && (i.cliente.dmsAguardando ?? 0) === 0,
+  );
 
   const receitaTotal = itens.reduce((acc, i) => acc + (i.cliente.contrato.valorMensal ?? 0), 0);
 
   const secoes = [
     {
       id: 'urgentes',
-      titulo: 'Urgente · SLA > 4h',
+      titulo: 'Crítico · SLA > 4h',
       subtitulo: 'Na mesa aguardando retorno prioritário',
       corBorda: 'border-red-500/40',
-      corPonto: 'bg-red-500',
+      corPonto: 'bg-red-500 animate-pulse',
       lista: urgentes,
     },
     {
       id: 'aguardando',
-      titulo: 'Na Mesa · Aguardando resposta',
-      subtitulo: 'Mensagens recentes aguardando atendimento',
-      corBorda: 'border-amber-500/40',
-      corPonto: 'bg-amber-500',
+      titulo: 'Sem Resposta · Recente',
+      subtitulo: 'Mensagens de grupo ou DM aguardando resposta',
+      corBorda: 'border-red-500/30',
+      corPonto: 'bg-red-500',
       lista: aguardando,
     },
     {
       id: 'em-dia',
-      titulo: 'Lounge & Operação · Em dia',
-      subtitulo: 'Clientes atendidos circulando pelo escritório',
+      titulo: 'Operação · Em Dia',
+      subtitulo: 'Clientes respondidos e em desenvolvimento',
       corBorda: 'border-emerald-500/30',
       corPonto: 'bg-emerald-500',
       lista: emDia,
@@ -124,8 +128,17 @@ export function OrganogramaClientesView({
                     return (
                       <div
                         key={cliente.slug}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Ver ${cliente.nome} no Escritório 2D`}
                         onClick={() => onSelectInOffice(id)}
-                        className={`group cursor-pointer rounded-lg border p-3 transition-all ${
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onSelectInOffice(id);
+                          }
+                        }}
+                        className={`group cursor-pointer rounded-lg border p-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                           selecionado
                             ? 'border-accent bg-selected ring-1 ring-accent'
                             : 'border-line bg-surface-2 hover:border-line-2 hover:bg-elevated'
