@@ -25,6 +25,14 @@ const VALIDADE_WATCH_MS = 30_000;
  * Fecha quando o navegador desconecta (`req.signal`).
  */
 export async function GET(req: Request) {
+  // Só o próprio painel abre o stream: cada conexão custa um spawn da CLI por
+  // segundo, e o painel local roda sem autenticação. `sec-fetch-site` ausente
+  // (cliente não navegador, ex.: curl) passa.
+  const origemPedido = req.headers.get('sec-fetch-site');
+  if (origemPedido && origemPedido !== 'same-origin' && origemPedido !== 'none') {
+    return NextResponse.json({ error: 'Pedido de outro site recusado' }, { status: 403 });
+  }
+
   const url = new URL(req.url);
   const terminal = url.searchParams.get('terminal')?.trim() ?? '';
   if (!terminal || !/^[\w.:-]{1,200}$/.test(terminal)) {
@@ -69,7 +77,7 @@ export async function GET(req: Request) {
             ? { tail: tela.tail, status: tela.status ?? 'running', draft: tela.draft ?? null }
             : { tail: [] as string[], status: 'unavailable', draft: null };
 
-          const h = hashTela({ tail: quadro.tail, status: quadro.status });
+          const h = hashTela({ tail: quadro.tail, status: quadro.status, draft: quadro.draft });
           if (h !== ultimoHash) {
             ultimoHash = h;
             seq += 1;

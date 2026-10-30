@@ -13,12 +13,17 @@
 export interface TelaTerminal {
   tail: string[];
   status?: string | null;
+  /** Rascunho do compositor (o que está sendo digitado), fora do `tail`. */
+  draft?: string | null;
 }
 
-/** Hash FNV-1a (32 bits) da tela: barato e estável para detectar mudança entre leituras. */
+/**
+ * Hash FNV-1a (32 bits) da tela: barato e estável para detectar mudança entre
+ * leituras. Entram tail, status e draft: rascunho mudando também é frame novo.
+ */
 export function hashTela(tela: TelaTerminal): string {
   // Separador fora do alfabeto de uma tela de terminal: "a\nb" ≠ ["a", "b"].
-  const texto = `${tela.status ?? ''}\u0000${tela.tail.join('\u0001')}`;
+  const texto = `${tela.status ?? ''}\u0000${tela.draft ?? ''}\u0000${tela.tail.join('\u0001')}`;
   let h = 0x811c9dc5;
   for (let i = 0; i < texto.length; i++) {
     h ^= texto.charCodeAt(i);
