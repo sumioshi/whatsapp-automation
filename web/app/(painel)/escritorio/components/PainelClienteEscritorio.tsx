@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { MedidorUso } from '@/app/components/ui';
@@ -16,6 +17,16 @@ import type {
 } from '@/lib/orca-bridge';
 import type { PresenceView } from '@/lib/presence';
 import { CharSprite } from './CharSprite';
+
+// xterm.js mexe no DOM e na janela: só no cliente.
+const OrcaTerminal = dynamic(() => import('./OrcaTerminal').then((m) => m.OrcaTerminal), {
+  ssr: false,
+  loading: () => (
+    <div className="flex min-h-[280px] flex-1 items-center justify-center rounded-lg border border-line bg-[#0b0e14] font-mono text-[11px] text-zinc-400">
+      Abrindo terminal…
+    </div>
+  ),
+});
 
 interface MensagemResumo {
   id: string;
@@ -167,15 +178,6 @@ export function PainelClienteEscritorio({
       setCarregandoScreen(false);
     }
   }
-
-  useEffect(() => {
-    if (abaAtiva !== 'orca' || !terminalHandleAtivo) return;
-    carregarScreenTerminal(terminalHandleAtivo);
-    const t = setInterval(() => {
-      carregarScreenTerminal(terminalHandleAtivo);
-    }, 5000);
-    return () => clearInterval(t);
-  }, [abaAtiva, terminalHandleAtivo, cliente.slug]);
 
   async function handleEnviarPromptOrca(e?: React.FormEvent) {
     e?.preventDefault();
@@ -633,7 +635,11 @@ export function PainelClienteEscritorio({
 
       {abaAtiva === 'orca' ? (
         <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+          <div
+            className={`flex-1 space-y-3 overflow-y-auto px-4 py-3 ${
+              mostrarTerminalOrca && terminalHandleAtivo ? 'flex flex-col' : ''
+            }`}
+          >
             {/* Cabeçalho do Worktree Orca */}
             {orcaInfo ? (
               <div className="rounded-lg border border-line bg-surface-2 p-3">
@@ -877,7 +883,11 @@ export function PainelClienteEscritorio({
 
             {/* Conversa estruturada do Agente Orca OU Tela TUI ao vivo */}
             {agenteSelecionado && (
-              <div className="space-y-2.5">
+              <div
+                className={`space-y-2.5 ${
+                  mostrarTerminalOrca && terminalHandleAtivo ? 'flex min-h-0 flex-1 flex-col' : ''
+                }`}
+              >
                 {!mostrarTerminalOrca ? (
                   <>
                     {/* Último comando do operador */}
@@ -938,33 +948,23 @@ export function PainelClienteEscritorio({
                 ) : null}
 
                 {/* Tela do Terminal (TUI) ao vivo — exibida quando o toggle está ativo ou quando não há lastAssistantMessage */}
-                {(mostrarTerminalOrca || !agenteSelecionado.lastAssistantMessage) && (
-                  <div className="rounded-lg border border-line bg-[#0b0e14] p-2.5">
-                    <div className="mb-1.5 flex items-center justify-between border-b border-white/10 pb-1.5 text-[10px] text-zinc-400">
-                      <span className="font-mono">
-                        🖥️ {agenteSelecionado.terminalTitle || agenteSelecionado.paneKey} (
-                        {agenteSelecionado.terminalHandle || 'sem-pty'})
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => carregarScreenTerminal()}
-                        className="rounded bg-white/10 px-1.5 py-0.5 text-[9px] text-zinc-200 hover:bg-white/20"
-                      >
-                        Atualizar TUI
-                      </button>
+                {(mostrarTerminalOrca || !agenteSelecionado.lastAssistantMessage) &&
+                  (terminalHandleAtivo ? (
+                    <OrcaTerminal
+                      key={terminalHandleAtivo}
+                      terminalHandle={terminalHandleAtivo}
+                      slug={cliente.slug}
+                      titulo={agenteSelecionado.terminalTitle}
+                      agente={agenteSelecionado.agentType}
+                      estadoAgente={agenteSelecionado.state}
+                      telaInicial={screenTailLocal ?? agenteSelecionado.screenTail ?? null}
+                      onAbrirNoOrca={() => handleAcaoOrca('focar_orca')}
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-line bg-[#0b0e14] p-2.5 font-mono text-[10.5px] text-zinc-400">
+                      Este agente não tem terminal (PTY) aberto no Orca.
                     </div>
-                    <pre className="max-h-[320px] overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words font-mono text-[10.5px] leading-[1.45] text-emerald-300/90">
-                      {(
-                        screenTailLocal ??
-                        agenteSelecionado.screenTail ?? [
-                          'Carregando tela do terminal no Orca...',
-                        ]
-                      )
-                        .slice(-38)
-                        .join('\n')}
-                    </pre>
-                  </div>
-                )}
+                  ))}
               </div>
             )}
 
@@ -998,8 +998,9 @@ export function PainelClienteEscritorio({
             )}
           </div>
 
-          {/* Composer fixo na base da aba Orca para enviar comando direto ao agente */}
-          {orcaInfo && (
+          {/* Composer fixo na base da aba Orca para enviar comando direto ao agente.
+              Com o terminal aberto o teclado já vai direto, então ele sai de cena. */}
+          {orcaInfo && !(mostrarTerminalOrca && terminalHandleAtivo) && (
             <form
               onSubmit={handleEnviarPromptOrca}
               className="border-t border-line bg-surface-2 px-4 py-3"

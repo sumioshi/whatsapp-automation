@@ -8,6 +8,7 @@ import {
   getOrcaBin,
   getOrcaSnapshot,
   isSecretOrcaAction,
+  lerWatchAtivo,
   type OrcaCommandResult,
   type OrcaPendingCommand,
   type OrcaSnapshot,
@@ -79,6 +80,7 @@ const VALID_ACTIONS = new Set<OrcaPendingCommand['acao']>([
   'iniciar_agente',
   'interromper',
   'focar_orca',
+  'enviar_teclas',
   'vincular_repo',
   'desvincular_repo',
   'parear_ambiente',
@@ -115,6 +117,7 @@ export async function POST(request: Request) {
       pairingCode?: string;
       name?: string;
       id?: string;
+      data?: string;
       snapshot?: OrcaSnapshot;
       commandResults?: OrcaCommandResult[];
     };
@@ -128,6 +131,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         pendingCommands,
+        watch: await lerWatchAtivo(),
       });
     }
 
@@ -150,6 +154,7 @@ export async function POST(request: Request) {
       folder: body.folder,
       pairingCode: body.pairingCode,
       environmentId: body.id ?? body.name,
+      data: typeof body.data === 'string' ? body.data : undefined,
     };
 
     const invalido = validarComando(cmd);
@@ -160,6 +165,10 @@ export async function POST(request: Request) {
     // 1. Se o Orca CLI está disponível localmente nesta máquina, executa imediatamente!
     if (getOrcaBin()) {
       const result = await executeLocalOrcaCommand(cmd);
+      // Teclas são frequentes e a tela chega pelo stream: sem snapshot para não atrasar o lote seguinte.
+      if (cmd.acao === 'enviar_teclas') {
+        return NextResponse.json({ ok: result.ok, mode: 'local', result });
+      }
       const snapshot = await getOrcaSnapshot(true);
       return NextResponse.json({
         ok: result.ok,
@@ -173,6 +182,11 @@ export async function POST(request: Request) {
     // Segredo (pairing code) fica só em memória; o resto vai para o arquivo da fila.
     if (isSecretOrcaAction(cmd.acao)) enqueueVolatileOrcaCommand(cmd);
     else await enqueueRemoteOrcaCommand(cmd);
+
+    // Teclas não esperam resultado: o relay executa na ordem da fila e a tela volta pelo stream.
+    if (cmd.acao === 'enviar_teclas') {
+      return NextResponse.json({ ok: true, queued: true, mode: 'remote-queued', commandId: cmd.id });
+    }
 
     // Aguarda até 4.5s caso o relay do Mac processe quase em tempo real
     const deadline = Date.now() + 4500;

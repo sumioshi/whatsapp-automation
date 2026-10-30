@@ -12,6 +12,7 @@ import {
   syncOrcaReposFromSnapshot,
   vincularRepoOrca,
 } from './orca-repos';
+import { filtrarWatchValido, mapearTeclasParaCli, type WatchTerminais } from './orca-terminal';
 import { safeDataPath } from './paths';
 
 const execFileAsync = promisify(execFile);
@@ -117,6 +118,7 @@ export interface OrcaPendingCommand {
     | 'iniciar_agente'
     | 'interromper'
     | 'focar_orca'
+    | 'enviar_teclas'
     | 'vincular_repo'
     | 'desvincular_repo'
     | 'parear_ambiente'
@@ -132,6 +134,8 @@ export interface OrcaPendingCommand {
   pairingCode?: string;
   /** parear_ambiente: nome do ambiente salvo; remover_ambiente: id ou nome. */
   environmentId?: string;
+  /** Teclas cruas (`enviar_teclas`): vão ao PTY como vieram do xterm, sem Enter automático. */
+  data?: string;
 }
 
 export interface OrcaCommandResult {
@@ -151,6 +155,8 @@ interface OrcaRemoteQueueFile {
 
 const ORCA_STATE_FILE = () => safeDataPath('.orca-remote-state.json');
 const ORCA_QUEUE_FILE = () => safeDataPath('.orca-remote-queue.json');
+// Arquivo próprio (não a fila) para o stream renovar sem disputar escrita com a fila de comandos.
+const ORCA_WATCH_FILE = () => safeDataPath('.orca-terminal-watch.json');
 
 let resolvedOrcaBin: string | null | undefined;
 
@@ -712,6 +718,40 @@ export async function executeLocalOrcaCommand(
       };
     }
 
+    if (cmd.acao === 'enviar_teclas') {
+      const planos = mapearTeclasParaCli(cmd.data ?? '');
+      if (!cmd.terminalHandle || planos.length === 0) {
+        return {
+          id: cmd.id,
+          ok: false,
+          completedAt: nowIso,
+          error: 'Terminal ou teclas ausentes.',
+        };
+      }
+      // Sequencial para manter a ordem das teclas dentro do lote.
+      for (const plano of planos) {
+        const sendRes = await runOrcaJson<{ ok?: boolean; error?: { message?: string } }>(
+          ['terminal', 'send', '--terminal', cmd.terminalHandle, ...plano.args],
+          5000,
+        );
+        if (!sendRes?.ok) {
+          return {
+            id: cmd.id,
+            ok: false,
+            completedAt: nowIso,
+            terminalHandle: cmd.terminalHandle,
+            error: sendRes?.error?.message || 'Falha ao enviar teclas ao terminal.',
+          };
+        }
+      }
+      return {
+        id: cmd.id,
+        ok: true,
+        completedAt: nowIso,
+        terminalHandle: cmd.terminalHandle,
+      };
+    }
+
     if (cmd.acao === 'interromper' && cmd.terminalHandle) {
       await runOrcaJson(
         ['terminal', 'send', '--terminal', cmd.terminalHandle, '--interrupt'],
@@ -976,6 +1016,55 @@ function emptyOrcaSnapshot(): OrcaSnapshot {
     allWorktrees: [],
     repos: {},
   };
+}
+
+async function readWatchFile(): Promise<WatchTerminais> {
+  try {
+    const parsed = JSON.parse(await readFile(ORCA_WATCH_FILE(), 'utf8')) as WatchTerminais;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Marca um terminal como assistido por um stream na nuvem, valendo por `validadeMs`.
+ * O stream renova enquanto está aberto; o relay lê isso no `sync_push` e passa a
+ * ler a tela desse terminal a cada ciclo, com ciclo mais curto.
+ */
+export async function registrarWatchTerminal(
+  terminalHandle: string,
+  validadeMs = 30_000,
+): Promise<void> {
+  const agora = Date.now();
+  const atual = await readWatchFile();
+  const vivo: WatchTerminais = {};
+  for (const h of filtrarWatchValido(atual, agora)) vivo[h] = atual[h];
+  vivo[terminalHandle] = agora + validadeMs;
+  await writeJsonAtomic(ORCA_WATCH_FILE(), vivo);
+}
+
+/** Handles de terminal com stream aberto na nuvem e prazo ainda válido. */
+export async function lerWatchAtivo(): Promise<string[]> {
+  return filtrarWatchValido(await readWatchFile(), Date.now());
+}
+
+/**
+ * Tela de um terminal como veio no último snapshot sincronizado (caminho da nuvem,
+ * sem CLI). `null` quando o handle não aparece no snapshot.
+ */
+export async function readSyncedTerminalScreen(
+  terminalHandle: string,
+): Promise<{ tail: string[]; draft?: string | null; status?: string } | null> {
+  const snap = await readSyncedOrcaSnapshot();
+  if (!snap) return null;
+  for (const proj of Object.values(snap.bySlug)) {
+    const ag = proj.agents.find((a) => a.terminalHandle === terminalHandle);
+    if (ag && Array.isArray(ag.screenTail)) {
+      return { tail: ag.screenTail, draft: ag.draft ?? null, status: 'running' };
+    }
+  }
+  return null;
 }
 
 /**
