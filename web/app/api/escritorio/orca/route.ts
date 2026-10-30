@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { corpoEhJson, origemDoProprioSite } from '@/lib/http-origem';
 import {
   consumePendingAndSaveResults,
   enqueueRemoteOrcaCommand,
@@ -17,8 +18,13 @@ import {
   readRemoteQueue,
   saveSyncedOrcaSnapshot,
 } from '@/lib/orca-bridge';
+import { validarComandoOrca } from '@/lib/orca-comando';
 
 export const runtime = 'nodejs';
+
+// No Mac o painel roda sem login: só a própria tela pode ler a TUI ou mandar comando.
+const RECUSA_ORIGEM = () =>
+  NextResponse.json({ error: 'Pedido de outro site recusado' }, { status: 403 });
 
 export async function GET(request: Request) {
   try {
@@ -28,6 +34,10 @@ export async function GET(request: Request) {
     const wantScreen = searchParams.get('screen') === '1';
     const wantInfo = searchParams.get('info') === '1';
     const forceFresh = searchParams.get('fresh') === '1';
+
+    if ((wantScreen || wantInfo) && !origemDoProprioSite(request.headers)) {
+      return RECUSA_ORIGEM();
+    }
 
     const snapshot = await getOrcaSnapshot(forceFresh);
 
@@ -87,25 +97,14 @@ const VALID_ACTIONS = new Set<OrcaPendingCommand['acao']>([
   'remover_ambiente',
 ]);
 
-/** Validação mínima por ação; devolve a mensagem de erro ou null. */
-function validarComando(cmd: OrcaPendingCommand): string | null {
-  const vazio = (v?: string) => !v || !v.trim();
-  switch (cmd.acao) {
-    case 'vincular_repo':
-      return vazio(cmd.slug) || vazio(cmd.folder) ? 'slug e folder obrigatórios' : null;
-    case 'desvincular_repo':
-      return vazio(cmd.slug) ? 'slug obrigatório' : null;
-    case 'parear_ambiente':
-      return vazio(cmd.pairingCode) ? 'pairingCode obrigatório' : null;
-    case 'remover_ambiente':
-      return vazio(cmd.environmentId) ? 'id do ambiente obrigatório' : null;
-    default:
-      return null;
-  }
-}
-
 export async function POST(request: Request) {
   try {
+    // Checado ANTES de ler o corpo: formulário/text-plain de outro site nem é parseado.
+    if (!origemDoProprioSite(request.headers)) return RECUSA_ORIGEM();
+    if (!corpoEhJson(request.headers)) {
+      return NextResponse.json({ error: 'Corpo precisa ser application/json' }, { status: 415 });
+    }
+
     const body = (await request.json()) as {
       acao?: string;
       slug?: string;
@@ -142,22 +141,23 @@ export async function POST(request: Request) {
       );
     }
 
+    const texto = (v: unknown) => (typeof v === 'string' ? v : undefined);
     const cmd: OrcaPendingCommand = {
       id: randomUUID(),
       createdAt: new Date().toISOString(),
       acao: body.acao as OrcaPendingCommand['acao'],
-      slug: body.slug,
-      terminalHandle: body.terminalHandle,
-      worktreePath: body.worktreePath,
-      text: body.text,
-      agentType: body.agentType,
-      folder: body.folder,
-      pairingCode: body.pairingCode,
-      environmentId: body.id ?? body.name,
-      data: typeof body.data === 'string' ? body.data : undefined,
+      slug: texto(body.slug),
+      terminalHandle: texto(body.terminalHandle),
+      worktreePath: texto(body.worktreePath),
+      text: texto(body.text),
+      agentType: texto(body.agentType),
+      folder: texto(body.folder),
+      pairingCode: texto(body.pairingCode),
+      environmentId: texto(body.id) ?? texto(body.name),
+      data: texto(body.data),
     };
 
-    const invalido = validarComando(cmd);
+    const invalido = validarComandoOrca(cmd);
     if (invalido) {
       return NextResponse.json({ error: invalido }, { status: 400 });
     }
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
     }
 
     // 2. Caso contrário (estamos rodando na nuvem Railway), enfileira para o relay do Mac executar!
-    // Segredo (pairing code) fica só em memória; o resto vai para o arquivo da fila.
+    // Pairing code e teclas digitadas ficam só em memória; o resto vai para o arquivo da fila.
     if (isSecretOrcaAction(cmd.acao)) enqueueVolatileOrcaCommand(cmd);
     else await enqueueRemoteOrcaCommand(cmd);
 
