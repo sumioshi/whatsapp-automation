@@ -1,10 +1,17 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { homedir, hostname } from 'node:os';
 import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
 import { writeJsonAtomic } from './json-store';
+import {
+  desvincularRepoOrca,
+  type OrcaReposMap,
+  readOrcaRepos,
+  syncOrcaReposFromSnapshot,
+  vincularRepoOrca,
+} from './orca-repos';
 import { safeDataPath } from './paths';
 
 const execFileAsync = promisify(execFile);
@@ -57,26 +64,74 @@ export interface OrcaProjectAgentInfo {
   childWorktrees: OrcaChildWorktreeSummary[];
 }
 
+export interface OrcaHostInfo {
+  id: string;
+  label: string;
+  kind: string;
+  platform: string | null;
+  connected: boolean;
+}
+
+export interface OrcaEnvironmentInfo {
+  id: string;
+  label: string;
+  [extra: string]: unknown;
+}
+
+/** Linha compacta de worktree, para o vínculo manual slug -> pasta na UI. */
+export interface OrcaWorktreeRow {
+  worktreeId: string;
+  folder: string;
+  repo: string;
+  path: string;
+  branch: string;
+  liveTerminalCount: number;
+}
+
 export interface OrcaSnapshot {
   available: boolean;
   source: 'local-cli' | 'remote-sync' | 'unavailable';
   runtimeId: string | null;
   appVersion: string | null;
+  runtimeState: string | null;
+  connectionState: string | null;
+  /** Nome da máquina onde a CLI rodou (a origem do snapshot). */
+  hostLabel: string | null;
   updatedAt: string;
   bySlug: Record<string, OrcaProjectAgentInfo>;
   allWorktreesCount: number;
   activeAgentsCount: number;
+  terminalsCount: number;
+  hosts: OrcaHostInfo[];
+  environments: OrcaEnvironmentInfo[];
+  allWorktrees: OrcaWorktreeRow[];
+  /** Mapa slug -> pastas vigente na origem (a nuvem o replica em orca-repos.json). */
+  repos: OrcaReposMap;
 }
 
 export interface OrcaPendingCommand {
   id: string;
   createdAt: string;
-  acao: 'enviar_prompt' | 'iniciar_agente' | 'interromper' | 'focar_orca';
+  acao:
+    | 'enviar_prompt'
+    | 'iniciar_agente'
+    | 'interromper'
+    | 'focar_orca'
+    | 'vincular_repo'
+    | 'desvincular_repo'
+    | 'parear_ambiente'
+    | 'remover_ambiente';
   slug?: string;
   terminalHandle?: string;
   worktreePath?: string;
   text?: string;
   agentType?: string;
+  /** vincular_repo / desvincular_repo: basename do worktree ou nome do repo. */
+  folder?: string;
+  /** parear_ambiente: código `orca://pair?...`. Nunca persistido (fila volátil). */
+  pairingCode?: string;
+  /** parear_ambiente: nome do ambiente salvo; remover_ambiente: id ou nome. */
+  environmentId?: string;
 }
 
 export interface OrcaCommandResult {
@@ -97,51 +152,20 @@ interface OrcaRemoteQueueFile {
 const ORCA_STATE_FILE = () => safeDataPath('.orca-remote-state.json');
 const ORCA_QUEUE_FILE = () => safeDataPath('.orca-remote-queue.json');
 
-/**
- * Mapeamento direto dos slugs de grupos/DMs de clientes para o nome da pasta do worktree
- * ou nome do repositório registrado no Orca.
- */
-export const SLUG_TO_ORCA_FOLDER: Record<string, string[]> = {
-  'projeto-02': ['projeto-180', 'projeto-154'],
-  'projeto-01': ['projeto-139', 'projeto-144'],
-  'dm-5511900000070': ['projeto-166'],
-  'projeto-128': ['projeto-187'],
-  'projeto-05': ['projeto-186'],
-  'projeto-30': ['projeto-146', 'projeto-125'],
-  'projeto-38': ['projeto-151'],
-  'projeto-116': ['projeto-184', 'projeto-88', 'projeto-32', 'projeto-86'],
-  'projeto-44': ['projeto-110'],
-  'projeto-46': ['projeto-153'],
-  'projeto-87': ['projeto-162'],
-  'projeto-10': ['projeto-127'],
-  'projeto-108': ['projeto-176'],
-  'projeto-97': ['projeto-101'],
-  'projeto-113': ['projeto-177'],
-  'projeto-152': ['projeto-189'],
-  'projeto-29': ['projeto-136'],
-  'projeto-23': ['projeto-112', 'projeto-124'],
-  'projeto-98': ['projeto-178'],
-  'projeto-114': ['projeto-109', 'projeto-48', 'projeto-14'],
-  'projeto-99': ['projeto-145'],
-  'projeto-33': ['Projeto 174'],
-  'projeto-45': ['Projeto 165'],
-  'projeto-89': ['Projeto 161'],
-  'projeto-16': ['projeto-100', 'projeto-132'],
-  'projeto-08': ['projeto-168', 'projeto-123'],
-  'projeto-31': ['projeto-167'],
-  'projeto-115': ['projeto-126', 'projeto-179'],
-};
-
 let resolvedOrcaBin: string | null | undefined;
 
 export function getOrcaBin(): string | null {
   if (resolvedOrcaBin !== undefined) return resolvedOrcaBin;
 
+  // Sessão aberta pelo app exporta ORCA_CLI_BIN_DIR (não ORCA_CLI_COMMAND); fora dela,
+  // o symlink de ~/.local/bin ou o binário dentro do bundle do app.
   const candidates = [
     process.env.ORCA_CLI_COMMAND,
+    process.env.ORCA_CLI_BIN_DIR ? join(process.env.ORCA_CLI_BIN_DIR, 'orca') : undefined,
     join(homedir(), '.local', 'bin', 'orca'),
     '/usr/local/bin/orca',
     '/opt/homebrew/bin/orca',
+    '/Applications/Orca.app/Contents/Resources/bin/orca',
   ].filter((c): c is string => Boolean(c));
 
   for (const cand of candidates) {
@@ -254,9 +278,83 @@ function normalizeStatus(
   return 'inactive';
 }
 
+interface RawOrcaHost {
+  id?: string;
+  kind?: string;
+  name?: string;
+  machineName?: string;
+  platform?: string;
+  connected?: boolean;
+}
+
+interface OrcaMeta {
+  appVersion: string | null;
+  runtimeState: string | null;
+  connectionState: string | null;
+  hostLabel: string | null;
+  hosts: OrcaHostInfo[];
+  environments: OrcaEnvironmentInfo[];
+}
+
+// `status`, `host list` e `environment list` mudam devagar: lidos a cada 30 s, não a cada snapshot.
+let metaCache: { ts: number; data: OrcaMeta } | null = null;
+const META_CACHE_TTL_MS = 30_000;
+
+function normalizeEnvironment(raw: unknown): OrcaEnvironmentInfo | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const id = String(r.id ?? r.environmentId ?? r.name ?? '').trim();
+  if (!id) return null;
+  const label = String(r.name ?? r.label ?? id);
+  return { ...r, id, label };
+}
+
+async function readOrcaMeta(forceFresh = false): Promise<OrcaMeta> {
+  const now = Date.now();
+  if (!forceFresh && metaCache && now - metaCache.ts < META_CACHE_TTL_MS) return metaCache.data;
+
+  const [statusRes, hostRes, envRes] = await Promise.all([
+    runOrcaJson<{
+      ok?: boolean;
+      result?: { runtime?: { state?: string; connectionState?: string; appVersion?: string } };
+    }>(['status'], 5000),
+    runOrcaJson<{ ok?: boolean; result?: { hosts?: RawOrcaHost[] } }>(['host', 'list'], 5000),
+    runOrcaJson<{ ok?: boolean; result?: { environments?: unknown[] } }>(
+      ['environment', 'list'],
+      5000,
+    ),
+  ]);
+
+  const runtime = statusRes?.result?.runtime;
+  const hosts: OrcaHostInfo[] = (hostRes?.result?.hosts ?? [])
+    .filter((h) => h && typeof h === 'object' && h.id)
+    .map((h) => ({
+      id: String(h.id),
+      label: h.machineName || h.name || String(h.id),
+      kind: h.kind ?? 'unknown',
+      platform: h.platform ?? null,
+      connected: h.kind === 'local' ? true : Boolean(h.connected),
+    }));
+  const local = hosts.find((h) => h.kind === 'local');
+
+  const data: OrcaMeta = {
+    appVersion: runtime?.appVersion ?? process.env.ORCA_APP_VERSION ?? null,
+    runtimeState: runtime?.state ?? null,
+    connectionState: runtime?.connectionState ?? null,
+    hostLabel: local?.label ?? hostname(),
+    hosts,
+    environments: (envRes?.result?.environments ?? [])
+      .map(normalizeEnvironment)
+      .filter((e): e is OrcaEnvironmentInfo => e !== null),
+  };
+  metaCache = { ts: now, data };
+  return data;
+}
+
 // Cache rápido em memória para chamadas ao CLI local (evita múltiplos spawns simultâneos)
 let localSnapshotCache: { ts: number; data: OrcaSnapshot } | null = null;
 const LOCAL_CACHE_TTL_MS = 2500;
+const ALL_WORKTREES_LIMIT = 200;
 
 export async function readLocalOrcaSnapshot(forceFresh = false): Promise<OrcaSnapshot | null> {
   if (!getOrcaBin()) return null;
@@ -266,7 +364,7 @@ export async function readLocalOrcaSnapshot(forceFresh = false): Promise<OrcaSna
     return localSnapshotCache.data;
   }
 
-  const [psRes, termRes] = await Promise.all([
+  const [psRes, termRes, meta, repos] = await Promise.all([
     runOrcaJson<{
       ok?: boolean;
       result?: { worktrees?: RawOrcaWorktree[] };
@@ -276,6 +374,8 @@ export async function readLocalOrcaSnapshot(forceFresh = false): Promise<OrcaSna
       ok?: boolean;
       result?: { terminals?: RawOrcaTerminal[] };
     }>(['terminal', 'list']),
+    readOrcaMeta(),
+    readOrcaRepos(),
   ]);
 
   if (!psRes?.ok || !psRes.result?.worktrees) {
@@ -326,7 +426,7 @@ export async function readLocalOrcaSnapshot(forceFresh = false): Promise<OrcaSna
   const bySlug: Record<string, OrcaProjectAgentInfo> = {};
   let activeAgentsCount = 0;
 
-  for (const [slug, folderCandidates] of Object.entries(SLUG_TO_ORCA_FOLDER)) {
+  for (const [slug, folderCandidates] of Object.entries(repos)) {
     let matchedWt: RawOrcaWorktree | undefined;
     for (const folder of folderCandidates) {
       const candidates = worktreesByFolder.get(folder.toLowerCase()) ?? [];
@@ -450,15 +550,36 @@ export async function readLocalOrcaSnapshot(forceFresh = false): Promise<OrcaSna
     };
   }
 
+  // Lista compacta (worktrees com atividade primeiro) para o vínculo manual na UI.
+  const allWorktrees: OrcaWorktreeRow[] = [...worktrees]
+    .sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0))
+    .slice(0, ALL_WORKTREES_LIMIT)
+    .map((w) => ({
+      worktreeId: w.worktreeId,
+      folder: basename(w.path),
+      repo: w.repo ?? w.displayName ?? basename(w.path),
+      path: w.path,
+      branch: (w.branch ?? '').replace(/^refs\/heads\//, ''),
+      liveTerminalCount: w.liveTerminalCount ?? termsByWorktreePath.get(w.path)?.length ?? 0,
+    }));
+
   const snapshot: OrcaSnapshot = {
     available: true,
     source: 'local-cli',
     runtimeId: psRes._meta?.runtimeId ?? null,
-    appVersion: null,
+    appVersion: meta.appVersion,
+    runtimeState: meta.runtimeState,
+    connectionState: meta.connectionState,
+    hostLabel: meta.hostLabel,
     updatedAt: new Date(now).toISOString(),
     bySlug,
     allWorktreesCount: worktrees.length,
     activeAgentsCount,
+    terminalsCount: terminals.length,
+    hosts: meta.hosts,
+    environments: meta.environments,
+    allWorktrees,
+    repos,
   };
 
   localSnapshotCache = { ts: now, data: snapshot };
@@ -512,6 +633,74 @@ export async function executeLocalOrcaCommand(
   }
 
   try {
+    if (cmd.acao === 'vincular_repo' || cmd.acao === 'desvincular_repo') {
+      const slug = (cmd.slug ?? '').trim();
+      const folder = (cmd.folder ?? '').trim();
+      if (!slug || (cmd.acao === 'vincular_repo' && !folder)) {
+        return { id: cmd.id, ok: false, completedAt: nowIso, error: 'slug e pasta obrigatórios.' };
+      }
+      if (cmd.acao === 'vincular_repo') await vincularRepoOrca(slug, folder);
+      else await desvincularRepoOrca(slug, folder || undefined);
+      localSnapshotCache = null;
+      return {
+        id: cmd.id,
+        ok: true,
+        completedAt: nowIso,
+        message:
+          cmd.acao === 'vincular_repo'
+            ? `Pasta "${folder}" vinculada ao chat.`
+            : 'Vínculo com o worktree removido.',
+      };
+    }
+
+    if (cmd.acao === 'parear_ambiente') {
+      const code = (cmd.pairingCode ?? '').trim();
+      if (!code) {
+        return { id: cmd.id, ok: false, completedAt: nowIso, error: 'Pairing code vazio.' };
+      }
+      const name =
+        (cmd.environmentId ?? '').trim() ||
+        `remoto-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
+      // `--pairing-code` aqui é argumento do subcomando; o runOrcaJson não duplica a flag.
+      const res = await runOrcaJson<{ ok?: boolean; error?: { message?: string } }>(
+        ['environment', 'add', '--name', name, '--pairing-code', code],
+        20_000,
+      );
+      metaCache = null;
+      localSnapshotCache = null;
+      if (!res?.ok) {
+        return {
+          id: cmd.id,
+          ok: false,
+          completedAt: nowIso,
+          error: res?.error?.message || 'Falha ao parear o ambiente no Orca.',
+        };
+      }
+      return { id: cmd.id, ok: true, completedAt: nowIso, message: `Ambiente "${name}" pareado.` };
+    }
+
+    if (cmd.acao === 'remover_ambiente') {
+      const envId = (cmd.environmentId ?? '').trim();
+      if (!envId) {
+        return { id: cmd.id, ok: false, completedAt: nowIso, error: 'Ambiente não informado.' };
+      }
+      const res = await runOrcaJson<{ ok?: boolean; error?: { message?: string } }>(
+        ['environment', 'rm', '--environment', envId],
+        10_000,
+      );
+      metaCache = null;
+      localSnapshotCache = null;
+      if (!res?.ok) {
+        return {
+          id: cmd.id,
+          ok: false,
+          completedAt: nowIso,
+          error: res?.error?.message || 'Falha ao remover o ambiente no Orca.',
+        };
+      }
+      return { id: cmd.id, ok: true, completedAt: nowIso, message: 'Ambiente removido.' };
+    }
+
     if (cmd.acao === 'focar_orca' && cmd.terminalHandle) {
       await runOrcaJson(['terminal', 'focus', '--terminal', cmd.terminalHandle], 5000);
       return {
@@ -677,10 +866,13 @@ export async function executeLocalOrcaCommand(
 export async function readSyncedOrcaSnapshot(): Promise<OrcaSnapshot | null> {
   try {
     const raw = await readFile(ORCA_STATE_FILE(), 'utf8');
-    const parsed = JSON.parse(raw) as OrcaSnapshot;
+    const parsed = JSON.parse(raw) as Partial<OrcaSnapshot>;
     if (!parsed || typeof parsed !== 'object' || !parsed.bySlug) return null;
+    // Snapshot gravado por uma versão anterior pode não ter os campos novos.
     return {
+      ...emptyOrcaSnapshot(),
       ...parsed,
+      bySlug: parsed.bySlug,
       source: 'remote-sync',
     };
   } catch {
@@ -694,6 +886,27 @@ export async function saveSyncedOrcaSnapshot(snapshot: OrcaSnapshot): Promise<vo
     source: 'remote-sync',
     updatedAt: new Date().toISOString(),
   });
+  // O mapa slug -> pastas é editado na origem; a nuvem só o replica.
+  if (snapshot.repos) {
+    await syncOrcaReposFromSnapshot(snapshot.repos).catch(() => undefined);
+  }
+}
+
+/**
+ * Comandos que carregam segredo (pairing code) nunca vão para o arquivo da fila: ficam
+ * só na memória deste processo até o relay buscá-los no próximo `sync_push`.
+ */
+const volatilePending: OrcaPendingCommand[] = [];
+
+export function enqueueVolatileOrcaCommand(cmd: OrcaPendingCommand): OrcaPendingCommand {
+  volatilePending.push(cmd);
+  if (volatilePending.length > 10) volatilePending.splice(0, volatilePending.length - 10);
+  return cmd;
+}
+
+/** Ações cujo payload não pode ser persistido em disco. */
+export function isSecretOrcaAction(acao: OrcaPendingCommand['acao']): boolean {
+  return acao === 'parear_ambiente';
 }
 
 export async function readRemoteQueue(): Promise<OrcaRemoteQueueFile> {
@@ -738,10 +951,31 @@ export async function consumePendingAndSaveResults(
       }
     }
   }
-  const toExecute = [...queue.pending];
+  const toExecute = [...queue.pending, ...volatilePending.splice(0)];
   queue.pending = [];
   await writeJsonAtomic(ORCA_QUEUE_FILE(), queue);
   return toExecute;
+}
+
+function emptyOrcaSnapshot(): OrcaSnapshot {
+  return {
+    available: false,
+    source: 'unavailable',
+    runtimeId: null,
+    appVersion: null,
+    runtimeState: null,
+    connectionState: null,
+    hostLabel: null,
+    updatedAt: new Date().toISOString(),
+    bySlug: {},
+    allWorktreesCount: 0,
+    activeAgentsCount: 0,
+    terminalsCount: 0,
+    hosts: [],
+    environments: [],
+    allWorktrees: [],
+    repos: {},
+  };
 }
 
 /**
@@ -754,14 +988,13 @@ export async function getOrcaSnapshot(forceFresh = false): Promise<OrcaSnapshot>
   const synced = await readSyncedOrcaSnapshot();
   if (synced) return synced;
 
-  return {
-    available: false,
-    source: 'unavailable',
-    runtimeId: null,
-    appVersion: null,
-    updatedAt: new Date().toISOString(),
-    bySlug: {},
-    allWorktreesCount: 0,
-    activeAgentsCount: 0,
-  };
+  return emptyOrcaSnapshot();
+}
+
+/** Idade do snapshot e se o relay está vivo (snapshot remoto com menos de 60 s). */
+export function orcaSnapshotHealth(snapshot: OrcaSnapshot): { ageMs: number; relayOk: boolean } {
+  const ts = Date.parse(snapshot.updatedAt);
+  const ageMs = Number.isFinite(ts) ? Math.max(0, Date.now() - ts) : Number.MAX_SAFE_INTEGER;
+  const relayOk = snapshot.source === 'local-cli' || (snapshot.source === 'remote-sync' && ageMs < 60_000);
+  return { ageMs, relayOk };
 }

@@ -25,6 +25,7 @@
     "estilo-baseline": "node --env-file-if-exists=.env --import tsx scripts/estilo-baseline.ts",
     "indexar-links": "node --env-file-if-exists=.env --import tsx scripts/indexar-links.ts",
     "expediente": "node --env-file-if-exists=.env --import tsx scripts/expediente-scheduler.ts",
+    "orca-bridge": "node --env-file-if-exists=.env --import tsx scripts/orca-bridge-daemon.ts",
     "test": "vitest run",
     "postinstall": "patch-package"
   },

@@ -46,5 +46,18 @@ module.exports = {
       env: { NODE_ENV: "production" },
       autorestart: true,
     },
+    {
+      // Ponte Orca: publica o estado do Orca local no painel da nuvem e executa
+      // os comandos enfileirados lá, mesmo sem sessão de Claude Code aberta.
+      name: "wa-orca-bridge",
+      cwd: root,
+      script: path.join(root, "scripts", "orca-bridge-daemon.ts"),
+      interpreter: "node",
+      interpreter_args: "--env-file-if-exists=.env --import tsx",
+      env: { NODE_ENV: "production" },
+      autorestart: true,
+      // Sem CLI do Orca ou sem WAC_CLOUD_* o daemon sai com código 2: espera antes de tentar de novo.
+      restart_delay: 15000,
+    },
   ],
 };

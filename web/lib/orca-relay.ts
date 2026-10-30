@@ -97,11 +97,23 @@ export async function runSingleOrcaRelayCycle(
   return results;
 }
 
+export interface OrcaRelayLoopOptions {
+  /** Chamado a cada ciclo que falhou (o hospedeiro decide se loga). */
+  onError?: (err: unknown) => void;
+  /** Chamado a cada ciclo concluído; `lock=false` = outro processo está sincronizando. */
+  onCycle?: (info: { lock: boolean; executed: number }) => void;
+  /** `false` mantém o processo vivo só pelo timer (daemon dedicado). */
+  unref?: boolean;
+}
+
 /**
  * Inicia em background o loop de sincronização Mac -> Nuvem Railway.
  * Seguro para ser chamado em múltiplos processos (usa lockfile em /tmp).
  */
-export function startOrcaRemoteRelayLoop(intervalMs = 4500): void {
+export function startOrcaRemoteRelayLoop(
+  intervalMs = 4500,
+  opts: OrcaRelayLoopOptions = {},
+): void {
   if (relayStarted) return;
   if (!getOrcaBin()) return;
   relayStarted = true;
@@ -116,7 +128,10 @@ export function startOrcaRemoteRelayLoop(intervalMs = 4500): void {
     running = true;
     try {
       const hasLock = await acquireOrRefreshLock(myPid);
-      if (!hasLock) return;
+      if (!hasLock) {
+        opts.onCycle?.({ lock: false, executed: 0 });
+        return;
+      }
 
       const newResults = await runSingleOrcaRelayCycle(queuedResults);
       queuedResults = [];
@@ -126,8 +141,10 @@ export function startOrcaRemoteRelayLoop(intervalMs = 4500): void {
       if (newResults.length > 0) {
         await runSingleOrcaRelayCycle(newResults);
       }
-    } catch {
+      opts.onCycle?.({ lock: true, executed: newResults.length });
+    } catch (err) {
       // Silencioso em background para nunca afetar o processo hospedeiro
+      opts.onError?.(err);
     } finally {
       running = false;
     }
@@ -135,7 +152,7 @@ export function startOrcaRemoteRelayLoop(intervalMs = 4500): void {
 
   setTimeout(() => void tick(), 800);
   const timer = setInterval(() => void tick(), intervalMs);
-  if (typeof timer.unref === 'function') {
+  if (opts.unref !== false && typeof timer.unref === 'function') {
     timer.unref();
   }
 }

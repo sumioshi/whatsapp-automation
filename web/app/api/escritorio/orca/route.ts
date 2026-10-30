@@ -3,12 +3,15 @@ import { NextResponse } from 'next/server';
 import {
   consumePendingAndSaveResults,
   enqueueRemoteOrcaCommand,
+  enqueueVolatileOrcaCommand,
   executeLocalOrcaCommand,
   getOrcaBin,
   getOrcaSnapshot,
+  isSecretOrcaAction,
   type OrcaCommandResult,
   type OrcaPendingCommand,
   type OrcaSnapshot,
+  orcaSnapshotHealth,
   readLocalTerminalScreen,
   readRemoteQueue,
   saveSyncedOrcaSnapshot,
@@ -22,6 +25,7 @@ export async function GET(request: Request) {
     const slug = searchParams.get('slug');
     const terminalParam = searchParams.get('terminal');
     const wantScreen = searchParams.get('screen') === '1';
+    const wantInfo = searchParams.get('info') === '1';
     const forceFresh = searchParams.get('fresh') === '1';
 
     const snapshot = await getOrcaSnapshot(forceFresh);
@@ -56,12 +60,45 @@ export async function GET(request: Request) {
       }
     }
 
+    if (wantInfo) {
+      const { ageMs, relayOk } = orcaSnapshotHealth(snapshot);
+      return NextResponse.json({ snapshot, ageMs, relayOk });
+    }
+
     return NextResponse.json({ snapshot });
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message || 'Erro ao consultar Orca Bridge' },
       { status: 500 },
     );
+  }
+}
+
+const VALID_ACTIONS = new Set<OrcaPendingCommand['acao']>([
+  'enviar_prompt',
+  'iniciar_agente',
+  'interromper',
+  'focar_orca',
+  'vincular_repo',
+  'desvincular_repo',
+  'parear_ambiente',
+  'remover_ambiente',
+]);
+
+/** Validação mínima por ação; devolve a mensagem de erro ou null. */
+function validarComando(cmd: OrcaPendingCommand): string | null {
+  const vazio = (v?: string) => !v || !v.trim();
+  switch (cmd.acao) {
+    case 'vincular_repo':
+      return vazio(cmd.slug) || vazio(cmd.folder) ? 'slug e folder obrigatórios' : null;
+    case 'desvincular_repo':
+      return vazio(cmd.slug) ? 'slug obrigatório' : null;
+    case 'parear_ambiente':
+      return vazio(cmd.pairingCode) ? 'pairingCode obrigatório' : null;
+    case 'remover_ambiente':
+      return vazio(cmd.environmentId) ? 'id do ambiente obrigatório' : null;
+    default:
+      return null;
   }
 }
 
@@ -74,6 +111,10 @@ export async function POST(request: Request) {
       worktreePath?: string;
       text?: string;
       agentType?: string;
+      folder?: string;
+      pairingCode?: string;
+      name?: string;
+      id?: string;
       snapshot?: OrcaSnapshot;
       commandResults?: OrcaCommandResult[];
     };
@@ -90,13 +131,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const validActions = new Set([
-      'enviar_prompt',
-      'iniciar_agente',
-      'interromper',
-      'focar_orca',
-    ]);
-    if (!body.acao || !validActions.has(body.acao)) {
+    if (!body.acao || !VALID_ACTIONS.has(body.acao as OrcaPendingCommand['acao'])) {
       return NextResponse.json(
         { error: 'Ação inválida para Orca Bridge' },
         { status: 400 },
@@ -112,7 +147,15 @@ export async function POST(request: Request) {
       worktreePath: body.worktreePath,
       text: body.text,
       agentType: body.agentType,
+      folder: body.folder,
+      pairingCode: body.pairingCode,
+      environmentId: body.id ?? body.name,
     };
+
+    const invalido = validarComando(cmd);
+    if (invalido) {
+      return NextResponse.json({ error: invalido }, { status: 400 });
+    }
 
     // 1. Se o Orca CLI está disponível localmente nesta máquina, executa imediatamente!
     if (getOrcaBin()) {
@@ -127,7 +170,9 @@ export async function POST(request: Request) {
     }
 
     // 2. Caso contrário (estamos rodando na nuvem Railway), enfileira para o relay do Mac executar!
-    await enqueueRemoteOrcaCommand(cmd);
+    // Segredo (pairing code) fica só em memória; o resto vai para o arquivo da fila.
+    if (isSecretOrcaAction(cmd.acao)) enqueueVolatileOrcaCommand(cmd);
+    else await enqueueRemoteOrcaCommand(cmd);
 
     // Aguarda até 4.5s caso o relay do Mac processe quase em tempo real
     const deadline = Date.now() + 4500;
