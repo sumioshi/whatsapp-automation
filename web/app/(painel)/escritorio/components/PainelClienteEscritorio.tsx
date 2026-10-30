@@ -9,7 +9,11 @@ import type {
   DmDisponivelEscritorio,
 } from '@/lib/escritorio-estado';
 import { instanteLongo } from '@/lib/formatar-data';
-import type { OrcaAgentSession, OrcaProjectAgentInfo } from '@/lib/orca-bridge';
+import type {
+  OrcaAgentSession,
+  OrcaProjectAgentInfo,
+  OrcaWorktreeRow,
+} from '@/lib/orca-bridge';
 import type { PresenceView } from '@/lib/presence';
 import { CharSprite } from './CharSprite';
 
@@ -35,6 +39,8 @@ interface PainelClienteEscritorioProps {
   dmsDisponiveis?: DmDisponivelEscritorio[];
   orcaInfo?: OrcaProjectAgentInfo | null;
   orcaAvailable?: boolean;
+  /** Worktrees conhecidos pelo Orca, para vincular manualmente ao chat. */
+  orcaWorktrees?: OrcaWorktreeRow[];
   onRefreshOrca?: () => void;
   abaInicial?: 'whatsapp' | 'orca';
   onClose: () => void;
@@ -61,6 +67,7 @@ export function PainelClienteEscritorio({
   dmsDisponiveis = [],
   orcaInfo,
   orcaAvailable = false,
+  orcaWorktrees = [],
   onRefreshOrca,
   abaInicial = 'whatsapp',
   onClose,
@@ -84,13 +91,53 @@ export function PainelClienteEscritorio({
   const [promptOrca, setPromptOrca] = useState('');
   const [enviandoPromptOrca, setEnviandoPromptOrca] = useState(false);
   const [feedbackOrca, setFeedbackOrca] = useState<string | null>(null);
+  const [pastaParaVincular, setPastaParaVincular] = useState('');
+  const [vinculandoOrca, setVinculandoOrca] = useState(false);
 
   useEffect(() => {
     setAbaAtiva(abaInicial);
     setIndiceAgenteOrca(0);
     setScreenTailLocal(null);
     setFeedbackOrca(null);
+    setPastaParaVincular('');
   }, [abaInicial, cliente.slug]);
+
+  // Vínculo manual slug -> pasta do worktree (grava no Mac; na nuvem vai pela fila do relay).
+  async function handleVinculoOrca(acao: 'vincular_repo' | 'desvincular_repo', folder?: string) {
+    if (vinculandoOrca) return;
+    setVinculandoOrca(true);
+    setFeedbackOrca(null);
+    try {
+      const res = await fetch('/api/escritorio/orca', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acao, slug: cliente.slug, folder }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        queued?: boolean;
+        error?: string;
+        result?: { ok?: boolean; message?: string; error?: string };
+      };
+      const ok = data.ok && data.result?.ok !== false;
+      setFeedbackOrca(
+        ok
+          ? data.queued
+            ? '⏳ Vínculo na fila: o Orca do Mac aplica em instantes.'
+            : `✓ ${data.result?.message || 'Vínculo atualizado.'}`
+          : `⚠️ ${data.result?.error || data.error || 'Falha ao atualizar o vínculo'}`,
+      );
+      if (ok) {
+        setPastaParaVincular('');
+        onRefreshOrca?.();
+        setTimeout(() => onRefreshOrca?.(), 2500);
+      }
+    } catch {
+      setFeedbackOrca('⚠️ Erro de conexão com a ponte Orca');
+    } finally {
+      setVinculandoOrca(false);
+    }
+  }
 
   const agentesOrca: OrcaAgentSession[] = orcaInfo?.agents ?? [];
   const agenteSelecionado: OrcaAgentSession | null =
@@ -607,6 +654,15 @@ export function PainelClienteEscritorio({
                     >
                       {orcaInfo.worktreePath}
                     </p>
+                    <button
+                      type="button"
+                      disabled={vinculandoOrca}
+                      onClick={() => handleVinculoOrca('desvincular_repo')}
+                      title="Remover o vínculo deste chat com o worktree no Orca"
+                      className="mt-1 text-[10px] font-medium text-fg-dim underline-offset-2 hover:text-danger hover:underline disabled:opacity-50"
+                    >
+                      Desvincular
+                    </button>
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1">
@@ -737,9 +793,46 @@ export function PainelClienteEscritorio({
                 </p>
                 <p className="mt-1 text-[11px] text-fg-dim">
                   {orcaAvailable
-                    ? 'Vincule um repositório local no Orca para conversar com o agente deste projeto diretamente daqui.'
+                    ? 'Escolha o worktree do Orca que corresponde a este projeto para conversar com o agente daqui.'
                     : 'O Orca Desktop local não está acessível neste momento.'}
                 </p>
+                {orcaAvailable && orcaWorktrees.length > 0 && (
+                  <form
+                    className="mt-2.5 flex gap-1.5"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (pastaParaVincular) handleVinculoOrca('vincular_repo', pastaParaVincular);
+                    }}
+                  >
+                    <select
+                      value={pastaParaVincular}
+                      onChange={(e) => setPastaParaVincular(e.target.value)}
+                      aria-label="Worktree do Orca para vincular"
+                      className="h-8 min-w-0 flex-1 rounded border border-line bg-surface px-2 text-left text-[11px] text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <option value="">Escolher worktree…</option>
+                      {orcaWorktrees.map((w) => (
+                        <option key={w.worktreeId} value={w.folder}>
+                          {w.folder} · {w.repo}
+                          {w.branch ? ` · ${w.branch}` : ''}
+                          {w.liveTerminalCount > 0 ? ` · ${w.liveTerminalCount} term` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      disabled={!pastaParaVincular || vinculandoOrca}
+                      className="h-8 shrink-0 rounded border border-accent bg-accent px-3 text-[11px] font-semibold text-accent-ink disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      {vinculandoOrca ? '…' : 'Vincular'}
+                    </button>
+                  </form>
+                )}
+                {feedbackOrca && (
+                  <p role="status" className="mt-2 text-left text-[11px] font-medium text-fg">
+                    {feedbackOrca}
+                  </p>
+                )}
               </div>
             )}
 
