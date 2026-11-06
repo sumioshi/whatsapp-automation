@@ -28,7 +28,7 @@ for v in links.values():
     if g and g not in vistos:
         vistos.add(g); print(g)')
 REPOS="$REPOS
-sumioshi/whatsapp-automation"
+$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 
 ok=0; erro=0
 for R in $REPOS; do

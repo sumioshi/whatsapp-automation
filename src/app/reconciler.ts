@@ -56,7 +56,7 @@ const DEFAULT_INTERVALO_MIN = 15;
 const TAIL_BYTES = 64 * 1024;
 /**
  * Teto de cada chamada externa do ciclo (WhatsApp ou download). Sem ele, uma
- * promessa que nunca resolve deixava `rodando` preso para sempre: e o ciclo para
+ * promessa que nunca resolve deixa `rodando` preso para sempre, e o ciclo para
  * de fundir DMs LID×telefone.
  */
 const TETO_CHAMADA_MS = 90_000;

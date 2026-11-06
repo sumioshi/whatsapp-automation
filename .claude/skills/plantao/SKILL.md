@@ -103,5 +103,5 @@ buraco (teto de 200 mensagens por chat; acima disso o servidor avisa que truncou
   nome), então o plantão continua válido — mas se o monitor foi armado ANTES da era do slug
   estável num slug derivado do nome antigo/novo errado, re-resolva o slug no passo 1
   (`listar_grupos` traz `renomeados`) e rearme.
-- **Checar pm2/coletor local como pré-requisito:** não é — nada roda no boot do Mac por decisão
-  do operador, e o plantão via nuvem não precisa de processo local nenhum.
+- **Checar pm2/coletor local como pré-requisito:** não é — o plantão via nuvem não precisa de
+  processo local nenhum.

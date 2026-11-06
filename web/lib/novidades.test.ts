@@ -104,7 +104,7 @@ describe('selectNew', () => {
   });
 
   it('conta as ignoradas por papel (grupo interno: só team) sem contar fromMe', () => {
-    // o caso real que deu atrito: grupo onde todos são team → mensagens=0 mas
+    // grupo onde todos são team → mensagens=0 mas
     // ignoradasNaoCliente>0, pra distinguir de "nada novo".
     const msgs = [
       msg({ timestamp: '2026-06-24T12:00:00.000Z', sender: TEAM, text: 'a' }),

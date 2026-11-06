@@ -2,13 +2,14 @@
 # Espelha a memória e as skills do Claude Code do operador num repositório git
 # privado (o "brain"), pra agentes na nuvem lerem o mesmo contexto do Mac.
 # Uma via (Mac → brain). Só commita quando há mudança; nunca reescreve histórico.
-#   BRAIN_DIR (default ~/brain)  BRAIN_REPO (default git@github.com:<org>/brain.git)
+#   BRAIN_DIR (default ~/brain)  BRAIN_REPO (remoto git do brain; obrigatório só na primeira clonagem)
 set -eu
 BRAIN_DIR="${BRAIN_DIR:-$HOME/brain}"
-BRAIN_REPO="${BRAIN_REPO:-git@github.com:<org>/brain.git}"
+BRAIN_REPO="${BRAIN_REPO:-}"
 CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
 
 if [ ! -d "$BRAIN_DIR/.git" ]; then
+  [ -n "$BRAIN_REPO" ] || { echo "defina BRAIN_REPO (ex.: git@github.com:<org>/brain.git) para a primeira clonagem" >&2; exit 2; }
   git clone -q "$BRAIN_REPO" "$BRAIN_DIR"
 fi
 cd "$BRAIN_DIR"

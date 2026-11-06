@@ -433,7 +433,7 @@ export async function readLocalOrcaSnapshot(forceFresh = false): Promise<OrcaSna
     worktreesByFolder.set(folder, arr);
   }
 
-  // Também indexa pelo nome do repo (ex: projeto-125)
+  // Também indexa pelo nome do repo (ex: meu-app-agente)
   const childWorktreesByRepoName = new Map<string, RawOrcaWorktree[]>();
   for (const w of worktrees) {
     if (!w.isMainWorktree && w.repo) {

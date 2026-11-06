@@ -7,34 +7,34 @@ const c: Contacts = {
   names: new Map(),
   ownIds: new Set(),
   teamIds: new Set(),
-  // o LID 400851… é o mesmo contato do telefone 551190000053
+  // o LID 400000… é o mesmo contato do telefone 5511987650001
   phones: new Map([
-    ['40085181472808', '551190000053'],
-    ['551190000053', '551190000053'],
+    ['40000000000001', '5511987650001'],
+    ['5511987650001', '5511987650001'],
   ]),
-  lids: new Set(['40085181472808', '99999999999999']),
+  lids: new Set(['40000000000001', '99999999999999']),
   hasSidecar: true,
 };
-const existentes = new Set(['dm-5511900000076', 'dm-40085181472808', 'dm-111', 'grupo-x']);
+const existentes = new Set(['dm-5511987650001', 'dm-40000000000001', 'dm-111', 'grupo-x']);
 
 describe('slugsIrmaosDeDm', () => {
   it('slug de LID traz o slug do telefone junto (telefone primeiro)', () => {
-    expect(slugsIrmaosDeDm('dm-40085181472808', c, existentes)).toEqual([
-      'dm-5511900000076',
-      'dm-40085181472808',
+    expect(slugsIrmaosDeDm('dm-40000000000001', c, existentes)).toEqual([
+      'dm-5511987650001',
+      'dm-40000000000001',
     ]);
   });
 
   it('slug de telefone traz o slug de LID junto', () => {
-    expect(slugsIrmaosDeDm('dm-5511900000076', c, existentes)).toEqual([
-      'dm-5511900000076',
-      'dm-40085181472808',
+    expect(slugsIrmaosDeDm('dm-5511987650001', c, existentes)).toEqual([
+      'dm-5511987650001',
+      'dm-40000000000001',
     ]);
   });
 
   it('irmão que não existe no coletor não entra', () => {
-    const so = new Set(['dm-40085181472808']);
-    expect(slugsIrmaosDeDm('dm-40085181472808', c, so)).toEqual(['dm-40085181472808']);
+    const so = new Set(['dm-40000000000001']);
+    expect(slugsIrmaosDeDm('dm-40000000000001', c, so)).toEqual(['dm-40000000000001']);
   });
 
   it('LID sem telefone conhecido fica sozinho', () => {

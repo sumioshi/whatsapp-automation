@@ -793,7 +793,7 @@ server.registerTool(
       "milhares de contatos e sem filtro só vêm os 100 primeiros. Se você JÁ TEM o número, nem precisa: " +
       "a DM é o slug `dm-<55DDDnúmero>` direto em ler_mensagens/responder.",
     inputSchema: {
-      busca: z.string().optional().describe("pedaço do nome ou número (ex.: 'paulo', '+55 11 98765-4321')"),
+      busca: z.string().optional().describe("pedaço do nome ou número (ex.: 'ana', '+55 11 98765-4321')"),
       limite: z.number().int().positive().max(500).optional().describe("máximo de pessoas (default 100)"),
     },
   },

@@ -17,6 +17,10 @@ for A in "$@"; do
   esac
 done
 
+# Repositório que hospeda o workflow reutilizável agente-pr.yml (ex.: minha-org/agentes).
+AGENTES_REPO="${AGENTES_REPO:-}"
+[ -n "$AGENTES_REPO" ] || { echo "defina AGENTES_REPO=<org>/<repo> com o workflow reutilizável agente-pr.yml" >&2; exit 2; }
+
 ARQUIVO=".github/workflows/agente-pr.yml"
 BRANCH="agente/executor-pr"
 CHAMADOR='name: Agente — issue vira PR
@@ -26,7 +30,7 @@ on:
 jobs:
   executar:
     if: github.event.label.name == '"'"'claude'"'"'
-    uses: minha-org/agentes/.github/workflows/agente-pr.yml@main
+    uses: '"$AGENTES_REPO"'/.github/workflows/agente-pr.yml@main
     secrets: inherit
     permissions:
       contents: write
@@ -87,7 +91,7 @@ instalar_em() (
   ERRLOG=$(mktemp)
   if URL=$(gh pr create --repo "$REPO" --base "$BASE" --head "$BRANCH" \
     --title "ci: executor de PR do despacho" \
-    --body "Quando uma issue recebe a label \`claude\` (aplicada pelo despacho com \`ok N\`), o workflow reutilizável \`minha-org/agentes\` roda o Claude, implementa só o que a issue pede e abre um PR draft com \`Closes #n\`.
+    --body "Quando uma issue recebe a label \`claude\` (aplicada pelo despacho com \`ok N\`), o workflow reutilizável \`$AGENTES_REPO\` roda o Claude, implementa só o que a issue pede e abre um PR draft com \`Closes #n\`.
 
 Requer o secret \`CLAUDE_CODE_OAUTH_TOKEN\` neste repositório (\`scripts/agente-secrets.sh\` no whatsapp-automation grava em lote)." 2>"$ERRLOG"); then
     rm -f "$ERRLOG"

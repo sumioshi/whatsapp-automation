@@ -220,7 +220,7 @@ describe('conversaDoEvento', () => {
   const chats = [
     { slug: 'norte-logistica', nome: 'Norte Logística' },
     { slug: 'clinica-ebano', nome: 'Clínica Ébano' },
-    { slug: 'projeto-16', nome: 'Serviço PRO 🤝 Acme' },
+    { slug: 'servico-pro-acme', nome: 'Serviço PRO 🤝 Acme' },
     { slug: 'dm-5511999998888', nome: 'Ana' },
     { slug: 'ana-paula-x', nome: 'Ana Paula' },
   ];

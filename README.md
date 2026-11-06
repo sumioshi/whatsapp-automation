@@ -120,14 +120,14 @@ Cada pessoa aponta pro seu container — **os dois modos coexistem** (você pode
 
 `scripts/brain-sync-install.sh` instala no launchd um espelho, a cada 5 minutos, da memória
 do Claude Code (`~/.claude/projects/*/memory/`) e das skills globais num repositório git
-privado (`~/brain`, remoto `minha-org/brain`). Os workflows de triagem baixam esse
-repositório ao lado do repo do cliente pra ler o mesmo contexto que o operador tem no Mac.
+privado (`~/brain`, remoto definido em `BRAIN_REPO` na primeira execução). Os workflows de
+triagem baixam esse repositório (variável de Actions `BRAIN_REPO`, opcional) ao lado do repo do cliente pra ler o mesmo contexto que o operador tem no Mac.
 Uma via: o Mac escreve, a nuvem lê. Log em `~/Library/Logs/brain-sync.log`.
 
 ## Despacho: triagem dos grupos por agente + fila de decisões
 
-Duas vezes por dia o workflow `.github/workflows/triagem.yml` (repo `whatsapp-automation`)
-consulta `GET /api/v1/agente/fila`, e pra cada chat com agente ligado e mensagem nova roda o
+Um workflow agendado do GitHub Actions (não incluído no repositório; monte o seu com o prompt
+em `.github/agente/triagem.prompt.md` e `scripts/agente/`) consulta `GET /api/v1/agente/fila`, e pra cada chat com agente ligado e mensagem nova roda o
 Claude com o repo do cliente, o MCP `whatsapp-collector` em modo remoto e o brain ao lado.
 Ele cria issues organizadas no repo do cliente e devolve itens de decisão; o coletor manda a
 fila pro self-chat do operador, que responde `ok N`, `não N`, `edita N: texto` ou `ok todos`.
@@ -141,16 +141,16 @@ No coletor, `AGENTE_GITHUB_TOKEN` habilita o `ok N` aplicar label e o `não N` f
 ### Etapa 2: executor de PR
 
 Issue com a label `claude` (aplicada pelo `ok N` do despacho, ou pela triagem em modo `pr`) dispara,
-no repositório do cliente, o workflow reutilizável `minha-org/agentes/.github/workflows/agente-pr.yml`:
+no repositório do cliente, o workflow reutilizável `<AGENTES_REPO>/.github/workflows/agente-pr.yml`:
 o Claude implementa só o que a issue pede, roda os testes do repositório e abre um PR draft com `Closes #n`.
-Instalar num cliente: `scripts/agente-pr-instalar.sh owner/repo` (abre um PR com o chamador de 15 linhas).
+Instalar num cliente: `AGENTES_REPO=<org>/<repo> scripts/agente-pr-instalar.sh owner/repo` (abre um PR com o chamador de 15 linhas).
 Secret necessário em cada repositório: `printf '%s' "$TOKEN" | scripts/agente-secrets.sh CLAUDE_CODE_OAUTH_TOKEN`.
 
 ## Dashboard: contrato, entregas e sinais
 
 `/dashboard` cruza a atividade dos últimos 30 dias com o **contrato** de cada cliente (estado, início, fim,
 valor mensal — editável no painel lateral do chat ou via tool MCP `definir_contrato`) e com as **entregas**
-registradas (`registrar_feature` via MCP, ou automático: o workflow `features.yml` registra todo PR mergeado
+registradas (`registrar_feature` via MCP, ou automático: um workflow seu que rode `scripts/agente/features-de-prs.mjs` registra todo PR mergeado
 que fecha uma issue `whatsapp`). Sinais: contrato encerrado com cliente ativo, cliente ativo sem contrato,
 pausado ativo, renovação em até 30 dias, ativo sem entrega em 30 dias. A tool MCP `dashboard` devolve o
 mesmo modelo pra IA responder "quem está ativo demais pro contrato" sem abrir a tela.

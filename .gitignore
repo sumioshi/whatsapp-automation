@@ -40,3 +40,6 @@ __pycache__/
 
 # Memória dos agentes (link local para a memória do Claude Code; tem dado de cliente)
 .memoria
+
+# Specs e planos internos (contexto de cliente): ficam em .private/docs/superpowers
+docs/superpowers/

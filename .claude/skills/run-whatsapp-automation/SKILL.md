@@ -209,7 +209,7 @@ Três coisas distintas — não confunda (é onde os agentes mais se perdem):
 > **Funciona, e não precisa de nada antes**: não procure em `listar_contatos`, não procure pasta
 > `dm-<id>` (ela só nasce depois da 1ª mensagem), não conclua que "não dá". Chame
 > `responder { grupo: "dm-<55DDDnúmero>" }`: só dígitos, prefixe `55` + DDD se o operador passou
-> sem ("11 99999-9999" vira `dm-5511900000512`), e deixe o nono dígito COMO VEIO, sem testar
+> sem ("11 99999-9999" vira `dm-5511999999999`), e deixe o nono dígito COMO VEIO, sem testar
 > variações. `preparar_resposta`, `revisar_texto` e `estado_triagem` funcionam nesse slug mesmo
 > com o chat ainda vazio (modo `confirmar`, conversa fria), então o fluxo de redação é o de sempre.
 > O coletor pergunta ao WhatsApp qual é a conta desse número antes de enviar:
@@ -261,7 +261,7 @@ o que perdeu no período off via `WAC_CLOUD_URL`/`WAC_CLOUD_USER`/`WAC_CLOUD_PAS
   o off (`ensureLocalMedia`), o Mac baixa o arquivo e cacheia. Sem `WAC_CLOUD_URL`,
   tudo se comporta como antes (sync e fallback desligados).
 - O coletor local segue rodando (redundância); a nuvem é o backup que preenche gaps.
-- **Escopo** (`WAC_SYNC_SCOPE`): `local` (default) só sincroniza grupos que o Mac já tem; `all` traz tudo (a nuvem tem ~373 grupos/DMs da history sync vs ~37 acompanhados). Paralelismo via `WAC_SYNC_CONCURRENCY` (default 8). O texto vai **gzipado** (o `tailscale serve` userspace trava com payloads >~1.5MB).
+- **Escopo** (`WAC_SYNC_SCOPE`): `local` (default) só sincroniza grupos que o Mac já tem; `all` traz tudo (a nuvem costuma ter dez vezes mais grupos/DMs da history sync do que os acompanhados). Paralelismo via `WAC_SYNC_CONCURRENCY` (default 8). O texto vai **gzipado** (o `tailscale serve` userspace trava com payloads >~1.5MB).
 
 ## Gotchas (cicatrizes)
 

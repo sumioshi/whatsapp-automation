@@ -36,11 +36,7 @@ export function QuickActionHud({
       : 'https://web.whatsapp.com/';
 
   // Link do GitHub / Repositório
-  const linkGithub = cliente.github
-    ? `https://github.com/${cliente.github}`
-    : cliente.repoNome
-      ? `https://github.com/<owner>/${cliente.repoNome}`
-      : null;
+  const linkGithub = cliente.github ? `https://github.com/${cliente.github}` : null;
 
   // Link de Produção / Web estimado
   const linkProd = cliente.repoNome ? `https://${cliente.repoNome}.vercel.app` : null;

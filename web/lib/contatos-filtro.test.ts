@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { type ContatoLinha, filtrarContatos } from './contatos-filtro';
 
 const lista: ContatoLinha[] = [
-  { id: '551190000053', nome: 'Dr Paulo Lima', papel: 'client', dmJid: '551190000053@s.whatsapp.net' },
-  { id: '40085181472808', nome: 'Dr Paulo Lima', papel: 'client', dmJid: '551190000053@s.whatsapp.net' },
-  { id: '551190000054', nome: 'BOT - Paulo Lima', papel: 'client', dmJid: '551190000054@s.whatsapp.net' },
-  { id: '551190000052', nome: 'Amanda Souza', papel: 'client', dmJid: '551190000052@s.whatsapp.net' },
+  { id: '5511987650001', nome: 'Dr Paulo Lima', papel: 'client', dmJid: '5511987650001@s.whatsapp.net' },
+  { id: '40000000000001', nome: 'Dr Paulo Lima', papel: 'client', dmJid: '5511987650001@s.whatsapp.net' },
+  { id: '5511987650002', nome: 'BOT - Paulo Lima', papel: 'client', dmJid: '5511987650002@s.whatsapp.net' },
+  { id: '5511987650003', nome: 'Amanda Souza', papel: 'client', dmJid: '5511987650003@s.whatsapp.net' },
   { id: '123', nome: 'José Ação', papel: 'team', dmJid: null },
 ];
 
@@ -15,15 +15,15 @@ describe('filtrarContatos', () => {
     expect(r.total).toBe(1);
     expect(r.mostrados[0]).toMatchObject({
       nome: 'Dr Paulo Lima',
-      dmJid: '551190000053@s.whatsapp.net',
-      slug: 'dm-5511900000076',
-      ids: ['551190000053', '40085181472808'],
+      dmJid: '5511987650001@s.whatsapp.net',
+      slug: 'dm-5511987650001',
+      ids: ['5511987650001', '40000000000001'],
     });
   });
 
   it('busca por número acha pelo id/dmJid, com ou sem formatação', () => {
-    expect(filtrarContatos(lista, '+55 11 98765-4321').mostrados[0]?.slug).toBe('dm-5511900000076');
-    expect(filtrarContatos(lista, '87654321').total).toBe(1);
+    expect(filtrarContatos(lista, '+55 11 98765-0001').mostrados[0]?.slug).toBe('dm-5511987650001');
+    expect(filtrarContatos(lista, '87650001').total).toBe(1);
   });
 
   it('busca por nome ignora acento e caixa', () => {

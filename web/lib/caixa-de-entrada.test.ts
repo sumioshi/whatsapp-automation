@@ -6,7 +6,7 @@ import type { LinksMap } from './links';
 import { contarDoCliente, encerramento, montarCaixa, projetoDe, separarEspera } from './caixa-de-entrada';
 
 const links: LinksMap = {
-  'projeto-113': { repoPath: '/Users/x/SaaS-clientes/projeto-177', cliente: 'Projeto 171', tipo: 'grupo', notas: '', github: 'org/projeto-177' },
+  'acme-app': { repoPath: '/Users/x/SaaS-clientes/acme', cliente: 'Acme', tipo: 'grupo', notas: '', github: 'org/acme' },
   'dm-5511': { repoPath: '/Users/x/SaaS-clientes/same', cliente: 'Same', tipo: 'dm', notas: '' },
 };
 
@@ -35,7 +35,7 @@ const espera = (slug: string, waitingMs: number): InboxItem => ({
 
 describe('projetoDe', () => {
   it('traz cliente, pasta do repo e github do links.json', () => {
-    expect(projetoDe(links, 'projeto-113')).toEqual({ cliente: 'Projeto 171', repo: 'projeto-177', github: 'org/projeto-177' });
+    expect(projetoDe(links, 'acme-app')).toEqual({ cliente: 'Acme', repo: 'acme', github: 'org/acme' });
   });
   it('github ausente vira null; chat sem link não tem projeto', () => {
     expect(projetoDe(links, 'dm-5511')?.github).toBeNull();
@@ -44,15 +44,15 @@ describe('projetoDe', () => {
 });
 
 describe('montarCaixa', () => {
-  const grupos = [grupo('projeto-113', '2026-10-28T12:00:00.000Z'), grupo('dm-5511', '2026-10-28T14:00:00.000Z'), grupo('calado', '2026-10-28T15:00:00.000Z')];
+  const grupos = [grupo('acme-app', '2026-10-28T12:00:00.000Z'), grupo('dm-5511', '2026-10-28T14:00:00.000Z'), grupo('calado', '2026-10-28T15:00:00.000Z')];
 
   it('pendentes: só quem espera, na ordem da fila, com projeto e espera traduzidos', () => {
-    const itens = montarCaixa([espera('projeto-113', 3 * 3600_000)], grupos, links, null, Date.parse('2026-10-28T14:30:00.000Z'));
+    const itens = montarCaixa([espera('acme-app', 3 * 3600_000)], grupos, links, null, Date.parse('2026-10-28T14:30:00.000Z'));
     expect(itens).toEqual([
       {
-        grupo: 'projeto-113',
-        nome: 'Nome projeto-113',
-        projeto: { cliente: 'Projeto 171', repo: 'projeto-177', github: 'org/projeto-177' },
+        grupo: 'acme-app',
+        nome: 'Nome acme-app',
+        projeto: { cliente: 'Acme', repo: 'acme', github: 'org/acme' },
         esperando: {
           motivo: 'cliente_esperando',
           de: 'Tânia',
@@ -65,20 +65,20 @@ describe('montarCaixa', () => {
           faixa: 'warm',
         },
         do_cliente_desde: null,
-        ultima: { previa: 'Fulano: oi de projeto-113', quando: '2026-10-28T12:00:00.000Z' },
+        ultima: { previa: 'Fulano: oi de acme-app', quando: '2026-10-28T12:00:00.000Z' },
       },
     ]);
   });
 
   it('todos: pendentes primeiro, depois quem recebeu de cliente pela última atividade; sem msg de cliente fica fora', () => {
     const mov = new Map([
-      ['projeto-113', 2],
+      ['acme-app', 2],
       ['dm-5511', 1],
       ['calado', 0],
     ]);
-    const itens = montarCaixa([espera('projeto-113', 1)], grupos, links, mov);
+    const itens = montarCaixa([espera('acme-app', 1)], grupos, links, mov);
     expect(itens.map((i) => [i.grupo, i.esperando ? 'espera' : 'ok', i.do_cliente_desde])).toEqual([
-      ['projeto-113', 'espera', 2],
+      ['acme-app', 'espera', 2],
       ['dm-5511', 'ok', 1],
     ]);
   });

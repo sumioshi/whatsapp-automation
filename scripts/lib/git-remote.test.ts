@@ -4,7 +4,7 @@ import { githubDoRemoto } from './git-remote';
 describe('githubDoRemoto', () => {
   it('ssh padrão e com alias de host', () => {
     expect(githubDoRemoto('git@github.com:Org/repo.git')).toBe('Org/repo');
-    expect(githubDoRemoto('git@github.com-personal:sumioshi/x.git')).toBe('sumioshi/x');
+    expect(githubDoRemoto('git@github.com-pessoal:fulano/x.git')).toBe('fulano/x');
   });
   it('https com e sem .git, com barra final', () => {
     expect(githubDoRemoto('https://github.com/Org/repo.git')).toBe('Org/repo');

@@ -149,7 +149,7 @@ for (const m of msgs) {
 
 ## Agente de triagem
 
-Rotas usadas pelo workflow `triagem.yml` (ver `docs/superpowers/specs/2026-09-04-despacho-agente-github-design.md`).
+Rotas usadas pelo workflow de triagem.
 
 | Rota | Escopo | Uso |
 |---|---|---|

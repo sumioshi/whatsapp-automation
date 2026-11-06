@@ -38,8 +38,6 @@ describe('orca-repos', () => {
 
     const disco = JSON.parse(await readFile(join(tmp, 'data', 'orca-repos.json'), 'utf8'));
     expect(disco['grupo-teste']).toEqual(['PASTA-A', 'pasta-b']);
-    // a semente foi preservada junto
-    expect(disco['projeto-128']).toEqual(['projeto-187']);
   });
 
   it('desvincular uma pasta mantém as outras; a última apaga o slug', async () => {

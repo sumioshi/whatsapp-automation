@@ -11,37 +11,8 @@ export type OrcaReposMap = Record<string, string[]>;
 
 export const ORCA_REPOS_FILE = () => safeDataPath('orca-repos.json');
 
-/** Semente usada quando o arquivo ainda não existe. */
-export const ORCA_REPOS_PADRAO: OrcaReposMap = {
-  'projeto-02': ['projeto-180', 'projeto-154'],
-  'projeto-01': ['projeto-139', 'projeto-144'],
-  'dm-5511900000070': ['projeto-166'],
-  'projeto-128': ['projeto-187'],
-  'projeto-05': ['projeto-186'],
-  'projeto-30': ['projeto-146', 'projeto-125'],
-  'projeto-38': ['projeto-151'],
-  'projeto-116': ['projeto-184', 'projeto-88', 'projeto-32', 'projeto-86'],
-  'projeto-44': ['projeto-110'],
-  'projeto-46': ['projeto-153'],
-  'projeto-87': ['projeto-162'],
-  'projeto-10': ['projeto-127'],
-  'projeto-108': ['projeto-176'],
-  'projeto-97': ['projeto-101'],
-  'projeto-113': ['projeto-177'],
-  'projeto-152': ['projeto-189'],
-  'projeto-29': ['projeto-136'],
-  'projeto-23': ['projeto-112', 'projeto-124'],
-  'projeto-98': ['projeto-178'],
-  'projeto-114': ['projeto-109', 'projeto-48', 'projeto-14'],
-  'projeto-99': ['projeto-145'],
-  'projeto-33': ['Projeto 174'],
-  'projeto-45': ['Projeto 165'],
-  'projeto-89': ['Projeto 161'],
-  'projeto-16': ['projeto-100', 'projeto-132'],
-  'projeto-08': ['projeto-168', 'projeto-123'],
-  'projeto-31': ['projeto-167'],
-  'projeto-115': ['projeto-126', 'projeto-179'],
-};
+/** Semente usada quando o arquivo ainda não existe: vazia, cada instalação vincula os seus. */
+export const ORCA_REPOS_PADRAO: OrcaReposMap = {};
 
 function normalizarMapa(raw: unknown): OrcaReposMap | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;

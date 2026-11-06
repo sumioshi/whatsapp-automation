@@ -45,13 +45,13 @@ import { displayNameOf, formatPhoneBR } from './contacts';
 describe('displayNameOf', () => {
   const c = {
     names: new Map([
-      ['100000000000003', 'Daniel Souza'],
+      ['100000000000777', 'Daniel Souza'],
       ['5544900000001', 'Fulano 44'],
     ]),
     ownIds: new Set<string>(),
     teamIds: new Set<string>(),
-    phones: new Map([['10000000000006', '5511987654321']]),
-    lids: new Set(['10000000000006']),
+    phones: new Map([['10000000000088', '5511987654321']]),
+    lids: new Set(['10000000000088']),
     hasSidecar: true,
   } as never;
 
@@ -68,7 +68,7 @@ describe('displayNameOf', () => {
   });
 
   it('senderName numérico resolve pelo índice de contatos', () => {
-    expect(displayNameOf(c, '100000000000003', '100000000000003')).toBe('Daniel Souza');
+    expect(displayNameOf(c, '100000000000777', '100000000000777')).toBe('Daniel Souza');
   });
 
   it('"desconhecido" com id conhecido resolve pelo índice', () => {
@@ -76,7 +76,7 @@ describe('displayNameOf', () => {
   });
 
   it('sem nome mas com telefone no sidecar → telefone formatado', () => {
-    expect(displayNameOf(c, 'desconhecido', '10000000000006')).toBe('+55 11 98765-4321');
+    expect(displayNameOf(c, 'desconhecido', '10000000000088')).toBe('+55 11 98765-4321');
   });
 
   it('sem nada conhecido → número formatado se parecer telefone, senão "Contato"', () => {

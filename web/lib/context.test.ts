@@ -3,7 +3,7 @@ import { horaBRT } from './context';
 
 describe('horaBRT', () => {
   it('converte UTC para Brasília (-3h) — msg da noite vira a hora certa', () => {
-    // 01:11 UTC = 22:11 do dia anterior em BRT (o caso real que confundiu).
+    // 01:11 UTC = 22:11 do dia anterior em BRT (fácil de ler errado como 01h).
     expect(horaBRT('2026-06-26T01:11:00.000Z')).toBe('25/06, 22:11');
     expect(horaBRT('2026-06-26T00:25:00.000Z')).toBe('25/06, 21:25');
   });

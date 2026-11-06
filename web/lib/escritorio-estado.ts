@@ -70,7 +70,7 @@ export interface ContatoProjetoEscritorio {
   id: string;
   nome: string;
   papel?: string;
-  /** Slug principal da DM monitorada, se houver (ex.: "dm-5511900000084") */
+  /** Slug principal da DM monitorada, se houver (ex.: "dm-5511999999999") */
   dmSlug: string | null;
   /** Todos os slugs de DM associados a esta pessoa (ex.: telefone + LID) */
   dmSlugs: string[];
@@ -156,60 +156,6 @@ export async function salvarConfigAssentos(
   return proximo;
 }
 
-/**
- * Grupos internos da Acme / Acme / testes ou DMs da própria equipe que não são
- * projetos de clientes e nunca devem ocupar mesa no escritório.
- */
-const SLUGS_INTERNOS_OU_RUIDO = new Set([
-  'teste',
-  'projeto-137',
-  'projeto-185',
-  'projeto-138',
-  'projeto-147',
-  'projeto-11',
-  'projeto-148',
-  'agent-ai',
-  'projeto-interno',
-  'projeto-15',
-  'projeto-131',
-  'projeto-47',
-  'projeto-04',
-  'dm-5511900000066', // interno
-  'dm-5511900000082', // interno
-  'dm-5511900000043', // interno
-  'dm-5511900000064', // interno
-]);
-
-/** Projetos ativos extras conhecidos do hub local mesmo se ainda não indexados no links.json */
-const PROJETOS_EXTRAS: Record<string, { cliente: string; repo: string }> = {
-  'projeto-116': { cliente: 'Projeto 50', repo: 'projeto-184' },
-  'projeto-98': { cliente: 'Projeto 96', repo: 'projeto-178' },
-};
-
-/** Nomes mais limpos para exibir na baia do escritório */
-const NOMES_CURTOS_PROJETO: Record<string, string> = {
-  'projeto-30': 'Projeto 142',
-  'projeto-05': 'Pessoa 103',
-  'projeto-116': 'Projeto 52',
-  'projeto-38': 'Projeto 09',
-  'projeto-114': 'Pessoa 92',
-  'projeto-87': 'Projeto 160',
-  'projeto-10': 'Projeto 121',
-  'projeto-128': 'Projeto 117',
-  'projeto-46': 'Projeto 130',
-  'projeto-44': 'Projeto 149',
-  'projeto-108': 'Pessoa 12',
-  'projeto-115': 'Projeto 173',
-  'projeto-02': 'Projeto 53',
-  'projeto-97': 'Projeto 163',
-  'dm-5511900000070': 'Projeto 03',
-  'projeto-113': 'Projeto 171',
-  'projeto-152': 'Projeto 188',
-  'projeto-29': 'Pessoa 134',
-  'projeto-23': 'Pessoa 111',
-  'projeto-98': 'Projeto 172',
-};
-
 interface ContatoDefinicaoBase {
   nome: string;
   papel?: string;
@@ -217,130 +163,42 @@ interface ContatoDefinicaoBase {
 }
 
 /**
- * Mapeamento dos contatos de cada grupo/projeto e suas respectivas DMs individuais monitoradas
- * para que o operador veja quem faz parte de cada projeto e nunca esqueça mensagens fora do grupo.
+ * Catálogo do escritório, mantido pelo operador em `DATA_DIR/.escritorio-catalogo.json`
+ * (fora do git, porque descreve clientes e contatos reais):
+ * - `ignorar`: grupos internos, de teste ou DMs da própria equipe que nunca ocupam mesa;
+ * - `projetosExtras`: projetos ativos que ainda não estão no links.json;
+ * - `nomesCurtos`: nome de exibição na baia;
+ * - `contatosPorProjeto`: quem participa de cada projeto e as DMs a vigiar.
  */
-const CONTATOS_POR_PROJETO: Record<string, ContatoDefinicaoBase[]> = {
-  'projeto-05': [
-    { nome: 'Projeto 182', papel: 'Cliente · Sócia' },
-    { nome: 'Projeto 183', papel: 'Cliente · Sócia' },
-    { nome: 'Projeto 157', papel: 'Comercial', dmSlugs: ['dm-5511900000062'] },
-  ],
-  'projeto-128': [
-    {
-      nome: 'Projeto 164',
-      papel: 'Cliente · Operação',
-      dmSlugs: ['dm-5511900000060', 'dm-5511900000021'],
-    },
-    { nome: 'Projeto 18', papel: 'Cliente · Médica', dmSlugs: ['dm-5511900000058'] },
-    { nome: 'Projeto 06', papel: 'Cliente · Médico', dmSlugs: ['dm-5511900000059'] },
-  ],
-  'projeto-114': [
-    {
-      nome: 'Pessoa 07',
-      papel: 'Cliente · Gestão',
-      dmSlugs: ['dm-5511900000084', 'dm-5511900000022'],
-    },
-    { nome: 'Pessoa 92', papel: 'Cliente · Médico', dmSlugs: ['dm-5511900000076'] },
-    { nome: 'Pessoa 37', papel: 'Equipe', dmSlugs: ['dm-5511900000071'] },
-    { nome: 'Pessoa 90', papel: 'Bot Clínica', dmSlugs: ['dm-5511900000085'] },
-  ],
-  'projeto-30': [
-    { nome: 'Pessoa 105', papel: 'Cliente', dmSlugs: ['dm-5511900000078'] },
-    { nome: 'Pessoa 93', papel: 'Dev do Cliente' },
-    { nome: 'Projeto 51', papel: 'Bot', dmSlugs: ['dm-5511900000079'] },
-  ],
-  'projeto-38': [
-    { nome: 'Projeto 140', papel: 'Cliente · PT', dmSlugs: ['dm-5511900000054'] },
-    { nome: 'Projeto 156', papel: 'Cliente · PT' },
-  ],
-  'projeto-10': [
-    { nome: 'Pessoa 135', papel: 'Cliente', dmSlugs: ['dm-5511900000080'] },
-    { nome: 'Projeto 157', papel: 'Comercial', dmSlugs: ['dm-5511900000062'] },
-  ],
-  'projeto-87': [
-    { nome: 'Projeto 129', papel: 'Cliente', dmSlugs: ['dm-5511900000041'] },
-  ],
-  'projeto-02': [
-    { nome: 'Pessoa 20', papel: 'Projeto 175', dmSlugs: ['dm-5511900000083'] },
-    { nome: 'Projeto 119', papel: 'Projeto 155' },
-    { nome: 'Pessoa 133', papel: 'Dev / Parceiro', dmSlugs: ['dm-5511900000065'] },
-  ],
-  'dm-5511900000070': [
-    { nome: 'Projeto 91', papel: 'Cliente', dmSlugs: ['dm-5511900000070'] },
-    { nome: 'Projeto 181', papel: 'Projeto 26', dmSlugs: ['dm-5511900000039', 'dm-5511900000028'] },
-  ],
-  'projeto-116': [
-    { nome: 'Projeto 181', papel: 'Cliente', dmSlugs: ['dm-5511900000039', 'dm-5511900000028'] },
-  ],
-  'projeto-152': [
-    { nome: 'Pessoa 107', papel: 'Cliente' },
-    { nome: 'Pessoa 120', papel: 'Cliente', dmSlugs: ['dm-5511900000055'] },
-  ],
-  'projeto-44': [
-    { nome: 'Projeto 34', papel: 'Cliente' },
-  ],
-  'projeto-46': [
-    { nome: 'Projeto 102', papel: 'Cliente · PT' },
-    { nome: 'Projeto 159', papel: 'Equipe', dmSlugs: ['dm-5511900000061'] },
-  ],
-  'projeto-108': [
-    { nome: 'Projeto 169', papel: 'Cliente' },
-  ],
-  'projeto-115': [
-    { nome: 'Pessoa 17', papel: 'Sócio', dmSlugs: ['dm-5511900000074'] },
-    { nome: 'Pessoa 13', papel: 'Sócio', dmSlugs: ['dm-5511900000067'] },
-    { nome: 'Pessoa 95', papel: 'Sócio', dmSlugs: ['dm-5511900000072'] },
-  ],
-  'projeto-97': [
-    { nome: 'Projeto 150', papel: 'Cliente', dmSlugs: ['dm-5511900000081'] },
-  ],
-  'projeto-113': [
-    { nome: 'Pessoa 104', papel: 'Cliente' },
-    { nome: 'Projeto 122', papel: 'Cliente · Produto' },
-  ],
-  'projeto-29': [
-    { nome: 'Projeto 141', papel: 'Cliente', dmSlugs: ['dm-5511900000042'] },
-  ],
-  'projeto-23': [
-    { nome: 'Projeto 129', papel: 'Cliente', dmSlugs: ['dm-5511900000041'] },
-    { nome: 'Pessoa 19', papel: 'Cliente' },
-  ],
-  'projeto-98': [
-    { nome: 'Pessoa 35', papel: 'Cliente' },
-    { nome: 'Pessoa 106', papel: 'Parceiro', dmSlugs: ['dm-5511900000068'] },
-    { nome: 'Pessoa 49', papel: 'CRM', dmSlugs: ['dm-5511900000077'] },
-  ],
-  'projeto-99': [
-    { nome: 'Pessoa 133', papel: 'Cliente', dmSlugs: ['dm-5511900000065'] },
-  ],
-  'projeto-33': [
-    { nome: 'Pessoa 118', papel: 'Cliente', dmSlugs: ['dm-5511900000057'] },
-  ],
-  'projeto-45': [
-    { nome: 'Projeto 170', papel: 'Cliente', dmSlugs: ['dm-5511900000040'] },
-  ],
-  'projeto-89': [
-    { nome: 'Projeto 158', papel: 'Cliente', dmSlugs: ['dm-5511900000075'] },
-  ],
-  'projeto-08': [
-    {
-      nome: 'Pessoa 36',
-      papel: 'Cliente',
-      dmSlugs: ['dm-5511900000063', 'dm-5511900000056'],
-    },
-  ],
-  'projeto-31': [
-    { nome: 'Pessoa 94', papel: 'Cliente', dmSlugs: ['dm-5511900000073'] },
-  ],
-  'projeto-16': [
-    { nome: 'Projeto 143', papel: 'Cliente' },
-  ],
-  'dm-5511900000027': [
-    { nome: 'Projeto 24', papel: 'Cliente', dmSlugs: ['dm-5511900000027'] },
-    { nome: 'Projeto 25', papel: 'Equipe', dmSlugs: ['dm-5511900000069'] },
-  ],
+export interface CatalogoEscritorio {
+  ignorar: string[];
+  projetosExtras: Record<string, { cliente: string; repo: string }>;
+  nomesCurtos: Record<string, string>;
+  contatosPorProjeto: Record<string, ContatoDefinicaoBase[]>;
+}
+
+const CATALOGO_FILE = () => safeDataPath('.escritorio-catalogo.json');
+
+export const CATALOGO_VAZIO: CatalogoEscritorio = {
+  ignorar: ['teste'],
+  projetosExtras: {},
+  nomesCurtos: {},
+  contatosPorProjeto: {},
 };
+
+export async function lerCatalogoEscritorio(): Promise<CatalogoEscritorio> {
+  try {
+    const bruto = JSON.parse(await readFile(CATALOGO_FILE(), 'utf8')) as Partial<CatalogoEscritorio>;
+    return {
+      ignorar: Array.isArray(bruto.ignorar) ? bruto.ignorar : CATALOGO_VAZIO.ignorar,
+      projetosExtras: bruto.projetosExtras ?? {},
+      nomesCurtos: bruto.nomesCurtos ?? {},
+      contatosPorProjeto: bruto.contatosPorProjeto ?? {},
+    };
+  } catch {
+    return CATALOGO_VAZIO;
+  }
+}
 
 function contratoTerminadoPeloNome(nome: string): boolean {
   const m = nome.match(/TERMINA\s+EM\s+(\d{2})\/(\d{2})\/(\d{4})/i);
@@ -374,9 +232,10 @@ function resolverContatosDoProjeto(
   summaryBySlug: Map<string, GroupSummary>,
   assentos: ClienteAssentosConfig,
   agora: number,
+  catalogo: CatalogoEscritorio,
 ): ContatoProjetoEscritorio[] {
   const baseDefs: Array<ContatoDefinicaoBase & { custom?: boolean }> = [
-    ...(CONTATOS_POR_PROJETO[slug] ?? []),
+    ...(catalogo.contatosPorProjeto[slug] ?? []),
   ];
 
   // Anexa DMs vinculadas ao mesmo repo no links.json que ainda não estejam na lista
@@ -500,7 +359,9 @@ function montarCardsEscritorio(
   triage: TriageState,
   assentos: ClienteAssentosConfig,
   agora: number,
+  catalogo: CatalogoEscritorio = CATALOGO_VAZIO,
 ): EstadoEscritorioPayload {
+  const ignorar = new Set(catalogo.ignorar);
   const fixadosSet = new Set(assentos.fixados ?? []);
   const ocultosSet = new Set(assentos.ocultos ?? []);
 
@@ -519,10 +380,10 @@ function montarCardsEscritorio(
   // Descobre quais repositórios já possuem um grupo principal ativo
   const reposComGrupo = new Set<string>();
   for (const slug of allSlugs) {
-    if (SLUGS_INTERNOS_OU_RUIDO.has(slug)) continue;
+    if (ignorar.has(slug)) continue;
     if (tipoDoSlug(slug) !== 'grupo') continue;
     const l = links[slug];
-    const ex = PROJETOS_EXTRAS[slug];
+    const ex = catalogo.projetosExtras[slug];
     const r = l?.repoPath ? basename(l.repoPath) : (ex?.repo ?? null);
     if (r) reposComGrupo.add(r);
   }
@@ -530,10 +391,10 @@ function montarCardsEscritorio(
   const cards: ClienteEscritorio[] = [];
 
   for (const slug of allSlugs) {
-    if (SLUGS_INTERNOS_OU_RUIDO.has(slug)) continue;
+    if (ignorar.has(slug)) continue;
 
     const link = links[slug];
-    const extra = PROJETOS_EXTRAS[slug];
+    const extra = catalogo.projetosExtras[slug];
     const dashLinha = dashBySlug.get(slug);
     const caixaItem = caixaBySlug.get(slug);
     const summary = summaryBySlug.get(slug);
@@ -556,7 +417,7 @@ function montarCardsEscritorio(
       extra?.cliente ??
       slug;
 
-    const nomeExibicao = NOMES_CURTOS_PROJETO[slug] ?? nomeOriginal;
+    const nomeExibicao = catalogo.nomesCurtos[slug] ?? nomeOriginal;
     const projetoNome = link?.cliente || extra?.cliente || null;
 
     const esperando = caixaItem?.esperando ?? null;
@@ -603,6 +464,7 @@ function montarCardsEscritorio(
       summaryBySlug,
       assentos,
       agora,
+      catalogo,
     );
     const dmsAguardando = contatosVinculados.filter((ct) => ct.aguardando && ct.dmSlug !== slug).length;
 
@@ -646,7 +508,7 @@ function montarCardsEscritorio(
   }
 
   const dmsDisponiveis: DmDisponivelEscritorio[] = (groupsSummary ?? [])
-    .filter((g) => g.slug.startsWith('dm-') && !SLUGS_INTERNOS_OU_RUIDO.has(g.slug))
+    .filter((g) => g.slug.startsWith('dm-') && !ignorar.has(g.slug))
     .sort((a, b) => (b.lastTimestamp ?? '').localeCompare(a.lastTimestamp ?? ''))
     .slice(0, 80)
     .map((g) => ({
@@ -672,7 +534,7 @@ async function computarEstadoEscritorio(): Promise<EstadoEscritorioPayload> {
   ensureRootCloudEnv();
   const agora = Date.now();
   const desde30d = new Date(agora - 30 * 24 * 60 * 60_000).toISOString();
-  const assentos = await lerConfigAssentos();
+  const [assentos, catalogo] = await Promise.all([lerConfigAssentos(), lerCatalogoEscritorio()]);
 
   if (cloudEnabled()) {
     try {
@@ -691,6 +553,7 @@ async function computarEstadoEscritorio(): Promise<EstadoEscritorioPayload> {
         triage,
         assentos,
         agora,
+        catalogo,
       );
       estadoCache = { atualizadoEm: agora, payload };
       return payload;
@@ -716,6 +579,7 @@ async function computarEstadoEscritorio(): Promise<EstadoEscritorioPayload> {
     triage,
     assentos,
     agora,
+    catalogo,
   );
   estadoCache = { atualizadoEm: agora, payload };
   return payload;

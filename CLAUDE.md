@@ -118,8 +118,8 @@ operador (dois-pontos de introdução, travessão, ponto final, abertura repetid
 paráfrase, saudação com menos de 1 h, saudação de período fora do horário de Brasília ("bom dia"
 às 15h; perto da virada as duas valem), "acabei/sem querer", drama, minimizador,
 desculpa repetida). Score ≥ 4 ou hit grave = recusa com `hits` e `sugestoes`; reescreva e chame
-de novo, nada foi enviado. Calibrado no histórico real dele: 5,8% das mensagens dele seriam
-recusadas (orçamento de 6%).
+de novo, nada foi enviado. Calibre o limiar no histórico do próprio operador: o alvo é recusar
+no máximo ~6% das mensagens que ele mesmo escreveu.
 
 - **Antes de redigir:** `preparar_resposta(grupo)` devolve o estilo recente e o que o cliente
   deixou em aberto, com `instrucoes` numéricas, mais a hora de Brasília (`agora_brt`) e a saudação
@@ -181,9 +181,9 @@ abertura em vez de só atrasar) e `presencaCoerente` (online ao ler/digitar, off
 
 Itens numerados chegam no self-chat do operador depois de cada passada da triagem. Ele responde
 `ok N` / `não N` / `edita N: texto` / `ok todos` ali mesmo; o coletor executa. O agente de triagem
-por chat liga em `/links` ou via `definir_modo({ grupo, agente: "issue" })`. Detalhes na spec
-`docs/superpowers/specs/2026-09-04-despacho-agente-github-design.md`. A label `claude` numa issue
-dispara o executor de PR (`minha-org/agentes`), que abre um PR draft no repositório do cliente.
+por chat liga em `/links` ou via `definir_modo({ grupo, agente: "issue" })`. A label `claude` numa
+issue dispara o executor de PR (workflow reutilizável no repositório `AGENTES_REPO`, instalado por
+`scripts/agente-pr-instalar.sh`), que abre um PR draft no repositório do cliente.
 
 ## Entregas e contrato
 
@@ -228,7 +228,7 @@ fica desligado neste projeto em `.claude/settings.json` para não duplicar).
     saldo da OpenRouter, contornando o pré-pagamento do Google. ~US$ 0,03 por vídeo curto.
   - **Transcrição:** backend `openrouter` (`elevenlabs/scribe-v2`, troca com `WATCH_OPENROUTER_MODEL`)
     para o motor local.
-  - Config atual em `~/.config/watch/.env`: `WATCH_ENGINE=gemini`, `WATCH_GEMINI_VIA=openrouter`,
+  - Exemplo de config em `~/.config/watch/.env`: `WATCH_ENGINE=gemini`, `WATCH_GEMINI_VIA=openrouter`,
     `WATCH_GEMINI_MODEL=gemini-4-argon`, `WATCH_WHISPER_BACKEND=openrouter`,
     `WATCH_OPENROUTER_MODEL=elevenlabs/scribe-v2`.
 - **Atualizar:** copie `skills/watch/` da versão nova do repositório de origem por cima da pasta,

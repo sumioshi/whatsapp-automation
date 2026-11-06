@@ -200,7 +200,7 @@ describe('Despacho — tick() e onMensagem() concorrentes', () => {
   it('onMensagem não sobrescreve o enviadoEm que um tick() concorrente gravou', async () => {
     // Segura o tick() bem no meio do envio do digest — depois de já ter LIDO o
     // arquivo (enviadoEm: null) mas antes de marcar e gravar. Reproduz a
-    // interleaving do incidente: o onMensagem() concorrente lê o mesmo arquivo,
+    // interleaving da corrida: o onMensagem() concorrente lê o mesmo arquivo,
     // processa `ok 1` e (sem mutex) já grava sua própria cópia — que não tem o
     // enviadoEm — enquanto o tick() ainda está preso. Quando o tick() por fim é
     // liberado e grava a SUA cópia (com enviadoEm), o resultado final tem os

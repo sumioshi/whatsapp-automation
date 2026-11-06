@@ -17,7 +17,7 @@ describe('criarResolvedorDeJid', () => {
     const { check, chamadas } = checkFalso({});
     const resolver = criarResolvedorDeJid(check);
     expect(await resolver('120363000000000001@g.us')).toEqual({ jid: '120363000000000001@g.us' });
-    expect(await resolver('10000000000004@lid')).toEqual({ jid: '10000000000004@lid' });
+    expect(await resolver('10000000000099@lid')).toEqual({ jid: '10000000000099@lid' });
     expect(chamadas).toEqual([]);
   });
 

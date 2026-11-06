@@ -19,7 +19,7 @@ describe('casaBusca', () => {
 
   it('casa trecho em qualquer lugar, sem acento nem caixa', () => {
     expect(casaBusca('Clínica Ébano', 'ebano')).toBe(true);
-    expect(casaBusca('Clínica Ébano', 'NICA V')).toBe(true);
+    expect(casaBusca('Clínica Ébano', 'NICA E')).toBe(true);
   });
 
   it('procura em qualquer um dos textos dados', () => {
