@@ -331,6 +331,7 @@ ${extra}<link rel="alternate" type="application/rss+xml" title="${SITE.blogTitle
 <script type="application/ld+json">
 ${jsonLd(ld)}
 </script>
+<script src="/assets/metricas.js" defer></script>
 </head>`;
 }
 
