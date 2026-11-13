@@ -12,9 +12,9 @@ const serif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Balcão",
+  title: "WACrew",
   description: "Atendimento dos clientes no WhatsApp: quem espera, quem respondeu, contratos e agenda.",
-  appleWebApp: { capable: true, title: "Balcão", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "WACrew", statusBarStyle: "default" },
   icons: { apple: "/apple-touch-icon.png" },
 };
 

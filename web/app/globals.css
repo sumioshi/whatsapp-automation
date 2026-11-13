@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ── Balcão: tokens ───────────────────────────────────────────────────────
+/* ── WACrew: tokens ───────────────────────────────────────────────────────
    Base clara; o escuro redefine os mesmos nomes mais abaixo. Bordas separam,
    cor só para ação e estado. "static" garante que as variáveis saiam no CSS
    mesmo quando só são usadas por style inline (matizes, identidade). */

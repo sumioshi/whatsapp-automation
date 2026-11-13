@@ -1,5 +1,5 @@
 /**
- * Contas da aparência do Balcão: matiz por nome, iniciais e a régua de espera.
+ * Contas da aparência do WACrew: matiz por nome, iniciais e a régua de espera.
  * Puras e sem dependência de React, para servir ao servidor, ao cliente e aos testes.
  */
 

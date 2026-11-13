@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-/** Traço de 1,75 como o resto do Balcão; o tamanho vem da classe (padrão 16 px). */
+/** Traço de 1,75 como o resto do WACrew; o tamanho vem da classe (padrão 16 px). */
 function Ic({ children, className = "h-4 w-4" }: { children: ReactNode; className?: string }) {
   return (
     <svg

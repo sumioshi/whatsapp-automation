@@ -147,7 +147,7 @@ export interface EmailDeCodigo {
 
 export function emailDoCodigo(codigo: string, remetente: string, para: string): EmailDeCodigo {
   const text = [
-    'Seu código para entrar no Balcão:',
+    'Seu código para entrar no WACrew:',
     '',
     codigo,
     '',
@@ -157,13 +157,13 @@ export function emailDoCodigo(codigo: string, remetente: string, para: string): 
   const html = `<!doctype html><html lang="pt-BR"><body style="margin:0;padding:32px 16px;background:#eef0f3;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#121417">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
 <table role="presentation" width="100%" style="max-width:440px;background:#ffffff;border:1px solid #d9dde3;border-radius:12px" cellpadding="0" cellspacing="0"><tr><td style="padding:28px">
-<p style="margin:0 0 20px;font-size:15px;font-weight:600">Balcão</p>
+<p style="margin:0 0 20px;font-size:15px;font-weight:600">WACrew</p>
 <p style="margin:0 0 12px;font-size:14px;color:#353c46">Seu código para entrar:</p>
 <p style="margin:0 0 20px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:32px;font-weight:600;letter-spacing:6px">${codigo}</p>
 <p style="margin:0 0 8px;font-size:13px;color:#535c68">Ele vale por 10 minutos e funciona uma vez só.</p>
 <p style="margin:0;font-size:13px;color:#535c68">Se você não pediu este código, ignore este e-mail: ninguém entra sem ele.</p>
 </td></tr></table></td></tr></table></body></html>`;
-  return { from: remetente, to: [para], subject: `${codigo} é o seu código do Balcão`, text, html };
+  return { from: remetente, to: [para], subject: `${codigo} é o seu código do WACrew`, text, html };
 }
 
 /** Manda pelo Resend; true quando o Resend aceitou o e-mail. */

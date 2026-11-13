@@ -122,7 +122,7 @@ export function Trilho({ groups, usuario }: { groups: GroupSummary[]; usuario: s
     >
       <Link
         href="/"
-        aria-label="Balcão, início"
+        aria-label="WACrew, início"
         className="relative mb-3.5 grid h-8 w-8 place-items-center rounded-[9px] bg-ink max-[860px]:hidden"
       >
         <span className="h-[3px] w-3.5 rounded-sm bg-on-ink shadow-[0_-6px_0_-0.5px_color-mix(in_srgb,var(--color-on-ink)_55%,transparent)]" />

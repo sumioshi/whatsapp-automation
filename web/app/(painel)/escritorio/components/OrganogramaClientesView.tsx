@@ -82,7 +82,7 @@ export function OrganogramaClientesView({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-fg">
-                  👑 Central de Operações · Balcão
+                  👑 Central de Operações · WACrew
                 </span>
                 <span className="rounded border border-warn-mark/40 bg-warn-bg px-2 py-0.5 text-[11px] font-bold text-warn">
                   {itens.length} clientes no escritório

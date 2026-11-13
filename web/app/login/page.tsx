@@ -10,7 +10,7 @@ import { LoginForm } from "./LoginForm";
 import { VitrineBalcao } from "./VitrineBalcao";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Entrar no Balcão" };
+export const metadata: Metadata = { title: "Entrar no WACrew" };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
   const { erro } = await searchParams;
@@ -28,7 +28,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-ink">
               <span className="h-[3px] w-3.5 rounded-sm bg-on-ink shadow-[0_-6px_0_-0.5px_color-mix(in_srgb,var(--color-on-ink)_55%,transparent)]" />
             </span>
-            <span className="text-[15px] font-semibold tracking-[-0.01em] text-fg">Balcão</span>
+            <span className="text-[15px] font-semibold tracking-[-0.01em] text-fg">WACrew</span>
           </span>
           <ThemeToggle compacto />
         </header>
@@ -48,9 +48,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </div>
 
         <footer className="mt-auto flex items-center gap-4 text-[12.5px] text-fg-faint">
-          <Link href="/landing" className="rounded-[4px] transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-            Conhecer o Balcão
-          </Link>
+          <a href="https://wacrew.com.br" target="_blank" rel="noopener noreferrer" className="rounded-[4px] transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            Conhecer o WACrew
+          </a>
           <span aria-hidden="true">·</span>
           <Link href="/privacidade" className="rounded-[4px] transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
             Política de privacidade

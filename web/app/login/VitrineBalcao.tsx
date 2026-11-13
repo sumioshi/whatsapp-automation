@@ -6,7 +6,7 @@ import escura from "./campainha-escura.webp";
 const CARTAO =
   "vitrine-cartao absolute rounded-[12px] border border-line bg-surface p-3.5 [box-shadow:var(--float)] max-[1180px]:p-3";
 
-/** Ícone de IA do Balcão (a mesma faísca da Caixa). */
+/** Ícone de IA do WACrew (a mesma faísca da Caixa). */
 function Faisca() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -17,7 +17,7 @@ function Faisca() {
 }
 
 /**
- * Vitrine do login: a campainha do Balcão (clara no tema claro, escura no escuro, trocada
+ * Vitrine do login: a campainha do WACrew (clara no tema claro, escura no escuro, trocada
  * no CSS como .vitrine-balcao em globals.css) e dois pedaços do produto, quem espera e o
  * rascunho da IA. Os cartões são ilustração, como num anúncio: não leem dado nenhum.
  */
@@ -30,7 +30,7 @@ export function VitrineBalcao({ className }: { className?: string }) {
   } as CSSProperties;
   return (
     <aside
-      aria-label="Sobre o Balcão"
+      aria-label="Sobre o WACrew"
       className={cn("vitrine-balcao relative isolate flex flex-col overflow-hidden bg-elevated", className)}
       style={fotos}
     >

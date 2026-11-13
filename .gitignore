@@ -43,3 +43,7 @@ __pycache__/
 
 # Specs e planos internos (contexto de cliente): ficam em .private/docs/superpowers
 docs/superpowers/
+
+# Build do site (scripts/site-build.mjs) e a dependência dele, instalada só no build
+_site/
+.site-deps/

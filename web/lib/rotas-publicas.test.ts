@@ -6,15 +6,13 @@ import { CLASSIFICACAO } from './classificacao-rotas';
 const passaPeloProxy = (caminho: string) => new RegExp(`^${config.matcher[0]}$`).test(caminho);
 
 describe('rotas públicas do proxy', () => {
-  it('política de privacidade e landing abrem sem login', () => {
+  it('política de privacidade abre sem login', () => {
     expect(passaPeloProxy('/privacidade')).toBe(false);
-    expect(passaPeloProxy('/landing')).toBe(false);
-    expect(passaPeloProxy('/landing-assets/unicornStudio.umd-f86b9c4a.js')).toBe(false);
   });
   it('prefixo parecido continua protegido', () => {
     expect(passaPeloProxy('/privacidadex')).toBe(true);
     expect(passaPeloProxy('/privacidade/x')).toBe(true);
-    expect(passaPeloProxy('/landingx')).toBe(true);
+    expect(passaPeloProxy('/landing')).toBe(true);
     expect(passaPeloProxy('/agenda')).toBe(true);
     expect(passaPeloProxy('/login')).toBe(false);
   });

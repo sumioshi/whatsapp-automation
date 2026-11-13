@@ -43,7 +43,7 @@ export function InstallButton() {
     <button
       type="button"
       onClick={instalar}
-      title="Instalar o Balcão como aplicativo"
+      title="Instalar o WACrew como aplicativo"
       className="flex h-7 items-center gap-1.5 rounded-control border border-line-2 px-2 text-xs font-medium text-fg-dim transition-colors hover:bg-elevated hover:text-fg"
     >
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

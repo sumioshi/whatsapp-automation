@@ -1,214 +1,153 @@
-# WhatsApp Group Collector
+<p align="center"><img src="site/assets/logo/wacrew-mark.svg" alt="WACrew" width="96"></p>
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
-[![Node](https://img.shields.io/badge/node-%E2%89%A520-43853d.svg)](https://nodejs.org)
-[![Built with Baileys](https://img.shields.io/badge/built%20with-Baileys-25D366.svg)](https://github.com/WhiskeySockets/Baileys)
+<h1 align="center">WACrew</h1>
 
-Se você atende clientes por grupos de WhatsApp, sabe a dor: dezenas de grupos, áudios que ninguém transcreve, prints perdidos no scroll, e a sensação de que algo importante passou batido enquanto você estava noutro grupo.
+<p align="center">
+  <b>Open-source WhatsApp AI automation for teams that serve clients in group chats.</b><br>
+  An inbox sorted by who has waited longest, replies written in your own voice and delivered at a human pace,<br>
+  a client CRM, a live 2D office, and an MCP server so your coding agent can work the chats too.
+</p>
 
-Esta ferramenta coleta tudo que chega nos grupos que você escolhe (áudio, vídeo, imagem, documento, texto), organiza por grupo, transcreve os áudios localmente, e entrega o conteúdo pra uma IA via [MCP](https://modelcontextprotocol.io). Em vez de garimpar mensagem por mensagem, você pergunta: "o que rolou no grupo do cliente X hoje?".
+<p align="center">
+  <a href="./LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache_2.0-blue.svg"></a>
+  <a href="https://nodejs.org"><img alt="Node 20+" src="https://img.shields.io/badge/node-%E2%89%A520-43853d.svg"></a>
+  <a href="https://github.com/WhiskeySockets/Baileys"><img alt="Built with Baileys" src="https://img.shields.io/badge/built%20with-Baileys-25D366.svg"></a>
+  <a href="https://modelcontextprotocol.io"><img alt="MCP server" src="https://img.shields.io/badge/MCP-36%20tools-6366f1.svg"></a>
+</p>
 
-Roda na sua máquina, com [Baileys](https://github.com/WhiskeySockets/Baileys) (WhatsApp Web multi-device, sem navegador). O conteúdo fica em `data/`, na sua máquina.
+<p align="center"><a href="https://wacrew.com.br">wacrew.com.br</a> · <a href="./README.pt-BR.md">Leia em português</a></p>
 
-> **Captura daqui pra frente, não pra trás.** O protocolo do WhatsApp não deixa reconstruir histórico antigo de forma confiável. Deixe rodando e ele vai juntando tudo que chega.
+![A client conversation in WACrew: AI replies delivered in bubbles, with the client's contract, people and notes on the side](docs/screenshots/caixa-conversa.webp)
 
-<!-- TODO: adicionar um screenshot do painel aqui. Ex.: ![Painel](docs/painel.png) -->
+## Why
 
-## O que faz
+If you sell or deliver work over WhatsApp, you know the scene: forty client groups, a four-minute voice note in the middle of a thread, the bug screenshot lost in the scroll, and the client who wrote three days ago that nobody saw.
 
-- **Coleta contínua** dos grupos marcados, organizada em `data/<grupo>/`.
-- **Painel web** estilo WhatsApp (`localhost:3000`): timeline por grupo, players de áudio, imagens, documentos, busca, e responder mensagens.
-- **Transcrição local** (Whisper `large-v3` via MLX) sob demanda. O serviço carrega o modelo no primeiro uso e libera a RAM quando fica ocioso, então não pesa o dia todo.
-- **MCP server** com ferramentas pra uma IA (ex.: Claude Code) ler, buscar, transcrever, ver imagens e vídeos, ler documentos, resumir e responder, sem você abrir o app.
-- **Contexto que a IA entende:** menções resolvidas (`@id` vira `@nome`), o autor e o texto do reply citado, reações, legenda separada do texto solto, e quem é do seu time vs cliente.
+A chatbot does not fix that. Canned answers read like a robot, clients notice, and the relationship cools down. What you need is someone who reads everything, answers the way you would, and never lets anyone wait. WACrew is that someone, and you stay in control of every message.
 
-## Como funciona
+**The engine that makes it read like a person:**
 
-Quatro processos, uma fonte de verdade (a pasta `data/`):
+| 2 | 25+ | 60 | ~30 s |
+|:---:|:---:|:---:|:---:|
+| writing skills: your voice and client conduct | code rules that block robot tells | history messages read before replying | median until typing starts in a live chat |
 
-```
-                          ┌──────────────────────┐
-  WhatsApp ─► coletor ─►  │   data/<grupo>/      │ ◄─► painel web (localhost:3000)
-  (Baileys)   (daemon)    │   .jsonl + mídia +   │
-                          │   transcrições       │ ◄─► MCP server (sua IA)
-                          └──────────┬───────────┘
-                            transcriber (MLX, :4320)
-```
+## What it does
 
-```
-src/            Coletor: daemon Baileys (Ports & Adapters, Baileys isolado em src/whatsapp)
-web/            Painel Next.js 16 + libs compartilhadas (web/lib) + MCP (web/mcp/server.ts)
-transcriber/    Serviço de transcrição morno (Python/MLX)
-data/           Conteúdo coletado (gitignored)
-auth/           Sessão do WhatsApp (gitignored)
-```
+**Nobody waits.** Every group and direct chat lands in one queue sorted by waiting time. A client's group and their private chats show up together, back-to-back messages collapse into one block, and voice notes arrive transcribed.
 
-## Requisitos
+**Writes like you, delivers like a person.** The AI reads the history and writes with your punctuation, openings and rhythm, measured on your own past messages. Before anything leaves, a deterministic review blocks robot clichés, repeated apologies and duplicate bubbles. Delivery comes with read receipt, typing indicator and pauses, and it stops on its own if the client writes again or you answer from your phone.
 
-- **macOS Apple Silicon** para a transcrição. O `mlx_whisper` só roda em Apple Silicon. O coletor e o painel rodam em qualquer sistema; em Linux, troque a transcrição por whisper.cpp.
-- **Node.js 20 ou maior** (testado no v24).
-- `ffmpeg` e o `mlx_whisper` (via `uv tool`).
-- Uma conta de WhatsApp pra parear (QR).
+**You stay in control.** In *Confirm* mode (the default) nothing is sent without your OK. *Autonomous* mode is turned on per chat. Every message records who wrote it: you on the phone, you on the panel, a teammate, or the AI.
 
-```bash
-brew install ffmpeg
-uv tool install mlx-whisper
-```
-
-## Começar
-
-```bash
-# 1. instalar dependências (coletor e painel)
-npm install
-cd web && npm install && cd ..
-
-# 2. copiar os exemplos de config
-cp .mcp.json.example .mcp.json
-cp .claude/whatsapp.json.example .claude/whatsapp.json
-
-# 3. subir tudo (coletor + painel + transcriber + notifier)
-npm run dev
-```
-
-Depois de subir, abra `http://localhost:3000/config` e escaneie o QR (no celular: **WhatsApp › Aparelhos conectados › Conectar um aparelho**). Ainda em `/config`, marque os grupos que quer monitorar, defina seu time, e escolha modelo e idioma. A sessão fica salva em `auth/` e reconecta sozinha.
-
-Para rodar 24/7 em background existe um `ecosystem.config.cjs` (pm2). O `npm run dev` é o jeito padrão pra desenvolvimento e uso local no Mac.
-
-## Usar
-
-**No painel** (`localhost:3000`): navegue por grupo, ouça áudios, clique em **Transcrever**, responda, ou comece uma conversa nova mesmo sem histórico. A tela atualiza sozinha.
-
-**Pela IA** (MCP): o server em `web/mcp/server.ts` é registrado pelo `.mcp.json` (escopo do projeto). Claude Code e Qwen Code leem esse mesmo arquivo — e os dois pedem aprovação no primeiro uso (no Qwen Code: `qwen mcp approve whatsapp-collector`). As ferramentas estão agrupadas assim:
-
-| Categoria | Ferramentas |
+| | |
 |---|---|
-| Ler | `listar_grupos`, `ler_mensagens`, `buscar`, `listar_contatos`, `ler_notas`, `estado_triagem` |
-| Mídia | `transcrever`, `ver_imagem`, `ver_video`, `ler_documento`, `resumo_do_dia` |
-| Responder | `responder`, `responder_midia`, `cancelar_envio`, `editar_perfil` |
-| Triagem | `marcar_resolvido`, `silenciar_grupo`, `anotar`, `alertar_chat`, `definir_modo`, `novidades` |
+| ![Today view: who is waiting, AI activity, signals and today's calendar](docs/screenshots/hoje.webp) **Today.** Who is waiting and for how long, what the AI is doing, signals and today's agenda. | ![2D pixel-art office with one desk per client project](docs/screenshots/escritorio.webp) **2D office.** One desk per project. When a client writes, the desk turns red right away, with sound. |
+| ![Dashboard with message volume, first-reply time and who replied](docs/screenshots/dashboard.webp) **Dashboard.** Volume, first-reply time, who answered, busiest clients and deliveries per month. | ![Clients kanban board with waiting time, tags and last message](docs/screenshots/clientes-quadro.webp) **Clients.** Table and board views with contract, deliveries and waiting time per client. |
+| ![Client drawer with the coding agent running in the project's repository](docs/screenshots/ficha-agente-orca.webp) **Agent bridge (optional).** If you use [Orca](https://onorca.dev), the client drawer shows the coding agent working on that project's repo and lets you send it commands. | ![Weekly Google Calendar view inside the panel](docs/screenshots/agenda.webp) **Calendar.** Your Google Calendar inside the panel, editable by you or by the AI. |
 
-Destaques: `buscar` acha texto **inclusive dentro das transcrições**; `ver_imagem`/`ver_video` devolvem a mídia pra IA *enxergar* (útil pra print de bug); `definir_modo` define por chat se a IA envia direto ou confirma antes; `responder` respeita esse modo. `editar_perfil` edita nome, recado/"sobre" e/ou foto do perfil — a IA pede confirmação antes (perfil é público); catálogo, localização e horário-oficial do business são read-only no WhatsApp. `responder` devolve um **ticket** e a entrega sai depois como humano — latência calibrada pela conversa (segundos numa ativa, minutos a horas numa fria), visto antes do "digitando", digitação na velocidade medida do operador, balões — e é interrompida sozinha se o cliente escrever ou o operador responder na mão; `status_envio` acompanha e `cancelar_envio` cancela agendado ou em andamento. `ler_mensagens` traz `origem` nas mensagens da própria conta — `coletor` (a IA/painel mandou), `celular`/`web` (o operador respondeu na mão) ou `ia_meta` (IA da Meta) — pra IA saber quem escreveu cada "Você".
+More screens in [`docs/screenshots/`](docs/screenshots): org chart, team access, notifications, project links, settings and the command palette.
 
-Para dirigir o MCP fora do Claude Code, use o driver da skill:
+## How it works
+
+```
+                          ┌────────────────────────────┐
+  WhatsApp ─► collector ─►│  data/<chat>/              │◄─► web panel (Next.js, :3000)
+  (Baileys)   (daemon)    │  messages.jsonl + media    │
+                          │  transcripts, notes, state │◄─► MCP server (your coding agent)
+                          └─────────────┬──────────────┘
+                     transcriber (MLX on Apple Silicon, or an API)
+```
+
+- **Collector** (`src/`): a Baileys daemon (WhatsApp Web multi-device, no browser). Baileys is isolated behind ports and adapters in `src/whatsapp/`. It writes every message, reaction and media file to `data/<chat>/` and runs the delivery queue that sends replies at a human pace.
+- **Panel** (`web/`): Next.js 16 + React 19. Inbox, conversation view, clients, dashboard, calendar, team, 2D office, settings. Live updates over SSE.
+- **MCP server** (`web/mcp/server.ts`): 36 tools over the same data, for Claude Code, Codex, Qwen Code or any MCP client.
+- **Transcriber** (`transcriber/`): Whisper large-v3 via MLX, loaded on demand and released when idle. Off a Mac, set `TRANSCRIBE_BACKEND=openrouter`.
+- **Local or cloud.** Run everything on your machine, or deploy the collector and panel 24/7 with the included `Dockerfile` (a `railway.json` is provided). The local MCP can read straight from the cloud panel (`WAC_MCP_REMOTE=1`), downloading media on demand.
+
+## Quick start
+
+Requirements: Node.js 20+, `ffmpeg`, and a WhatsApp account to pair. Local transcription needs Apple Silicon (`uv tool install mlx-whisper`).
 
 ```bash
-node .claude/skills/run-whatsapp-automation/driver.mjs            # lista as ferramentas
-node .claude/skills/run-whatsapp-automation/driver.mjs call resumo_do_dia '{"grupo":"<slug>"}'
+git clone https://github.com/sumioshi/wacrew && cd wacrew
+npm install && npm --prefix web install
+cp .mcp.json.example .mcp.json
+npm run dev          # collector + panel + transcriber + notifier
 ```
 
-### Modo remoto (multi-tenant)
+Open `http://localhost:3000/config`, scan the QR code (WhatsApp › Linked devices › Link a device), pick the groups to follow and mark who is on your team. The session is saved in `auth/` and reconnects on its own.
 
-Por padrão o MCP é **local**: lê o disco da sua máquina (`data/`). Para usar um coletor que roda **na nuvem** (Railway), ative o modo remoto:
+**Run it 24/7 in the cloud.** Build the `Dockerfile` on any host (Railway works out of the box) with a volume at `/data`. Set `PANEL_USER` and `PANEL_PASS` to protect the panel with login; without them the panel is open, which is only fine on localhost.
 
-1. Configure no `.env` (ou `.claude/whatsapp.json`):
-   ```bash
-   WAC_MCP_REMOTE=1
-   WAC_CLOUD_URL=https://seu-coletor-production-xxxx.up.railway.app
-   WAC_CLOUD_USER=seu_usuario_do_painel
-   WAC_CLOUD_PASS=sua_senha_do_painel
-   ```
+## MCP tools
 
-2. Copy `.mcp.json.remote.example` para `.mcp.json` (ou atualize seu `.mcp.json` existente com os `WAC_MCP_REMOTE`/`WAC_CLOUD_*` no `env`).
+The server is registered by `.mcp.json` (project scope). Claude Code and Qwen Code read it and ask for approval on first use.
 
-Cada pessoa aponta pro seu container — **os dois modos coexistem** (você pode ter um Mac local rodando ao mesmo tempo que um container na nuvem). O painel remoto (Railway) exige HTTPS + Basic Auth (`PANEL_USER`/`PANEL_PASS` do container). O control server (`:4310`) continua interno ao container — o acesso externo é só pelo painel autenticado.
+| Area | Tools |
+|---|---|
+| Read | `listar_grupos`, `ler_mensagens`, `buscar`, `listar_contatos`, `caixa_de_entrada`, `novidades`, `resumo_do_dia`, `ler_notas`, `estado_triagem` |
+| Media | `transcrever`, `ver_imagem`, `ver_video`, `assistir_video`, `ler_documento` |
+| Reply | `preparar_resposta`, `revisar_texto`, `responder`, `responder_midia`, `editar_mensagem`, `reagir`, `status_envio`, `cancelar_envio` |
+| Triage and CRM | `marcar_resolvido`, `silenciar_grupo`, `anotar`, `etiquetar`, `alertar_chat`, `definir_modo`, `definir_contrato`, `registrar_feature`, `dashboard`, `editar_perfil` |
+| Calendar | `agenda_ver`, `agenda_marcar`, `agenda_editar`, `agenda_apagar` |
 
-## Recado automático de expediente
+Highlights:
 
-`npm run expediente` sobe um agendador que troca o recado/"sobre" do perfil conforme seu horário de trabalho. Configure em `data/expediente.json` (veja `docs/expediente.json.example` para um exemplo): defina os dias operacionais, as faixas horárias `["HH:MM","HH:MM"]`, o fuso horário e os textos `recado_dentro` (mensagem durante expediente) e `recado_fora` (mensagem fora do expediente). Fora do expediente o recado muda para o aviso de indisponível; dentro, volta ao normal. A troca acontece **só na transição** de cada faixa horária, não reescreve continuamente. Ative com `"ativo": true` no arquivo de configuração.
+- `buscar` finds text **inside transcripts** too.
+- `ver_imagem` and `ver_video` hand the media to the model, which is handy for bug screenshots. `assistir_video` has a Gemini model watch a video with its audio, attached or from a link.
+- `responder` returns a **ticket**. The message leaves later at a human pace: seconds in a live chat, minutes to hours in a cold one. The ticket is interrupted if the client writes or you answer by hand. `status_envio` tracks it and `cancelar_envio` cancels it.
+- `preparar_resposta` returns your recent style and what the client left open. Pass 2 or 3 `candidatos` to `responder` and the least out-of-character one is sent.
 
-## Brain (memória espelhada)
+Tool names are in Portuguese because the project started in Brazil. Descriptions are clear enough for any model.
 
-`scripts/brain-sync-install.sh` instala no launchd um espelho, a cada 5 minutos, da memória
-do Claude Code (`~/.claude/projects/*/memory/`) e das skills globais num repositório git
-privado (`~/brain`, remoto definido em `BRAIN_REPO` na primeira execução). Os workflows de
-triagem baixam esse repositório (variável de Actions `BRAIN_REPO`, opcional) ao lado do repo do cliente pra ler o mesmo contexto que o operador tem no Mac.
-Uma via: o Mac escreve, a nuvem lê. Log em `~/Library/Logs/brain-sync.log`.
+## Configuration
 
-## Despacho: triagem dos grupos por agente + fila de decisões
+Everything has a default. Copy `.env.example` to `.env` and adjust what you need.
 
-Um workflow agendado do GitHub Actions (não incluído no repositório; monte o seu com o prompt
-em `.github/agente/triagem.prompt.md` e `scripts/agente/`) consulta `GET /api/v1/agente/fila`, e pra cada chat com agente ligado e mensagem nova roda o
-Claude com o repo do cliente, o MCP `whatsapp-collector` em modo remoto e o brain ao lado.
-Ele cria issues organizadas no repo do cliente e devolve itens de decisão; o coletor manda a
-fila pro self-chat do operador, que responde `ok N`, `não N`, `edita N: texto` ou `ok todos`.
+| Variable | What it does |
+|---|---|
+| `PANEL_USER`, `PANEL_PASS` | Panel login. Required when the panel is reachable from the internet. |
+| `OPENROUTER_API_KEY` | Posture check before sending, video watching and API transcription. |
+| `COPILOT_PROVIDER`, `ANTHROPIC_API_KEY`, `COPILOT_OPENAI_API_KEY` | The in-panel copilot (Anthropic or any OpenAI-compatible API). |
+| `TRANSCRIBE_BACKEND` | `mlx` (local, default on a Mac) or `openrouter`. |
+| `WAC_MCP_REMOTE`, `WAC_CLOUD_URL`, `WAC_CLOUD_USER`, `WAC_CLOUD_PASS` | Point the local MCP and sync at your cloud panel. |
+| `WAC_NOME_OPERADOR`, `WAC_SKILL_VOZ` | Your first name and the voice skill the AI loads before writing. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Calendar and Google sign-in. |
+| `CONTROL_TOKEN` | Bearer token for the external control API. |
+| `DATA_DIR`, `AUTH_DIR`, `LOG_LEVEL` | Where data and the session live, and log verbosity. |
 
-Ligar por chat: tela `/links` (seletor `agente: off | issue | pr`) ou `definir_modo({ grupo, agente })`
-no MCP. `issue` cria a issue e espera o `ok`; `pr` já sai marcada pro executor (etapa 2).
-Segredos do workflow: `CLAUDE_CODE_OAUTH_TOKEN` (`claude setup-token`), `AGENTE_GITHUB_TOKEN`,
-`WAC_API_TOKEN` (`node scripts/api-token.mjs criar …` na nuvem), `WAC_CLOUD_*`, `OPENROUTER_API_KEY`.
-No coletor, `AGENTE_GITHUB_TOKEN` habilita o `ok N` aplicar label e o `não N` fechar issue.
+There is also a public REST API documented in [`docs/api-v1.md`](docs/api-v1.md).
 
-### Etapa 2: executor de PR
-
-Issue com a label `claude` (aplicada pelo `ok N` do despacho, ou pela triagem em modo `pr`) dispara,
-no repositório do cliente, o workflow reutilizável `<AGENTES_REPO>/.github/workflows/agente-pr.yml`:
-o Claude implementa só o que a issue pede, roda os testes do repositório e abre um PR draft com `Closes #n`.
-Instalar num cliente: `AGENTES_REPO=<org>/<repo> scripts/agente-pr-instalar.sh owner/repo` (abre um PR com o chamador de 15 linhas).
-Secret necessário em cada repositório: `printf '%s' "$TOKEN" | scripts/agente-secrets.sh CLAUDE_CODE_OAUTH_TOKEN`.
-
-## Dashboard: contrato, entregas e sinais
-
-`/dashboard` cruza a atividade dos últimos 30 dias com o **contrato** de cada cliente (estado, início, fim,
-valor mensal — editável no painel lateral do chat ou via tool MCP `definir_contrato`) e com as **entregas**
-registradas (`registrar_feature` via MCP, ou automático: um workflow seu que rode `scripts/agente/features-de-prs.mjs` registra todo PR mergeado
-que fecha uma issue `whatsapp`). Sinais: contrato encerrado com cliente ativo, cliente ativo sem contrato,
-pausado ativo, renovação em até 30 dias, ativo sem entrega em 30 dias. A tool MCP `dashboard` devolve o
-mesmo modelo pra IA responder "quem está ativo demais pro contrato" sem abrir a tela.
-
-A tabela lista os grupos monitorados; DMs entram no dashboard quando têm contrato ou entrega registrada.
-Uma entrega com `ref` (URL do PR/issue) não duplica dentro do mesmo chat — a mesma `ref` em outro cliente
-é outra entrega.
-
-## O que sai (`data/<grupo>/`)
+## What gets stored
 
 ```
-audio/ video/ image/ document/   # mídia, nome = data_hora_remetente_tipo_id.ext
-transcripts/                     # um .txt por mídia transcrita
-messages.jsonl                   # uma linha por mensagem (o "banco" da IA)
-reactions.jsonl                  # reações (emoji) por mensagem
-log.md                           # a mesma conversa, cronológica e legível
+data/<chat>/
+  messages.jsonl     one line per message (the AI's "database")
+  reactions.jsonl    emoji reactions
+  log.md             the same conversation, human-readable
+  audio/ video/ image/ document/ transcripts/
 ```
 
-Cada linha do `messages.jsonl`:
+`data/`, `auth/`, `.env` and `groups.config.json` are git-ignored. Never commit them.
 
-```json
-{ "id": "...", "timestamp": "...", "group": "...", "groupJid": "...",
-  "sender": "...", "senderName": "...", "fromMe": false, "type": "text",
-  "text": "...", "quotedText": null, "quotedSender": null, "mediaPath": null }
-```
+## Read this before using it
 
-A camada que a IA consome (via MCP) enriquece isso com a hora local já convertida, a legenda da mídia separada do texto, o agrupamento de rajadas, e o papel de cada contato.
+- **This is not the official WhatsApp API.** WACrew links to your account as one more device, through Baileys. It is built to answer people who already talk to you. Bulk messaging and cold outreach can get your number banned.
+- **No old history.** Capture starts when you pair the number.
+- **Sending is real.** The panel and the control API send messages as you. Keep them on localhost or behind login.
+- WACrew is an independent project, not affiliated with WhatsApp or Meta.
 
-## Configuração (variáveis de ambiente, todas opcionais)
+## Contributing
 
-**Coletor:** `AUTH_DIR` (`auth`), `DATA_DIR` (`data`), `GROUPS_CONFIG` (`groups.config.json`), `LOG_LEVEL` (`info`), `BAILEYS_LOG_LEVEL` (`warn`), `CONTROL_PORT` (`4310`).
-
-**Painel / MCP / transcriber:** `WAC_DATA_DIR`, `WAC_GROUPS_CONFIG`, `WAC_WHISPER_MODEL` (`mlx-community/whisper-large-v3-mlx`), `WAC_WHISPER_LANG` (`pt`), `WAC_TRANSCRIBE_PORT` (`4320`), `WAC_TRANSCRIBE_IDLE` (`180`s).
-
-## Avisos importantes
-
-- **Não é a API oficial do WhatsApp.** Use com bom senso, sem disparo em massa, pra não tomar bloqueio no número.
-- **Sem histórico antigo.** Captura só do pareamento em diante.
-- **O envio é real.** A API de controle (`:4310`) e o painel mandam mensagem como você, então ficam presas em `127.0.0.1`. Não exponha na internet sem auth (use algo como Tailscale se for hospedar).
-- `data/`, `auth/`, `.env` e `groups.config.json` são **gitignored** (conteúdo e sessão). Nunca versione.
-
-## Contribuindo
-
-Issues e PRs são bem-vindos. Se for mexer no código:
+Issues and pull requests are welcome.
 
 ```bash
-npm test                 # roda a suíte (Vitest)
-npx tsc --noEmit         # typecheck
+npm test            # Vitest
+npx tsc --noEmit    # typecheck
 ```
 
-O Baileys fica isolado em `src/whatsapp/` (Ports & Adapters), então adicionar/trocar adaptadores não vaza pro resto. As libs compartilhadas entre painel e MCP estão em `web/lib/`.
+Shared logic between the panel and the MCP lives in `web/lib/`. See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-## Roadmap
+## License
 
-- Transcrição automática em background nos grupos prioritários.
-- Análise de vídeo frame a frame.
-- Suporte oficial a whisper.cpp pra rodar em Linux/VPS.
-
-## Licença
-
-[Apache 2.0](./LICENSE) © Rodrigo Sumioshi. Veja [NOTICE](./NOTICE) para os termos de atribuição.
+[Apache 2.0](./LICENSE) © [Rodrigo Sumioshi](https://rodrigosumioshi.com). See [NOTICE](./NOTICE).

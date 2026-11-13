@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 /** Manifest de PWA: torna o painel instalável (Dock do Mac, janela própria). */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Balcão",
-    short_name: "Balcão",
+    name: "WACrew",
+    short_name: "WACrew",
     description: "Atendimento dos clientes no WhatsApp.",
     start_url: "/",
     display: "standalone",

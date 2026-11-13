@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "@/app/components/ui";
 
-/** Contorno de foco do Balcão para links que não são botões. */
+/** Contorno de foco do WACrew para links que não são botões. */
 export const FOCO = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 /** Linha de lista dos cards (52 px, borda entre as linhas); com href, a linha é um link. */

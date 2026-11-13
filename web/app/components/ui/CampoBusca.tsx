@@ -5,7 +5,7 @@ import { cn } from "./cn";
 import { Icone } from "./Icone";
 import { Input } from "./Input";
 
-/** Campo de busca do Balcão: lupa à esquerda, dentro do campo (o `.search` do protótipo). */
+/** Campo de busca do WACrew: lupa à esquerda, dentro do campo (o `.search` do protótipo). */
 export function CampoBusca({
   valor,
   aoMudar,

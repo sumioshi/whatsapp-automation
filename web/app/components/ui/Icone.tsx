@@ -2,7 +2,7 @@ import type { ReactNode, SVGProps } from "react";
 import { cn } from "./cn";
 
 /**
- * Ícones de traço do Balcão (grade 24, traço 1,75), um só conjunto para o app inteiro. Os nomes
+ * Ícones de traço do WACrew (grade 24, traço 1,75), um só conjunto para o app inteiro. Os nomes
  * e desenhos seguem o sprite do protótipo; os que ele não tem vêm no mesmo estilo. Sempre
  * decorativos: quem precisa de nome acessível coloca o texto ao lado ou o aria-label no botão.
  */

@@ -23,7 +23,7 @@ export interface CardProps {
   children: ReactNode;
   /** Âncora da seção (navegação por seção); com título, o card passa a ser nomeado por ele. */
   id?: string;
-  /** Com título, o card usa a moldura do Balcão: cabeçalho, corpo e rodapé opcional. */
+  /** Com título, o card usa a moldura do WACrew: cabeçalho, corpo e rodapé opcional. */
   titulo?: ReactNode;
   icone?: ReactNode;
   meta?: ReactNode;
