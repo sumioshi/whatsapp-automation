@@ -15,6 +15,7 @@
     return s ? (s.id || s.tagName.toLowerCase()) : 'pagina';
   }
   document.addEventListener('click', function (e) {
+    if (!e.isTrusted) return; /* ignora cliques do cursor animado */
     var a = e.target.closest('a, button');
     if (!a) return;
     var href = a.getAttribute('href') || '';
