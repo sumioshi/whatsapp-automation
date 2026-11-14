@@ -12,6 +12,7 @@
   <a href="./LICENSE"><img alt="Licença: Apache 2.0" src="https://img.shields.io/badge/licen%C3%A7a-Apache_2.0-blue.svg"></a>
   <a href="https://nodejs.org"><img alt="Node 20+" src="https://img.shields.io/badge/node-%E2%89%A520-43853d.svg"></a>
   <a href="https://github.com/WhiskeySockets/Baileys"><img alt="Feito com Baileys" src="https://img.shields.io/badge/feito%20com-Baileys-25D366.svg"></a>
+  <a href="https://github.com/sponsors/sumioshi"><img alt="Patrocinar" src="https://img.shields.io/github/sponsors/sumioshi?label=Patrocinar&logo=githubsponsors&color=ea4aaa"></a>
   <a href="https://modelcontextprotocol.io"><img alt="Servidor MCP" src="https://img.shields.io/badge/MCP-36%20tools-6366f1.svg"></a>
 </p>
 
@@ -149,6 +150,8 @@ data/<chat>/
 - O WACrew é um projeto independente, sem vínculo com o WhatsApp ou a Meta.
 
 ## Contribuindo
+
+Se o WACrew te poupa tempo, considere [patrocinar o projeto](https://github.com/sponsors/sumioshi). É o que paga as horas que mantêm ele vivo.
 
 Issues e pull requests são bem-vindos.
 

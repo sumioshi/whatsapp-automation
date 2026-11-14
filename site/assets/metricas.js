@@ -20,6 +20,7 @@
     if (!a) return;
     var href = a.getAttribute('href') || '';
     if (/github\.com\/sumioshi\/wacrew/.test(href)) posthog.capture('clique_github', { lugar: lugar(a), destino: href });
+    else if (/github\.com\/sponsors/.test(href)) posthog.capture('clique_sponsor', { lugar: lugar(a) });
     else if (/rodrigosumioshi\.com/.test(href)) posthog.capture('clique_portfolio', { lugar: lugar(a) });
     else if (/hostinger\.com/.test(href)) posthog.capture('clique_hostinger', { lugar: lugar(a) });
     else if (/onorca\.dev/.test(href)) posthog.capture('clique_orca', { lugar: lugar(a) });
