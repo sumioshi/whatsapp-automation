@@ -97,6 +97,13 @@ docker compose up -d --build
 
 O servidor é registrado pelo `.mcp.json` (escopo do projeto). Claude Code e Qwen Code leem esse arquivo e pedem aprovação no primeiro uso.
 
+**Pelo npm, sem clonar.** Com o painel rodando numa VPS, adicione o MCP em qualquer cliente com o [`wacrew-mcp`](./packages/mcp):
+
+```bash
+claude mcp add wacrew -e WAC_CLOUD_URL=https://seu-painel.exemplo.com \
+  -e WAC_CLOUD_USER=admin -e WAC_CLOUD_PASS=troque-esta-senha -- npx -y wacrew-mcp
+```
+
 | Área | Ferramentas |
 |---|---|
 | Ler | `listar_grupos`, `ler_mensagens`, `buscar`, `listar_contatos`, `caixa_de_entrada`, `novidades`, `resumo_do_dia`, `ler_notas`, `estado_triagem` |

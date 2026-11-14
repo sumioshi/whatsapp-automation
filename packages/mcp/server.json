@@ -1,0 +1,42 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.sumioshi/wacrew",
+  "title": "WACrew",
+  "description": "WhatsApp for AI agents: read chats, transcribe voice notes and reply at a human pace.",
+  "websiteUrl": "https://wacrew.com.br",
+  "repository": {
+    "url": "https://github.com/sumioshi/wacrew",
+    "source": "github",
+    "subfolder": "packages/mcp"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "wacrew-mcp",
+      "version": "0.1.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "WAC_CLOUD_URL",
+          "description": "URL of your WACrew panel (the self-hosted collector).",
+          "isRequired": true,
+          "format": "string"
+        },
+        {
+          "name": "WAC_CLOUD_USER",
+          "description": "Panel login (PANEL_USER).",
+          "isRequired": true,
+          "format": "string"
+        },
+        {
+          "name": "WAC_CLOUD_PASS",
+          "description": "Panel password (PANEL_PASS).",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

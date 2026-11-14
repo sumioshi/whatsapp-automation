@@ -331,7 +331,7 @@ const INSTRUCTIONS = [
 const server = new McpServer(
   {
     name: "whatsapp-collector",
-    version: "0.1.0",
+    version: process.env.WACREW_MCP_VERSION ?? "0.1.0",
   },
   { instructions: INSTRUCTIONS },
 );

@@ -10,10 +10,14 @@ import { resolve } from "node:path";
 
 // Lançado pelo Claude Code, não pelo `npm run dev`: não herda o .env da raiz.
 // loadEnvFile NÃO sobrescreve o que já veio do registro do MCP.
-try {
-  process.loadEnvFile(resolve(__dirname, "../../.env"));
-} catch {
-  // Sem .env (ou Node < 20.12): segue sem nuvem, comportamento de antes.
+// No pacote npm (`wacrew-mcp`) a configuração vem só do registro do MCP: o
+// arquivo de variáveis vizinho seria o de um projeto qualquer.
+if (!process.env.WACREW_MCP_PACKAGED) {
+  try {
+    process.loadEnvFile(resolve(__dirname, "../../.env"));
+  } catch {
+    // Sem arquivo de variáveis (ou Node < 20.12): segue sem nuvem.
+  }
 }
 
 // Raiz de dados deste repositório, independente de onde a sessão foi aberta.

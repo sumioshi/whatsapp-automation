@@ -1,0 +1,23 @@
+{
+  "name": "wacrew-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for WACrew: read, search and reply to WhatsApp chats from Claude Code, Codex or Cursor, with human-paced delivery.",
+  "mcpName": "io.github.sumioshi/wacrew",
+  "license": "Apache-2.0",
+  "author": "Rodrigo Sumioshi (https://rodrigosumioshi.com)",
+  "homepage": "https://wacrew.com.br",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sumioshi/wacrew.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": "https://github.com/sumioshi/wacrew/issues",
+  "keywords": ["mcp", "model-context-protocol", "whatsapp", "claude", "claude-code", "codex", "cursor", "ai-agent", "baileys"],
+  "bin": { "wacrew-mcp": "dist/wacrew-mcp.cjs" },
+  "files": ["dist", "README.md", "LICENSE", "NOTICE"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node build.mjs",
+    "prepublishOnly": "node build.mjs"
+  }
+}
