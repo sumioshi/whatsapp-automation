@@ -26,6 +26,7 @@ Os dois precisam passar. O projeto usa [Biome](https://biomejs.dev) para formata
 - **Cuidado com dados reais.** Nunca commite número de telefone, JID, nome de cliente ou caminho pessoal, nem em teste ou exemplo. Use placeholders (`Acme Corp`, `551199999999`, `120363000000000001@g.us`).
 - **Nada de conteúdo coletado.** `data/`, `auth/`, `.env` e `groups.config.json` são gitignored. Mantenha assim.
 - **Commits pequenos e descritivos.** Um assunto por commit.
+- **Título do PR no formato `tipo(área): descrição`** (`feat`, `fix`, `docs`, `refactor`, `test`, `chore`), ex. `fix(painel): fila não some ao trocar de chat`. O merge é sempre squash: o título e a descrição do PR viram o commit na main.
 
 ## Reportando bug
 
