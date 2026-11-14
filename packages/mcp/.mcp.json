@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "wacrew": {
+      "command": "npx",
+      "args": ["-y", "wacrew-mcp"],
+      "env": {
+        "WAC_CLOUD_URL": "${env:WAC_CLOUD_URL}",
+        "WAC_CLOUD_USER": "${env:WAC_CLOUD_USER}",
+        "WAC_CLOUD_PASS": "${env:WAC_CLOUD_PASS}"
+      }
+    }
+  }
+}
