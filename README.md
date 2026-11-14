@@ -17,13 +17,15 @@
 
 <p align="center"><a href="https://wacrew.com.br">wacrew.com.br</a> · <a href="./README.pt-BR.md">Leia em português</a></p>
 
-![A client conversation in WACrew: AI replies delivered in bubbles, with the client's contract, people and notes on the side](docs/screenshots/caixa-conversa.webp)
+<p align="center"><img src="docs/screenshots/demo-auto.gif" width="551" alt="The AI drafts a reply; flipping AUTO on, it types and answers on its own"></p>
 
 ## Why
 
 If you sell or deliver work over WhatsApp, you know the scene: forty client groups, a four-minute voice note in the middle of a thread, the bug screenshot lost in the scroll, and the client who wrote three days ago that nobody saw.
 
 A chatbot does not fix that. Canned answers read like a robot, clients notice, and the relationship cools down. What you need is someone who reads everything, answers the way you would, and never lets anyone wait. WACrew is that someone, and you stay in control of every message.
+
+![A client conversation in WACrew: AI replies delivered in bubbles, with the client's contract, people and notes on the side](docs/screenshots/caixa-conversa.webp)
 
 **The engine that makes it read like a person:**
 

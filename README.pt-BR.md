@@ -17,13 +17,15 @@
 
 <p align="center"><a href="https://wacrew.com.br">wacrew.com.br</a> · <a href="./README.md">Read in English</a></p>
 
-![Conversa de cliente no WACrew: respostas da IA entregues em balões, com contrato, pessoas e notas do cliente ao lado](docs/screenshots/caixa-conversa.webp)
+<p align="center"><img src="docs/screenshots/demo-auto.gif" width="551" alt="A IA rascunha a resposta; com o AUTO ligado, ela digita e responde sozinha"></p>
 
 ## Por quê
 
 Quem vende ou entrega trabalho pelo WhatsApp conhece a cena: quarenta grupos de cliente, um áudio de quatro minutos no meio da conversa, o print do bug perdido no scroll e o cliente que mandou mensagem há três dias e ninguém viu.
 
 Chatbot não resolve. Resposta pronta tem cara de robô, o cliente sente e a relação esfria. O que falta é alguém que leia tudo, responda como você e nunca deixe ninguém esperando. O WACrew é esse alguém, e você continua no controle de cada mensagem.
+
+![Conversa de cliente no WACrew: respostas da IA entregues em balões, com contrato, pessoas e notas do cliente ao lado](docs/screenshots/caixa-conversa.webp)
 
 **O motor que faz a IA parecer gente:**
 
