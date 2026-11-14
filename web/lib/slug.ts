@@ -8,7 +8,7 @@ export function slugify(value: string): string {
     .replace(COMBINING_MARKS, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+    .replace(/^-|-$/g, "") // depois do passo anterior não sobra "--"
     .slice(0, 80);
   return slug || "sem-nome";
 }
