@@ -164,6 +164,12 @@ npx tsc --noEmit    # typecheck
 
 Shared logic between the panel and the MCP lives in `web/lib/`. See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+## Sponsors
+
+WACrew is free and open source. Sponsors keep it maintained and get their name or logo here.
+
+<a href="https://github.com/sponsors/sumioshi"><img src="https://img.shields.io/badge/Become%20the%20first%20sponsor-ea4aaa?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Become the first sponsor"></a>
+
 ## License
 
 [Apache 2.0](./LICENSE) © [Rodrigo Sumioshi](https://rodrigosumioshi.com). See [NOTICE](./NOTICE).

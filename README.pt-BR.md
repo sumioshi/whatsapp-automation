@@ -162,6 +162,12 @@ npx tsc --noEmit    # typecheck
 
 A lógica compartilhada entre o painel e o MCP fica em `web/lib/`. Veja o [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+## Patrocinadores
+
+O WACrew é gratuito e de código aberto. Quem patrocina mantém o projeto vivo e ganha nome ou logo aqui.
+
+<a href="https://github.com/sponsors/sumioshi"><img src="https://img.shields.io/badge/Seja%20o%20primeiro%20patrocinador-ea4aaa?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Seja o primeiro patrocinador"></a>
+
 ## Licença
 
 [Apache 2.0](./LICENSE) © [Rodrigo Sumioshi](https://rodrigosumioshi.com). Veja o [NOTICE](./NOTICE).
