@@ -746,21 +746,34 @@ main > section { position: relative; z-index: 1; }
 .step-tags { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .step-tags li { padding: 4px 9px; border: 1px solid var(--rule); border-radius: 999px; background: var(--canvas); font: 500 11.5px/1.3 var(--mono); color: var(--body); }
 .engine-steps > li:last-child .step-tags li { border-color: rgb(48 164 108 / .35); background: rgb(48 164 108 / .07); color: #1f7a4d; }
-.install-vps { display: grid; gap: 18px; align-items: center; padding: 22px 24px; border-top: 1px solid var(--rule); }
-@media (min-width: 900px) { .install-vps { grid-template-columns: 1fr auto; gap: 32px; } }
+.install-vps { display: grid; gap: 18px; align-items: start; padding: 22px 24px; border-top: 1px solid var(--rule); }
+@media (min-width: 900px) { .install-vps { grid-template-columns: 1fr 320px; gap: 32px; } }
 .install-vps p { margin: 0; font-size: 15.5px; line-height: 1.55; color: var(--body); }
 .install-vps .mono-label { margin-bottom: 6px; color: var(--ink); }
-.install-vps-cta { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
-.install-vps-cta small { max-width: 30ch; font-size: 12px; line-height: 1.4; color: var(--muted, #78716c); }
-.hostinger-btn { display: inline-block; border-radius: 8px; transition: transform .15s, box-shadow .15s; }
-.hostinger-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -8px rgb(103 61 230 / .55); }
-.hostinger-btn:focus-visible { outline: 2px solid #673DE6; outline-offset: 3px; }
-.hostinger-btn img { display: block; }
 .cmd-vps { margin-top: 14px; }
 .install-vps .vps-after { margin-top: 10px; font-size: 14px; color: var(--muted, #78716c); }
 .install-vps .vps-after code { font: 500 13px var(--mono); color: var(--action); }
 .install-vps .vps-hook { margin-bottom: 8px; font-size: 16.5px; color: var(--ink); }
 .install-vps .vps-hook strong { font-weight: 600; background: linear-gradient(transparent 62%, rgb(229 72 77 / .16) 62%); }
+
+/* card da VPS na Hostinger */
+.host-card { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 14px; padding: 22px; border-radius: 16px; color: #fff;
+  background: radial-gradient(120% 90% at 100% 0%, #8c6cff 0%, transparent 55%), linear-gradient(160deg, #673de6 0%, #4b23c6 100%);
+  box-shadow: 0 24px 48px -20px rgb(75 35 198 / .65), inset 0 1px 0 rgb(255 255 255 / .18); }
+.host-card::after { content: ""; position: absolute; inset: auto -40px -60px auto; width: 180px; height: 180px; border-radius: 50%; background: rgb(255 255 255 / .08); pointer-events: none; }
+.host-top { display: flex; align-items: center; gap: 10px; font: 600 13px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.host-pill { margin-left: auto; padding: 5px 9px; border-radius: 999px; background: #2fd47c; color: #0b3b22; font: 700 13px/1 var(--mono); letter-spacing: 0; }
+.install-vps .host-card .host-title { margin: 0; font: 500 19px/1.3 var(--sans); color: #fff; }
+.host-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14.5px; color: rgb(255 255 255 / .9); }
+.host-list li { display: flex; gap: 9px; align-items: flex-start; }
+.host-list li::before { content: ""; flex: none; width: 16px; height: 16px; margin-top: 2px; border-radius: 50%; background: rgb(47 212 124 / .2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.2l2.6 2.5L12 5.4' fill='none' stroke='%232fd47c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat; }
+.host-btn { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 10px; height: 50px; margin-top: 4px; border-radius: 12px; background: #fff; color: #4b23c6; font: 700 15px/1 var(--sans); text-decoration: none; box-shadow: 0 6px 16px -6px rgb(0 0 0 / .35); transition: transform .18s, box-shadow .18s; }
+.host-btn svg { transition: transform .18s; }
+.host-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 28px -10px rgb(0 0 0 / .45); }
+.host-btn:hover svg { transform: translateX(4px); }
+.host-btn:focus-visible { outline: 3px solid #2fd47c; outline-offset: 3px; }
+.host-card small { position: relative; z-index: 1; font-size: 12px; line-height: 1.4; color: rgb(255 255 255 / .7); }
+@media (prefers-reduced-motion: reduce) { .host-btn, .host-btn svg { transition: none; } }
 </style>
 <script src="/assets/metricas.js" defer></script>
 </head>
@@ -1095,10 +1108,17 @@ main > section { position: relative; z-index: 1; }
             <div class="cmd cmd-vps"><code><span class="d" aria-hidden="true">$ </span>git clone https://github.com/sumioshi/wacrew &amp;&amp; cd wacrew &amp;&amp; PANEL_USER=admin PANEL_PASS=troque-esta-senha docker compose up -d --build</code><button class="copy-btn" type="button" data-copy="git clone https://github.com/sumioshi/wacrew &amp;&amp; cd wacrew &amp;&amp; PANEL_USER=admin PANEL_PASS=troque-esta-senha docker compose up -d --build" aria-label="Copiar comando para rodar numa VPS">Copiar</button></div>
             <p class="vps-after">Depois abra <code>http://ip-do-servidor:3000/config</code> e escaneie o QR.</p>
           </div>
-          <div class="install-vps-cta">
-            <a class="hostinger-btn" href="https://www.hostinger.com/br/servidor-vps?REFERRALCODE=ORISHODIRBUH" target="_blank" rel="noopener sponsored"><img src="assets/badges/deploy-hostinger-pt.svg" width="222" height="40" alt="Implantar na Hostinger"></a>
-            <small>Link de indicação: desconto na VPS para você, comissão que ajuda a manter o projeto.</small>
-          </div>
+          <aside class="host-card" aria-label="VPS na Hostinger">
+            <div class="host-top"><svg viewBox="0 0 30 30" width="26" height="26" aria-hidden="true"><path fill="#fff" fill-rule="evenodd" d="M2.00025 14.046V0.000497794L9.08916 3.78046V10.1086L18.4735 10.1132L25.6774 14.046H2.00025ZM20.3925 8.95058V0L27.6725 3.6859V13.1797L20.3925 8.95058ZM20.3924 26.1177V19.8441L10.9358 19.8375C10.9446 19.8793 3.6123 15.8418 3.6123 15.8418L27.6725 15.9547V30L20.3924 26.1177ZM2 26.1177L2.00025 16.9393L9.08916 21.0683V29.8033L2 26.1177Z"/></svg><span>Hostinger VPS</span><span class="host-pill">-20%</span></div>
+            <p class="host-title">Seu WACrew no ar 24 horas, sem depender do seu computador.</p>
+            <ul class="host-list">
+              <li>20% de desconto pelo link do projeto</li>
+              <li>Cola o comando deste bloco e pronto</li>
+              <li>Ajuda a manter o WACrew aberto</li>
+            </ul>
+            <a class="host-btn" href="https://www.hostinger.com/br/servidor-vps?REFERRALCODE=ORISHODIRBUH" target="_blank" rel="noopener sponsored">Implantar na Hostinger<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a>
+            <small>Link de indicação: o projeto recebe uma comissão.</small>
+          </aside>
         </div>
       </div>
     </div>
