@@ -746,6 +746,16 @@ main > section { position: relative; z-index: 1; }
 .step-tags { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .step-tags li { padding: 4px 9px; border: 1px solid var(--rule); border-radius: 999px; background: var(--canvas); font: 500 11.5px/1.3 var(--mono); color: var(--body); }
 .engine-steps > li:last-child .step-tags li { border-color: rgb(48 164 108 / .35); background: rgb(48 164 108 / .07); color: #1f7a4d; }
+.install-vps { display: grid; gap: 18px; align-items: center; padding: 22px 24px; border-top: 1px solid var(--rule); }
+@media (min-width: 900px) { .install-vps { grid-template-columns: 1fr auto; gap: 32px; } }
+.install-vps p { margin: 0; font-size: 15.5px; line-height: 1.55; color: var(--body); }
+.install-vps .mono-label { margin-bottom: 6px; color: var(--ink); }
+.install-vps-cta { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.install-vps-cta small { max-width: 30ch; font-size: 12px; line-height: 1.4; color: var(--muted, #78716c); }
+.hostinger-btn { display: inline-block; border-radius: 8px; transition: transform .15s, box-shadow .15s; }
+.hostinger-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -8px rgb(103 61 230 / .55); }
+.hostinger-btn:focus-visible { outline: 2px solid #673DE6; outline-offset: 3px; }
+.hostinger-btn img { display: block; }
 </style>
 <script src="/assets/metricas.js" defer></script>
 </head>
@@ -1072,7 +1082,16 @@ main > section { position: relative; z-index: 1; }
             <div class="cmd"><p>Abra <code>localhost:3000/config</code> e escaneie o QR com o WhatsApp</p></div>
           </li>
         </ol>
-        <p class="install-note">Quer rodar 24 horas? Tem Dockerfile pronto para subir na nuvem (Railway ou o servidor que preferir).</p>
+        <div class="install-vps">
+          <div>
+            <p class="mono-label">Quer rodar 24 horas?</p>
+            <p>Numa VPS é um comando: <code>docker compose up -d --build</code>. A sessão do WhatsApp e os dados ficam num volume e sobrevivem às atualizações.</p>
+          </div>
+          <div class="install-vps-cta">
+            <a class="hostinger-btn" href="https://www.hostinger.com/br/servidor-vps?REFERRALCODE=ORISHODIRBUH" target="_blank" rel="noopener sponsored"><img src="assets/badges/deploy-hostinger-pt.svg" width="222" height="40" alt="Implantar na Hostinger"></a>
+            <small>Link de indicação: desconto na VPS para você, comissão que ajuda a manter o projeto.</small>
+          </div>
+        </div>
       </div>
     </div>
   </section>

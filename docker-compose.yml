@@ -1,0 +1,43 @@
+# WACrew numa VPS (Hostinger ou qualquer servidor com Docker).
+#
+#   cp .env.example .env      # defina ao menos PANEL_USER e PANEL_PASS
+#   docker compose up -d --build
+#
+# Painel em http://<ip-da-vps>:3000 (ponha um proxy com HTTPS na frente, como o Caddy).
+# Tudo que importa (sessão do WhatsApp, mensagens, mídia, configuração) fica no volume
+# "wacrew-data"; atualizar a imagem não perde nada.
+services:
+  wacrew:
+    build: .
+    image: wacrew:latest
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      AUTH_DIR: /data/auth
+      DATA_DIR: /data/data
+      WAC_DATA_DIR: /data/data
+      GROUPS_CONFIG: /data/groups.config.json
+      WAC_GROUPS_CONFIG: /data/groups.config.json
+      WAC_CONTROL_PORT: "4310"
+      # Fora do Apple Silicon a transcrição vai por API (precisa de OPENROUTER_API_KEY no .env).
+      TRANSCRIBE_BACKEND: ${TRANSCRIBE_BACKEND:-openrouter}
+      # Sem login o painel fica aberto para qualquer um: defina os dois no .env.
+      PANEL_USER: ${PANEL_USER:?defina PANEL_USER no .env}
+      PANEL_PASS: ${PANEL_PASS:?defina PANEL_PASS no .env}
+    ports:
+      - "${WACREW_PORT:-3000}:3000"
+    volumes:
+      - wacrew-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:3000/login"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+volumes:
+  wacrew-data:

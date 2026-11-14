@@ -77,7 +77,18 @@ npm run dev          # collector + panel + transcriber + notifier
 
 Open `http://localhost:3000/config`, scan the QR code (WhatsApp › Linked devices › Link a device), pick the groups to follow and mark who is on your team. The session is saved in `auth/` and reconnects on its own.
 
-**Run it 24/7 in the cloud.** Build the `Dockerfile` on any host (Railway works out of the box) with a volume at `/data`. Set `PANEL_USER` and `PANEL_PASS` to protect the panel with login; without them the panel is open, which is only fine on localhost.
+**Run it 24/7 on a VPS.** The repo ships a `docker-compose.yml` with a persistent volume for the WhatsApp session and data:
+
+```bash
+cp .env.example .env   # set PANEL_USER and PANEL_PASS
+docker compose up -d --build
+```
+
+[![Deploy on Hostinger](site/assets/badges/deploy-hostinger-en.svg)](https://www.hostinger.com/vps-hosting?REFERRALCODE=ORISHODIRBUH)
+
+<sub>Referral link: you get a discount on the VPS and the project earns a commission that helps keep it maintained.</sub>
+
+**Other clouds.** Build the `Dockerfile` on any host (Railway works out of the box) with a volume at `/data`. Set `PANEL_USER` and `PANEL_PASS` to protect the panel with login; without them the panel is open, which is only fine on localhost.
 
 ## MCP tools
 

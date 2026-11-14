@@ -77,7 +77,18 @@ npm run dev          # coletor + painel + transcrição + notificador
 
 Abra `http://localhost:3000/config`, escaneie o QR (WhatsApp › Aparelhos conectados › Conectar um aparelho), escolha os grupos que quer acompanhar e marque quem é da sua equipe. A sessão fica salva em `auth/` e reconecta sozinha.
 
-**Rodar 24 horas na nuvem.** Faça o build do `Dockerfile` em qualquer servidor (na Railway funciona direto) com um volume em `/data`. Defina `PANEL_USER` e `PANEL_PASS` para proteger o painel com login; sem elas o painel fica aberto, o que só serve no localhost.
+**Rodar 24 horas numa VPS.** O repositório traz um `docker-compose.yml` com volume persistente para a sessão do WhatsApp e os dados:
+
+```bash
+cp .env.example .env   # defina PANEL_USER e PANEL_PASS
+docker compose up -d --build
+```
+
+[![Implantar na Hostinger](site/assets/badges/deploy-hostinger-pt.svg)](https://www.hostinger.com/br/servidor-vps?REFERRALCODE=ORISHODIRBUH)
+
+<sub>Link de indicação: você ganha desconto na VPS e o projeto recebe uma comissão que ajuda a mantê-lo.</sub>
+
+**Outras nuvens.** Faça o build do `Dockerfile` em qualquer servidor (na Railway funciona direto) com um volume em `/data`. Defina `PANEL_USER` e `PANEL_PASS` para proteger o painel com login; sem elas o painel fica aberto, o que só serve no localhost.
 
 ## Ferramentas MCP
 
