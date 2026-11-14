@@ -46,8 +46,8 @@ responde com o resultado. Continuam sendo decisão dele, mesmo liberado:
 | `/autonomo off [<chat>...]` | desliga; sem chat, todos desta sessão |
 | `/autonomo status` | mostra o que está ligado |
 
-Conta pessoal ("no pessoal"): as mesmas tools no MCP `whatsapp-pessoal` e `PLANTAO_CLOUD=pessoal`
-no comando do Monitor, que fica separado do business.
+Segunda conta (ex.: um WhatsApp pessoal com coletor próprio): as mesmas tools no MCP dela (no exemplo,
+`whatsapp-pessoal`) e `PLANTAO_CLOUD=pessoal` no comando do Monitor, separado da conta principal.
 
 ## Ligar
 
@@ -58,16 +58,16 @@ Tudo no mesmo turno: depois que ele acaba, só mensagem nova te acorda.
    candidato, ou nenhum: `AskUserQuestion`. O `definir_modo` aceita qualquer texto e responde ok,
    então slug errado vira chave solta.
 2. **Contexto.** `ler_mensagens({grupo})` e `ler_notas({grupo})`: o que está em aberto, quem é
-   quem. Carregue agora, uma vez, a skill de voz (`voz-do-dono`) e a `comunicacao-cliente`.
+   quem. Carregue agora, uma vez, a skill de voz do operador (`voz-do-operador` preenchida (o nome vem de `WAC_SKILL_VOZ`)) e a `comunicacao-cliente`.
 3. **Chave.** `definir_modo({grupo, autonomo: true})`, e confira `modo: "autonomo"` no
    `preparar_resposta({grupo})`.
 4. **Plantão.** REQUIRED SUB-SKILL: `plantao`, passos 2 a 4, com dois ajustes:
    - captura: o chat está ligado se o nome dele (`grupos` traz slug e nome) aparece em
      `monitorados` do `listar_grupos`; só se não estiver, siga o passo 2 do plantão, buscando pelo
      nome exato;
-   - comando do Monitor: `caffeinate -i -w $$ & exec <REPO>/scripts/plantao-stream.sh <slugs>`
-     (`<REPO>` como no plantão). O Mac fica acordado enquanto o plantão roda e volta a dormir
-     quando ele para. Tampa fechada dorme mesmo assim.
+   - comando do Monitor: `<REPO>/scripts/plantao-stream.sh <slugs>` (`<REPO>` como no plantão). No
+     macOS, prefixe `caffeinate -i -w $$ & exec` para a máquina não dormir enquanto o plantão roda
+     (tampa fechada dorme mesmo assim).
 
    Um Monitor por sessão: se já existe, `TaskStop` e rearme com todos os slugs. Guarde o id do
    Monitor; ele muda a cada rearme. Nos chats em autônomo, os disparos seguem "A cada disparo"
@@ -75,8 +75,8 @@ Tudo no mesmo turno: depois que ele acaba, só mensagem nova te acorda.
 5. **Pendência.** O que ficou em aberto no passo 2 você trata agora, pela tabela abaixo. O
    operador está na sessão: conte no aviso em vez de mandar push.
 6. **Aviso ao operador**, em poucas linhas: quais chats (e os parecidos que ficaram de fora); o
-   que você responde e o que passa para ele; que vale só com esta sessão aberta e a tampa do Mac
-   aberta; que a chave não desliga sozinha (`/autonomo off`).
+   que você responde e o que passa para ele; que vale só com esta sessão aberta e a máquina
+   acordada; que a chave não desliga sozinha (`/autonomo off`).
 
 ## A cada disparo
 
@@ -146,7 +146,7 @@ Tudo no mesmo turno, nesta ordem:
    resumo.
 2. `definir_modo({grupo, autonomo: false})` em cada chat, e confira `modo: "confirmar"` no
    `preparar_resposta`.
-3. `TaskStop` no id do Monitor do último rearme; o `caffeinate` sai junto. Se o Monitor cobria
+3. `TaskStop` no id do Monitor do último rearme; o `caffeinate`, se usado, sai junto. Se o Monitor cobria
    chats que continuam, rearme só com eles.
 4. `ler_mensagens({grupo, desde})` desde que ligou, e resumo: o que entrou, o que de fato saiu
    (ticket não garante entrega) e o que ficou com o operador.
@@ -156,8 +156,8 @@ chat envia sem confirmar. Antes de encerrar, rode o off.
 
 ## Status
 
-`estado_triagem()` no business e no `whatsapp-pessoal` (cada chave do mapa `autonomo` é um chat
-ligado) e `pgrep -fl plantao-stream.sh` para ver quais slugs têm plantão rodando neste Mac. Chave
+`estado_triagem()` em cada conta (cada MCP de coletor) (cada chave do mapa `autonomo` é um chat
+ligado) e `pgrep -fl plantao-stream.sh` para ver quais slugs têm plantão rodando nesta máquina. Chave
 ligada sem plantão: avise que a próxima sessão envia sem confirmar e ofereça desligar. Com plantão
 de outra sessão: diga que pode estar respondendo agora. Não desligue sem o operador pedir.
 

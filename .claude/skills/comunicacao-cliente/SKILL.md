@@ -1,6 +1,6 @@
 ---
 name: comunicacao-cliente
-description: Use ao redigir QUALQUER mensagem para cliente, parceiro ou lead no WhatsApp, DEPOIS da skill de voz do operador (voz-do-dono / voz-do-operador). Esta é a camada de CONDUTA — como a pessoa se comporta com cliente, não como ela grafa. Cobre o que responder e o que deixar (resposta parcial, opinião própria, sem validação automática), os três modos (factual, delicado, grave), como comunicar erro e problema sem se rebaixar (propriedade uma vez em voz de fato, sujeito é o sistema, impacto em vez de intenção, desculpa só com impacto sentido), regras de relação (não expandir escopo, cliente apontando algo não é cobrança, honestidade, arquétipos) e a urgência da entrega (`urgencia` do responder). Grafia, pontuação, léxico, emoji e aberturas são da skill de voz; tells e repetição são vetados em código pelo `responder`. Não é para mensagem interna com o time.
+description: Use ao redigir QUALQUER mensagem para cliente, parceiro ou lead no WhatsApp, DEPOIS da skill de voz do operador (voz-do-operador). Esta é a camada de CONDUTA — como a pessoa se comporta com cliente, não como ela grafa. Cobre o que responder e o que deixar (resposta parcial, opinião própria, sem validação automática), os três modos (factual, delicado, grave), como comunicar erro e problema sem se rebaixar (propriedade uma vez em voz de fato, sujeito é o sistema, impacto em vez de intenção, desculpa só com impacto sentido), regras de relação (não expandir escopo, cliente apontando algo não é cobrança, honestidade, arquétipos) e a urgência da entrega (`urgencia` do responder). Grafia, pontuação, léxico, emoji e aberturas são da skill de voz; tells e repetição são vetados em código pelo `responder`. Não é para mensagem interna com o time.
 ---
 
 # Conduta com cliente (WhatsApp)
@@ -9,7 +9,7 @@ Três coisas decidem uma mensagem, nesta ordem, e cada uma mora num lugar só:
 
 | decide | mora em | cobre |
 |---|---|---|
-| **quem escreve** | skill de voz (`voz-do-dono`; molde `voz-do-operador`) | grafia, pontuação, maiúscula, abreviação, aberturas, tratamento, emoji, camada de venda |
+| **quem escreve** | skill de voz (`voz-do-operador` preenchida (o nome vem de `WAC_SKILL_VOZ`)) | grafia, pontuação, maiúscula, abreviação, aberturas, tratamento, emoji, camada de venda |
 | **como se comporta** | esta skill | o que responder, tom por situação, erro e problema, relação, urgência |
 | **como e quando sai** | código (`web/lib/estilo/`, fila de entrega) | tells, repetição, culpa, latência, visto, velocidade, typo |
 

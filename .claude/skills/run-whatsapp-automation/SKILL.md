@@ -14,7 +14,7 @@ tudo pra IA. São **5 processos**: `wa-collector` (daemon Baileys), `wa-panel`
 enviar) entram no pipeline de envio — ver seção "Regra: enviar mensagem no
 grupo" abaixo.
 
-> **Como os 3 primeiros rodam:** em **dev local** (o caso atual) é `npm run dev` na
+> **Como os 3 primeiros rodam:** em **dev local** é `npm run dev` na
 > raiz, que sobe os três via `concurrently` — **não pm2**. Em **produção** é pm2
 > (`ecosystem.config.cjs`). Os dois caminhos existem; veja "Run" abaixo. `pm2 ls`
 > vazio NÃO significa serviços fora — confirme sempre pelos smoke `curl`
@@ -24,13 +24,13 @@ grupo" abaixo.
 > **só roda em Apple Silicon** — em Linux o coletor e o painel sobem, mas o
 > transcriber não. Paths neste arquivo são relativos à raiz do repo.
 
-## Dois coletores, dois servidores MCP
+## Mais de uma conta: um MCP por coletor
 
-- **`whatsapp-collector`** = coletor PRINCIPAL (número business, clientes). É o default.
-- **`whatsapp-pessoal`** = coletor PESSOAL (2º container na Railway, WhatsApp pessoal do operador).
-  Mesmas tools, mesmo código, outro trio de acesso. Use quando o operador disser "no pessoal",
-  "meu WhatsApp pessoal", ou o chat não existir no principal. Contas diferentes → slugs diferentes;
-  `listar_grupos` em cada um. Plantão no pessoal: `PLANTAO_CLOUD=pessoal` no `plantao-stream.sh`.
+- **`whatsapp-collector`** = coletor principal. É o default.
+- Uma segunda conta (ex.: um WhatsApp pessoal) roda num coletor próprio, com um segundo MCP
+  (no exemplo, `whatsapp-pessoal`): mesmas tools, mesmo código, outro trio `WAC_*` de acesso. Use
+  quando o operador citar essa conta ou o chat não existir no principal. Contas diferentes → slugs
+  diferentes; `listar_grupos` em cada um. Plantão nela: `PLANTAO_CLOUD=pessoal` no `plantao-stream.sh`.
 
 ## ⚠️ Regra: enviar mensagem (grupo ou DM) → humanizar SEMPRE
 
@@ -38,7 +38,7 @@ Sempre que o usuário pedir para **enviar, responder ou redigir uma mensagem** n
 grupo (via `responder`, `responder_midia` com legenda, pelo painel, ou pela API de controle `:4310`):
 
 Pipeline de envio, nesta ordem: `preparar_resposta(grupo)` → skill de voz do operador
-(`voz-do-dono` nesta máquina; molde `voz-do-operador`) → `comunicacao-cliente` (conduta) →
+(`voz-do-operador` preenchida (o nome vem de `WAC_SKILL_VOZ`)) → `comunicacao-cliente` (conduta) →
 no modo `confirmar`, `revisar_texto` e mostrar ao operador o texto já revisado → `responder`
 com `candidatos` (2-3 versões) ou `baloes`. `humanizer` não entra em balão de conversa. Se a revisão recusar, reescreva seguindo `sugestoes`; não use `revisao: 'ignorar'`
 sem OK explícito do operador.
@@ -115,7 +115,7 @@ cd web && npm install && npm run build && cd ..   # painel + MCP (Next.js)
 
 ## Run
 
-**Dev local (o caso atual):** um comando na raiz sobe os três processos via `concurrently`.
+**Dev local:** um comando na raiz sobe os três processos via `concurrently`.
 
 ```bash
 npm run dev                   # roda `npm run sync` e sobe collector + panel + transcriber
@@ -160,7 +160,7 @@ node .claude/skills/run-whatsapp-automation/driver.mjs call ler_documento '{"gru
 node .claude/skills/run-whatsapp-automation/driver.mjs call ver_video '{"grupo":"meu-grupo","mediaPath":"meu-grupo/gif/<arquivo>.mp4","frames":3}'  # GIF/vídeo: amostra frames (precisa de ffmpeg)
 # responder_midia ENVIA de verdade — só após confirmar com o usuário (legenda na voz do operador, revisada como o responder):
 node .claude/skills/run-whatsapp-automation/driver.mjs call responder_midia '{"grupo":"Acme Corp","kind":"document","path":"/abs/contrato.pdf","fileName":"contrato.pdf","caption":"segue o contrato"}'
-# alertar_chat liga/desliga a notificação no Mac de um chat; novidades puxa o que chegou (ver seção abaixo):
+# alertar_chat liga/desliga a notificação de tela de um chat; novidades puxa o que chegou (ver seção abaixo):
 node .claude/skills/run-whatsapp-automation/driver.mjs call alertar_chat '{"grupo":"dm-<id>","ativar":true}'
 node .claude/skills/run-whatsapp-automation/driver.mjs call novidades '{}'
 ```
@@ -193,7 +193,7 @@ Três coisas distintas — não confunda (é onde os agentes mais se perdem):
 - **Alerta / wake-on-message** (`alertar` no `.triage.json`): opt-in por conversa pra **ser
   avisado quando chega mensagem de cliente**. Liga com `alertar_chat {grupo, ativar}` (ou no
   painel). Um processo `wa-notifier` (separado) observa os chats marcados e dispara uma
-  **notificação no Mac** quando o cliente escreve. Ao ser avisado, chame `novidades` pra puxar
+  **notificação de tela** (macOS) quando o cliente escreve. Ao ser avisado, chame `novidades` pra puxar
   o que chegou desde a última vez (avança um checkpoint próprio; `marcar:false` só espia).
 - **Triagem**: `marcar_resolvido` / `silenciar_grupo` / `anotar` / `ler_notas` /
   `estado_triagem` — tudo por slug, vale pra DM também.
@@ -249,19 +249,19 @@ de caçar o caminho certo.
 `cd web && npm run dev` sobe só o painel em :3000 (útil pra mexer no front sem o coletor).
 O `npm run dev` da raiz sobe os três juntos (ver "Run").
 
-## Sync nuvem→Mac (opcional)
+## Sync nuvem→local (opcional)
 
-Quando o coletor roda 24/7 na nuvem (captura mesmo com o Mac desligado), o Mac puxa
+Quando o coletor roda 24/7 na nuvem (captura mesmo com a máquina local desligada), a máquina local puxa
 o que perdeu no período off via `WAC_CLOUD_URL`/`WAC_CLOUD_USER`/`WAC_CLOUD_PASS` no
 `.env` (URL do painel na nuvem + Basic Auth). Com isso:
 - `npm run dev` roda `npm run sync` **antes** de subir o coletor local (janela
   segura) — merge por `id` do `messages.jsonl` (+ sidecars) da nuvem no `data/`
   local, sem perder o que o coletor local já gravou. `npm run sync` roda o pull à mão.
 - **Mídia sob demanda:** ao transcrever/ver uma mídia que só chegou na nuvem durante
-  o off (`ensureLocalMedia`), o Mac baixa o arquivo e cacheia. Sem `WAC_CLOUD_URL`,
+  o off (`ensureLocalMedia`), a máquina local baixa o arquivo e cacheia. Sem `WAC_CLOUD_URL`,
   tudo se comporta como antes (sync e fallback desligados).
 - O coletor local segue rodando (redundância); a nuvem é o backup que preenche gaps.
-- **Escopo** (`WAC_SYNC_SCOPE`): `local` (default) só sincroniza grupos que o Mac já tem; `all` traz tudo (a nuvem costuma ter dez vezes mais grupos/DMs da history sync do que os acompanhados). Paralelismo via `WAC_SYNC_CONCURRENCY` (default 8). O texto vai **gzipado** (o `tailscale serve` userspace trava com payloads >~1.5MB).
+- **Escopo** (`WAC_SYNC_SCOPE`): `local` (default) só sincroniza grupos que a máquina local já tem; `all` traz tudo (a nuvem costuma ter dez vezes mais grupos/DMs da history sync do que os acompanhados). Paralelismo via `WAC_SYNC_CONCURRENCY` (default 8). O texto vai **gzipado** (o `tailscale serve` userspace trava com payloads >~1.5MB).
 
 ## Gotchas (cicatrizes)
 
