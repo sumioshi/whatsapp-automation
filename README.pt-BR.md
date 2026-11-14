@@ -77,7 +77,7 @@ npm run dev          # coletor + painel + transcrição + notificador
 
 Abra `http://localhost:3000/config`, escaneie o QR (WhatsApp › Aparelhos conectados › Conectar um aparelho), escolha os grupos que quer acompanhar e marque quem é da sua equipe. A sessão fica salva em `auth/` e reconecta sozinha.
 
-**Rodar 24 horas numa VPS.** O repositório traz um `docker-compose.yml` com volume persistente para a sessão do WhatsApp e os dados:
+**Rodar 24 horas numa VPS.** O WACrew só guarda o que chega enquanto está ligado: com o computador desligado, as mensagens desse período não entram no histórico nem na fila. O repositório traz um `docker-compose.yml` com volume persistente para a sessão do WhatsApp e os dados:
 
 ```bash
 cp .env.example .env   # defina PANEL_USER e PANEL_PASS

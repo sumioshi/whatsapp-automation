@@ -77,7 +77,7 @@ npm run dev          # collector + panel + transcriber + notifier
 
 Open `http://localhost:3000/config`, scan the QR code (WhatsApp › Linked devices › Link a device), pick the groups to follow and mark who is on your team. The session is saved in `auth/` and reconnects on its own.
 
-**Run it 24/7 on a VPS.** The repo ships a `docker-compose.yml` with a persistent volume for the WhatsApp session and data:
+**Run it 24/7 on a VPS.** WACrew only records what arrives while it is running: if your computer is off, messages from that period never reach the history or the queue. The repo ships a `docker-compose.yml` with a persistent volume for the WhatsApp session and data:
 
 ```bash
 cp .env.example .env   # set PANEL_USER and PANEL_PASS
