@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "wacrew",
+  "version": "0.1.0",
+  "description": "Self-hosted WhatsApp AI automation: read and search chats, transcribe voice notes and reply at a human pace.",
+  "author": { "name": "Rodrigo Sumioshi", "url": "https://rodrigosumioshi.com" },
+  "homepage": "https://wacrew.com.br",
+  "repository": "https://github.com/sumioshi/wacrew",
+  "license": "Apache-2.0",
+  "keywords": ["whatsapp", "mcp", "crm", "customer-support", "messaging", "self-hosted"]
+}
